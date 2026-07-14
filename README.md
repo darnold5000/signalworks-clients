@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Signal Works Client Portal
 
-## Getting Started
+Branded client + admin dashboard for Signal Works managed websites.
 
-First, run the development server:
+**Deploy target:** `clients.hiresignalworks.com`
+
+## What V1 includes
+
+**Client**
+- Secure login (Supabase Auth) or local demo mode
+- Overview: website status, plan, next billing date
+- Manage Billing → Stripe Customer Portal session
+- Request an update + request history
+- Documents + support contact
+
+**Admin**
+- Client list with MRR, past-due count
+- Client detail: Stripe status, domain/hosting, infra cost, margin, notes, requests
+
+**Integrations**
+- Supabase Auth + Postgres + RLS
+- Stripe portal + webhooks (subscription + invoice events)
+
+Billing UX stays in Stripe. This app stores only Stripe IDs.
+
+## Quick start (demo UI)
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000/login](http://localhost:3000/login) → **Demo as client** or **Demo as admin**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+No Supabase/Stripe env vars required for UI review.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Production setup
 
-## Learn More
+1. Create a dedicated Supabase project.
+2. Run `supabase/migrations/001_initial.sql`, then optionally `supabase/seed.sql`.
+3. Create Auth users; set `profiles.role = 'admin'` for you; link clients via `client_members`.
+4. Configure Stripe Customer Portal in the Stripe Dashboard (branding, cancellation rules).
+5. Copy `.env.example` → `.env.local` and fill values.
+6. Point Stripe webhook to `https://clients.hiresignalworks.com/api/stripe/webhook`.
+7. Deploy to Vercel; attach custom domain `clients.hiresignalworks.com`.
 
-To learn more about Next.js, take a look at the following resources:
+## Docs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [docs/V1-PLAN.md](docs/V1-PLAN.md) for the product/architecture plan.
