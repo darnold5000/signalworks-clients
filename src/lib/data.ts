@@ -6,6 +6,7 @@ import {
 } from "@/lib/demo-data";
 import { getCurrentProfile } from "@/lib/auth";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { SW_TABLES } from "@/lib/supabase/tables";
 import type { Client, Document, ServiceRequest } from "@/lib/types";
 
 export const getAccessibleClients = cache(async (): Promise<Client[]> => {
@@ -21,14 +22,14 @@ export const getAccessibleClients = cache(async (): Promise<Client[]> => {
 
   if (profile.role === "admin") {
     const { data } = await supabase
-      .from("clients")
+      .from(SW_TABLES.clients)
       .select("*")
       .order("business_name");
     return (data as Client[]) ?? [];
   }
 
   const { data: memberships } = await supabase
-    .from("client_members")
+    .from(SW_TABLES.clientMembers)
     .select("client_id")
     .eq("profile_id", profile.id);
 
@@ -36,7 +37,7 @@ export const getAccessibleClients = cache(async (): Promise<Client[]> => {
   if (ids.length === 0) return [];
 
   const { data } = await supabase
-    .from("clients")
+    .from(SW_TABLES.clients)
     .select("*")
     .in("id", ids)
     .order("business_name");
@@ -67,7 +68,7 @@ export async function getRequestsForClient(
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from("service_requests")
+    .from(SW_TABLES.serviceRequests)
     .select("*")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
@@ -84,7 +85,7 @@ export async function getDocumentsForClient(
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from("documents")
+    .from(SW_TABLES.documents)
     .select("*")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });

@@ -1,8 +1,7 @@
--- Demo seed for local / staging. Replace auth user IDs after creating real users.
+-- Demo seed for Signal Works portal on shared Dugout Intel (sw_* tables).
+-- Create Auth users in the Dashboard first, then link via sw_client_members.
 
--- Example clients only (no auth.users inserts — create those in Supabase Auth UI).
-
-insert into public.clients (
+insert into public.sw_clients (
   id,
   slug,
   business_name,
@@ -59,11 +58,11 @@ insert into public.clients (
   now() - interval '3 days',
   now() - interval '1 day',
   '412 visits last 30 days · top page: Services',
-  'cus_demo_bloom',
-  'sub_demo_bloom',
-  'price_demo_launch',
-  'active',
-  '2026-08-14'::timestamptz,
+  null,
+  null,
+  null,
+  'none',
+  null,
   420,
   'hello@hiresignalworks.com',
   'Founding salon client. Prefers text updates over calls.'
@@ -92,17 +91,18 @@ insert into public.clients (
   now() - interval '7 days',
   now() - interval '2 days',
   '1.2k visits last 30 days · top page: Schedule',
-  'cus_demo_zl',
-  'sub_demo_zl',
-  'price_demo_founding',
-  'active',
-  '2026-08-01'::timestamptz,
+  null,
+  null,
+  null,
+  'none',
+  null,
   420,
   'hello@hiresignalworks.com',
   'Introductory rate through July 2027.'
-);
+)
+on conflict (id) do nothing;
 
-insert into public.service_requests (
+insert into public.sw_service_requests (
   client_id,
   request_type,
   title,
@@ -135,7 +135,7 @@ insert into public.service_requests (
   now() - interval '1 day'
 );
 
-insert into public.documents (client_id, title, description, file_url) values
+insert into public.sw_documents (client_id, title, description, file_url) values
 (
   'a1000000-0000-4000-8000-000000000001',
   'Website & Support Agreement',

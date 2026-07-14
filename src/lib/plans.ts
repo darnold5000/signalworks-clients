@@ -63,3 +63,30 @@ export function getPlanKeyFromPriceId(priceId: string): PlanKey | null {
   }
   return null;
 }
+
+/** Match a client's plan_name (or stripe price) to a catalog plan. */
+export function resolvePlanForClient(input: {
+  plan_name?: string | null;
+  stripe_price_id?: string | null;
+}): PlanConfig | null {
+  if (input.stripe_price_id) {
+    const fromPrice = getPlanKeyFromPriceId(input.stripe_price_id);
+    if (fromPrice) return getPlan(fromPrice) ?? null;
+  }
+
+  const name = (input.plan_name ?? "").trim().toLowerCase();
+  if (!name) return null;
+
+  const aliases: Record<string, PlanKey> = {
+    "personal brand": "personal-brand",
+    "launch website": "launch-website",
+    launch: "launch-website",
+    "growth website": "growth-website",
+    growth: "growth-website",
+    "founding client": "founding-client",
+    founding: "founding-client",
+  };
+
+  const key = aliases[name] ?? PLANS.find((p) => p.name.toLowerCase() === name)?.key;
+  return key ? (getPlan(key) ?? null) : null;
+}

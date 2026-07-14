@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PageHeader, Panel } from "@/components/ui";
 import { getStripe } from "@/lib/stripe";
+import { syncClientFromCheckoutSession } from "@/lib/stripe-sync";
 
 export default async function BillingSuccessPage({
   searchParams,
@@ -11,20 +13,30 @@ export default async function BillingSuccessPage({
   const stripe = getStripe();
 
   let planLabel: string | null = null;
+  let synced = false;
+
   if (stripe && sessionId) {
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       planLabel = session.metadata?.plan_key ?? null;
+      if (session.payment_status === "paid" || session.status === "complete") {
+        await syncClientFromCheckoutSession(session);
+        synced = true;
+      }
     } catch {
       // Session lookup is best-effort for the confirmation UI
     }
+  }
+
+  if (synced) {
+    redirect("/billing");
   }
 
   return (
     <>
       <PageHeader
         title="You're subscribed"
-        description="Stripe confirmed your payment. Your plan will sync to this portal shortly."
+        description="Stripe confirmed your payment."
       />
       <Panel>
         <p className="text-sm text-muted">
@@ -33,7 +45,7 @@ export default async function BillingSuccessPage({
             : "Checkout completed successfully."}
         </p>
         <p className="mt-4 text-sm text-muted">
-          You can manage your card and invoices anytime from Billing.
+          If Billing still looks empty, refresh once — sync can take a moment.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link

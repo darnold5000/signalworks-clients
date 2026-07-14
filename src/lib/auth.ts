@@ -5,6 +5,7 @@ import {
   DEMO_CLIENT_USER,
 } from "@/lib/demo-data";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { SW_TABLES } from "@/lib/supabase/tables";
 import type { Profile } from "@/lib/types";
 
 export type DemoMode = "client" | "admin";
@@ -28,7 +29,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   if (!user) return null;
 
   const { data } = await supabase
-    .from("profiles")
+    .from(SW_TABLES.profiles)
     .select("*")
     .eq("id", user.id)
     .eq("active", true)

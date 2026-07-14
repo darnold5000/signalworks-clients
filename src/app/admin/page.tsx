@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InviteClientForm } from "@/components/invite-client-form";
 import { PageHeader, Panel, StatusPill } from "@/components/ui";
 import { computeMrrCents, getAccessibleClients } from "@/lib/data";
 import { formatMoney, monthlyMarginCents } from "@/lib/utils";
@@ -36,6 +37,10 @@ export default async function AdminHomePage() {
           <p className="mt-2 font-display text-3xl">{pastDue}</p>
         </Panel>
       </div>
+
+      <Panel title="Invite a client" className="mb-6">
+        <InviteClientForm />
+      </Panel>
 
       <Panel title="All clients">
         <div className="overflow-x-auto">

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth";
 import { DEMO_REQUESTS } from "@/lib/demo-data";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { SW_TABLES } from "@/lib/supabase/tables";
 import type { RequestType, ServiceRequest } from "@/lib/types";
 
 const bodySchema = z.object({
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("service_requests")
+    .from(SW_TABLES.serviceRequests)
     .insert({
       client_id: clientId,
       created_by: profile.id,

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import Stripe from "stripe";
 import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth";
 import { getClientById } from "@/lib/data";
-import { getPriceIdForPlan, PLAN_KEYS } from "@/lib/plans";
+import { getPriceIdForPlan, PLAN_KEYS, resolvePlanForClient } from "@/lib/plans";
 import { siteConfig } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
@@ -39,6 +40,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
+  // Clients may only check out for their assigned plan. Admins can start any plan.
+  if (profile.role !== "admin") {
+    const assigned = resolvePlanForClient({
+      plan_name: client.plan_name,
+      stripe_price_id: client.stripe_price_id,
+    });
+    if (!assigned || assigned.key !== parsed.data.planKey) {
+      return NextResponse.json(
+        { error: "That plan is not assigned to this account." },
+        { status: 403 },
+      );
+    }
+  }
+
   const priceId = getPriceIdForPlan(parsed.data.planKey);
   if (!priceId) {
     return NextResponse.json(
@@ -58,26 +73,47 @@ export async function POST(request: Request) {
     ? client.stripe_customer_id
     : undefined;
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    automatic_tax: { enabled: true },
-    customer: existingCustomer,
-    customer_email: existingCustomer ? undefined : profile.email || undefined,
-    client_reference_id: client.id,
-    metadata: {
-      client_id: client.id,
-      plan_key: parsed.data.planKey,
-    },
-    subscription_data: {
+  const isAdmin = profile.role === "admin";
+  const successUrl = isAdmin
+    ? `${siteConfig.url}/admin/clients/${client.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
+    : `${siteConfig.url}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = isAdmin
+    ? `${siteConfig.url}/admin/clients/${client.id}`
+    : `${siteConfig.url}/billing`;
+
+  // Tax requires a head office address in Stripe Tax settings.
+  // Enable with STRIPE_AUTOMATIC_TAX=true after configuring:
+  // https://dashboard.stripe.com/test/settings/tax
+  const taxEnabled = process.env.STRIPE_AUTOMATIC_TAX === "true";
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      ...(taxEnabled ? { automatic_tax: { enabled: true } } : {}),
+      customer: existingCustomer,
+      customer_email: existingCustomer ? undefined : profile.email || undefined,
+      client_reference_id: client.id,
       metadata: {
         client_id: client.id,
         plan_key: parsed.data.planKey,
       },
-    },
-    success_url: `${siteConfig.url}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${siteConfig.url}/billing`,
-  });
+      subscription_data: {
+        metadata: {
+          client_id: client.id,
+          plan_key: parsed.data.planKey,
+        },
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
 
-  return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    const message =
+      err instanceof Stripe.errors.StripeError
+        ? err.message
+        : "Could not create Checkout session";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

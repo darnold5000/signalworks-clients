@@ -2,7 +2,8 @@ import { ManageBillingButton } from "@/components/manage-billing-button";
 import { StartCheckoutButton } from "@/components/start-checkout-button";
 import { MetaRow, PageHeader, Panel, StatusPill } from "@/components/ui";
 import { getPrimaryClient } from "@/lib/data";
-import { PLANS } from "@/lib/plans";
+import { resolvePlanForClient } from "@/lib/plans";
+import { siteConfig } from "@/lib/site";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
@@ -15,6 +16,11 @@ export default async function BillingPage() {
     (client.subscription_status === "active" ||
       client.subscription_status === "trialing" ||
       Boolean(client.stripe_subscription_id));
+
+  const assignedPlan = resolvePlanForClient({
+    plan_name: client.plan_name,
+    stripe_price_id: client.stripe_price_id,
+  });
 
   return (
     <>
@@ -63,36 +69,45 @@ export default async function BillingPage() {
           </p>
         ) : (
           <p className="mt-6 text-sm text-muted">
-            No active Stripe subscription linked yet. Start one below to open
-            Stripe Checkout (test mode).
+            Your plan is set by Signal Works. When you&apos;re ready, start
+            billing for that plan below — or email{" "}
+            <a
+              className="underline underline-offset-2"
+              href={`mailto:${client.support_email ?? siteConfig.supportEmail}`}
+            >
+              {client.support_email ?? siteConfig.supportEmail}
+            </a>{" "}
+            if something looks wrong.
           </p>
         )}
       </Panel>
 
-      {!hasSubscription ? (
-        <Panel title="Start a subscription" className="mt-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.key}
-                className="rounded-lg border border-border p-4"
-              >
-                <p className="font-medium">{plan.name}</p>
-                <p className="mt-1 text-sm text-muted">{plan.description}</p>
-                <p className="mt-3 text-sm font-medium">
-                  {formatMoney(plan.monthlyPriceCents)}/month
-                </p>
-                <div className="mt-4">
-                  <StartCheckoutButton
-                    clientId={client.id}
-                    planKey={plan.key}
-                    planName={plan.name}
-                    monthlyPriceCents={plan.monthlyPriceCents}
-                  />
-                </div>
-              </div>
-            ))}
+      {!hasSubscription && assignedPlan ? (
+        <Panel title="Start billing" className="mt-6">
+          <div className="rounded-lg border border-border p-4">
+            <p className="font-medium">{assignedPlan.name}</p>
+            <p className="mt-1 text-sm text-muted">{assignedPlan.description}</p>
+            <p className="mt-3 text-sm font-medium">
+              {formatMoney(assignedPlan.monthlyPriceCents)}/month
+            </p>
+            <div className="mt-4">
+              <StartCheckoutButton
+                clientId={client.id}
+                planKey={assignedPlan.key}
+                planName={assignedPlan.name}
+                monthlyPriceCents={assignedPlan.monthlyPriceCents}
+              />
+            </div>
           </div>
+        </Panel>
+      ) : null}
+
+      {!hasSubscription && !assignedPlan ? (
+        <Panel title="Billing not ready" className="mt-6">
+          <p className="text-sm text-muted">
+            No plan is assigned to this account yet. Signal Works will set your
+            plan and send login details when your site is ready for billing.
+          </p>
         </Panel>
       ) : null}
     </>
