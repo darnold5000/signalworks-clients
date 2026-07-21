@@ -66,6 +66,12 @@ export function inviteRedirectUrl(appUrl: string): string {
   return `${base}/auth/callback?next=${encodeURIComponent("/auth/accept-invite")}`;
 }
 
+/** Where Supabase should send users after they click a password recovery link. */
+export function recoveryRedirectUrl(appUrl: string): string {
+  const base = appUrl.replace(/\/$/, "");
+  return `${base}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`;
+}
+
 /** Force the correct redirect_to on Supabase verify links embedded in email. */
 export function ensureInviteActionLink(
   actionLink: string,

@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui";
+import { getAuthTokensRedirectUrl } from "@/lib/auth/hash-session";
 import { isClientAuthDebugEnabled } from "@/lib/auth-debug";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { siteConfig } from "@/lib/site";
@@ -17,12 +18,21 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackError = searchParams.get("error") === "auth_callback";
+  const passwordReset = searchParams.get("reset") === "1";
+  const [redirecting, setRedirecting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const demo = !isSupabaseConfigured();
+
+  useEffect(() => {
+    const target = getAuthTokensRedirectUrl();
+    if (!target) return;
+    setRedirecting(true);
+    window.location.replace(target);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,6 +91,14 @@ export function LoginForm() {
     router.push(mode === "admin" ? "/admin" : "/overview");
   }
 
+  if (redirecting) {
+    return (
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-sm">
+        <p className="text-sm text-muted">Continuing from your email link…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-sm">
       <p className="font-display text-3xl text-foreground">{siteConfig.name}</p>
@@ -111,6 +129,11 @@ export function LoginForm() {
         </div>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {passwordReset ? (
+            <p className="text-sm text-muted">
+              Your password was updated. Sign in with your new password.
+            </p>
+          ) : null}
           {callbackError ? (
             <p className="text-sm text-danger">
               That sign-in link expired or was invalid. Sign in below, or ask

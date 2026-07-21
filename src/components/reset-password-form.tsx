@@ -8,12 +8,10 @@ import { establishSessionFromAuthLink } from "@/lib/auth/hash-session";
 import { siteConfig } from "@/lib/site";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
-const inviteLinkErrorMessage =
-  "This invitation link is invalid or has expired. Invite links work once — if you already opened it on another device, ask Signal Works to resend. On mobile, open the link in Safari or Chrome (not the in-app email browser).";
+const resetLinkErrorMessage =
+  "This password reset link is invalid or has expired. Request a new one from Signal Works or try again later.";
 
-export function AcceptInviteForm() {
-  const [email, setEmail] = useState<string | null>(null);
-  const [fullName, setFullName] = useState("");
+export function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,34 +26,24 @@ export function AcceptInviteForm() {
     async function establishSession() {
       if (!isSupabaseConfigured()) {
         if (!cancelled) {
-          setSessionError("Invitations are not configured.");
+          setSessionError("Password reset is not configured.");
         }
-        return;
-      }
-
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("error") === "invite_link") {
-        if (!cancelled) setSessionError(inviteLinkErrorMessage);
         return;
       }
 
       const supabase = createClient();
       const result = await establishSessionFromAuthLink(
         supabase,
-        "/auth/accept-invite",
+        "/auth/reset-password",
       );
 
       if (cancelled) return;
 
       if (!result.ok) {
-        setSessionError(inviteLinkErrorMessage);
+        setSessionError(resetLinkErrorMessage);
         return;
       }
 
-      setEmail(result.email);
-      if (result.fullName) {
-        setFullName(result.fullName);
-      }
       setReady(true);
     }
 
@@ -80,27 +68,20 @@ export function AcceptInviteForm() {
 
     setPending(true);
     try {
-      const res = await fetch("/api/auth/accept-invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, fullName }),
+      const supabase = createClient();
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        redirectTo?: string;
-      };
-
-      if (!res.ok) {
-        setError(data.error ?? "Unable to activate account");
+      if (updateError) {
+        setError(updateError.message);
         setPending(false);
         return;
       }
 
-      window.location.assign(data.redirectTo ?? "/overview");
+      await supabase.auth.signOut({ scope: "local" });
+      window.location.assign("/login?reset=1");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to activate account",
-      );
+      setError(err instanceof Error ? err.message : "Unable to update password");
       setPending(false);
     }
   }
@@ -108,9 +89,12 @@ export function AcceptInviteForm() {
   if (sessionError) {
     return (
       <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-8 shadow-sm">
-        <h1 className="font-display text-2xl">Invitation expired</h1>
+        <h1 className="font-display text-2xl">Reset link expired</h1>
         <p className="text-sm text-muted">{sessionError}</p>
-        <Link href="/login" className="text-sm font-medium underline underline-offset-2">
+        <Link
+          href="/login"
+          className="text-sm font-medium underline underline-offset-2"
+        >
           Back to sign in
         </Link>
       </div>
@@ -120,7 +104,7 @@ export function AcceptInviteForm() {
   if (!ready) {
     return (
       <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 shadow-sm">
-        <p className="text-sm text-muted">Loading your invitation…</p>
+        <p className="text-sm text-muted">Validating your reset link…</p>
       </div>
     );
   }
@@ -128,30 +112,20 @@ export function AcceptInviteForm() {
   return (
     <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-surface p-8 shadow-sm">
       <div>
-        <h1 className="font-display text-2xl">Set up your account</h1>
+        <h1 className="font-display text-2xl">Set a new password</h1>
         <p className="mt-1 text-sm text-muted">
-          Welcome to {siteConfig.name} {siteConfig.productName}
-          {email ? ` — ${email}` : ""}
+          Choose a new password for your {siteConfig.name} account.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Your name</span>
-          <input
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-          />
-        </label>
-
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Password</span>
+          <span className="text-sm font-medium">New password</span>
           <div className="relative">
             <input
               required
               type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-md border border-border bg-background px-3 py-2.5 pr-10 text-sm"
@@ -162,7 +136,11 @@ export function AcceptInviteForm() {
               className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted hover:text-foreground"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
         </label>
@@ -172,6 +150,7 @@ export function AcceptInviteForm() {
           <input
             required
             type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
@@ -181,7 +160,7 @@ export function AcceptInviteForm() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
         <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Activating…" : "Activate account"}
+          {pending ? "Saving…" : "Save password"}
         </Button>
       </form>
     </div>
