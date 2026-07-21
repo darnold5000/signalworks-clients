@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import { getClientById } from "@/lib/data";
 import { getPriceIdForPlan, PLAN_KEYS, resolvePlanForClient } from "@/lib/plans";
-import { siteConfig } from "@/lib/site";
+import { resolveAppUrl } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
 const bodySchema = z.object({
@@ -74,12 +74,14 @@ export async function POST(request: Request) {
     ? client.stripe_customer_id
     : undefined;
 
+  const appUrl = resolveAppUrl(request);
+
   const successUrl = isAdmin
-    ? `${siteConfig.url}/admin/clients/${client.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
-    : `${siteConfig.url}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    ? `${appUrl}/admin/clients/${client.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
+    : `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = isAdmin
-    ? `${siteConfig.url}/admin/clients/${client.id}`
-    : `${siteConfig.url}/billing`;
+    ? `${appUrl}/admin/clients/${client.id}`
+    : `${appUrl}/billing`;
 
   // Tax requires a head office address in Stripe Tax settings.
   // Enable with STRIPE_AUTOMATIC_TAX=true after configuring:

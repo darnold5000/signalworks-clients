@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth";
 import { getClientById } from "@/lib/data";
-import { siteConfig } from "@/lib/site";
+import { resolveAppUrl } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
 const bodySchema = z.object({
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   const session = await stripe.billingPortal.sessions.create({
     customer: client.stripe_customer_id,
-    return_url: `${siteConfig.url}/billing`,
+    return_url: `${resolveAppUrl(request)}/billing`,
   });
 
   return NextResponse.json({ url: session.url });

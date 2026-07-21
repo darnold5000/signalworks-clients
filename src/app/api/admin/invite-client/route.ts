@@ -7,7 +7,7 @@ import {
   isResendConfigured,
   sendClientInviteEmail,
 } from "@/lib/email/client-invite-email";
-import { siteConfig } from "@/lib/site";
+import { resolveAppUrl, siteConfig } from "@/lib/site";
 import {
   createServiceClient,
   isServiceRoleConfigured,
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const redirectTo = `${siteConfig.url}/login`;
+  const redirectTo = `${resolveAppUrl(request)}/login`;
   const displayName = fullName || businessName;
 
   const { data: linkData, error: linkError } =

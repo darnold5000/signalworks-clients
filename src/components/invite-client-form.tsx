@@ -84,7 +84,6 @@ export function InviteClientForm() {
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-          placeholder="Bloom Studio Salon"
         />
       </label>
 
@@ -94,7 +93,6 @@ export function InviteClientForm() {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-          placeholder="Jane Owner"
         />
       </label>
 
@@ -106,7 +104,6 @@ export function InviteClientForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-          placeholder="owner@client.com"
         />
       </label>
 
@@ -134,7 +131,6 @@ export function InviteClientForm() {
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-            placeholder="client.com"
           />
         </label>
         <label className="block space-y-1.5">
@@ -143,7 +139,6 @@ export function InviteClientForm() {
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-            placeholder="client.com or https://client.com"
           />
         </label>
       </div>

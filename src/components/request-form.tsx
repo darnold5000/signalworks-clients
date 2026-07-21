@@ -71,7 +71,6 @@ export function RequestForm({ clientId }: { clientId: string }) {
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Update Saturday hours"
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
         />
       </label>
@@ -82,7 +81,6 @@ export function RequestForm({ clientId }: { clientId: string }) {
           rows={4}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe the change clearly…"
           className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
         />
       </label>
