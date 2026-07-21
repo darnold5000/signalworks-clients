@@ -45,7 +45,9 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const owner = await getTenantOwnerInviteTarget(supabase, parsed.data.tenantId);
+  const owner = await getTenantOwnerInviteTarget(supabase, parsed.data.tenantId, {
+    checkSignIn: supabase,
+  });
 
   if (!owner) {
     return NextResponse.json(

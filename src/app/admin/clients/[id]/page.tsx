@@ -24,6 +24,7 @@ import {
   monthlyMarginCents,
 } from "@/lib/utils";
 import {
+  createClient,
   createServiceClient,
   isServiceRoleConfigured,
   isSupabaseConfigured,
@@ -46,18 +47,21 @@ export default async function AdminClientDetailPage({
   const lastRequest = requests[0];
 
   let ownerEmail: string | null = null;
-  let canResendInvite = false;
-  if (
-    isSupabaseConfigured() &&
-    isServiceRoleConfigured() &&
-    (await isPlatformAdmin())
-  ) {
-    const owner = await getTenantOwnerInviteTarget(
-      createServiceClient(),
-      client.id,
-    );
+  let ownerHasSignedIn = false;
+  let ownerFound = false;
+  const showPortalAccess =
+    isSupabaseConfigured() && (await isPlatformAdmin());
+
+  if (showPortalAccess) {
+    const supabase = await createClient();
+    const owner = await getTenantOwnerInviteTarget(supabase, client.id, {
+      checkSignIn: isServiceRoleConfigured()
+        ? createServiceClient()
+        : undefined,
+    });
+    ownerFound = Boolean(owner);
     ownerEmail = owner?.email ?? null;
-    canResendInvite = Boolean(owner && !owner.hasSignedIn);
+    ownerHasSignedIn = owner?.hasSignedIn ?? false;
   }
 
   return (
@@ -154,12 +158,25 @@ export default async function AdminClientDetailPage({
           </dl>
         </Panel>
 
-        {canResendInvite ? (
+        {showPortalAccess ? (
           <Panel title="Portal access" className="lg:col-span-2">
-            <ResendInviteButton
-              tenantId={client.id}
-              ownerEmail={ownerEmail}
-            />
+            {!ownerFound ? (
+              <p className="text-sm text-muted">
+                No portal owner is linked to this client yet. Use{" "}
+                <strong>Invite client</strong> on the admin home page, or check
+                tenant membership in Supabase.
+              </p>
+            ) : ownerHasSignedIn ? (
+              <p className="text-sm text-muted">
+                {ownerEmail} has signed in to the portal. Use Supabase password
+                recovery if they need a new password.
+              </p>
+            ) : (
+              <ResendInviteButton
+                tenantId={client.id}
+                ownerEmail={ownerEmail}
+              />
+            )}
           </Panel>
         ) : null}
 

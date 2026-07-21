@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isResendConfigured,
   sendClientInviteEmail,
@@ -13,6 +14,7 @@ import type { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
+type DbClient = SupabaseClient | ServiceClient;
 
 export type TenantOwnerInviteTarget = {
   userId: string;
@@ -23,8 +25,9 @@ export type TenantOwnerInviteTarget = {
 };
 
 export async function getTenantOwnerInviteTarget(
-  supabase: ServiceClient,
+  supabase: DbClient,
   tenantId: string,
+  options?: { checkSignIn?: ServiceClient },
 ): Promise<TenantOwnerInviteTarget | null> {
   const { data: tenant } = await supabase
     .from(TABLES.tenants)
@@ -61,14 +64,20 @@ export async function getTenantOwnerInviteTarget(
 
   if (!profile?.email) return null;
 
-  const { data: authUser } = await supabase.auth.admin.getUserById(profile.id);
+  let hasSignedIn = false;
+  if (options?.checkSignIn) {
+    const { data: authUser } = await options.checkSignIn.auth.admin.getUserById(
+      profile.id,
+    );
+    hasSignedIn = Boolean(authUser.user?.last_sign_in_at);
+  }
 
   return {
     userId: profile.id,
     email: profile.email.trim().toLowerCase(),
     fullName: profile.full_name?.trim() || tenant.display_name,
     businessName: tenant.display_name,
-    hasSignedIn: Boolean(authUser.user?.last_sign_in_at),
+    hasSignedIn,
   };
 }
 
