@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { supabaseAuthClientOptions } from "@/lib/supabase/auth-options";
 
 function safeNextPath(nextRaw: string | null): string {
   if (nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")) {
@@ -9,11 +10,8 @@ function safeNextPath(nextRaw: string | null): string {
 }
 
 /**
- * Exchanges the Auth code (or token_hash) from invite emails, then redirects
- * to /auth/accept-invite to set a password.
- *
- * Invite emails must use redirectTo:
- *   `${APP_URL}/auth/callback?next=/auth/accept-invite`
+ * Exchanges PKCE `code` or `token_hash` from invite / recovery emails, sets
+ * session cookies, then redirects to the next path (usually accept-invite).
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -29,6 +27,7 @@ export async function GET(request: NextRequest) {
     const redirectUrl = new URL(next, origin);
     const response = NextResponse.redirect(redirectUrl);
     const supabase = createServerClient(url, anonKey, {
+      ...supabaseAuthClientOptions,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -40,6 +39,9 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    // Replace any existing session (e.g. admin) with the invited user.
+    await supabase.auth.signOut();
 
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -59,26 +61,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (url && anonKey) {
-    const supabase = createServerClient(url, anonKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {
-          // read-only probe
-        },
-      },
-    });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      return NextResponse.redirect(new URL(next, origin));
-    }
-  }
-
-  const fallback = new URL("/login", origin);
-  fallback.searchParams.set("error", "auth_callback");
+  const fallback = new URL("/auth/accept-invite", origin);
+  fallback.searchParams.set("error", "invite_link");
   return NextResponse.redirect(fallback);
 }

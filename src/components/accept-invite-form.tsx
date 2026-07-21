@@ -7,6 +7,21 @@ import { Button } from "@/components/ui";
 import { siteConfig } from "@/lib/site";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
+function readHashSession():
+  | { access_token: string; refresh_token: string }
+  | null {
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+  if (!access_token || !refresh_token) return null;
+  return { access_token, refresh_token };
+}
+
+const inviteLinkErrorMessage =
+  "This invitation link is invalid or has expired. Invite links work once — if you already opened it on another device, ask Signal Works to resend. On mobile, open the link in Safari or Chrome (not the in-app email browser).";
+
 export function AcceptInviteForm() {
   const [email, setEmail] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
@@ -29,7 +44,36 @@ export function AcceptInviteForm() {
         return;
       }
 
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "invite_link") {
+        if (!cancelled) setSessionError(inviteLinkErrorMessage);
+        return;
+      }
+
       const supabase = createClient();
+      const hashSession = readHashSession();
+      const code = params.get("code");
+
+      // Fallback when Supabase returns hash tokens (desktop) instead of PKCE code.
+      if (hashSession) {
+        await supabase.auth.signOut({ scope: "local" });
+        const { error: hashError } = await supabase.auth.setSession(hashSession);
+        window.history.replaceState({}, "", "/auth/accept-invite");
+        if (hashError) {
+          if (!cancelled) setSessionError(inviteLinkErrorMessage);
+          return;
+        }
+      } else if (code) {
+        await supabase.auth.signOut({ scope: "local" });
+        const { error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(code);
+        window.history.replaceState({}, "", "/auth/accept-invite");
+        if (exchangeError) {
+          if (!cancelled) setSessionError(inviteLinkErrorMessage);
+          return;
+        }
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -37,9 +81,7 @@ export function AcceptInviteForm() {
       if (cancelled) return;
 
       if (!session?.user) {
-        setSessionError(
-          "This invitation link is invalid or has expired. Ask Signal Works to resend your invite.",
-        );
+        setSessionError(inviteLinkErrorMessage);
         return;
       }
 
