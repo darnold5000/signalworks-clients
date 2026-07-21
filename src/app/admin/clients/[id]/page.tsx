@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ResendInviteButton } from "@/components/resend-invite-button";
 import {
   MetaRow,
   PageHeader,
   Panel,
   StatusPill,
 } from "@/components/ui";
+import { getTenantOwnerInviteTarget } from "@/lib/admin/client-invite-link";
+import { isPlatformAdmin } from "@/lib/auth";
 import {
   getClientById,
   getRequestsForClient,
@@ -20,6 +23,11 @@ import {
   formatMoney,
   monthlyMarginCents,
 } from "@/lib/utils";
+import {
+  createServiceClient,
+  isServiceRoleConfigured,
+  isSupabaseConfigured,
+} from "@/lib/supabase/server";
 
 export default async function AdminClientDetailPage({
   params,
@@ -36,6 +44,21 @@ export default async function AdminClientDetailPage({
     client.estimated_infra_cost_cents,
   );
   const lastRequest = requests[0];
+
+  let ownerEmail: string | null = null;
+  let canResendInvite = false;
+  if (
+    isSupabaseConfigured() &&
+    isServiceRoleConfigured() &&
+    (await isPlatformAdmin())
+  ) {
+    const owner = await getTenantOwnerInviteTarget(
+      createServiceClient(),
+      client.id,
+    );
+    ownerEmail = owner?.email ?? null;
+    canResendInvite = Boolean(owner && !owner.hasSignedIn);
+  }
 
   return (
     <>
@@ -130,6 +153,15 @@ export default async function AdminClientDetailPage({
             <MetaRow label="Monthly margin" value={formatMoney(margin)} />
           </dl>
         </Panel>
+
+        {canResendInvite ? (
+          <Panel title="Portal access" className="lg:col-span-2">
+            <ResendInviteButton
+              tenantId={client.id}
+              ownerEmail={ownerEmail}
+            />
+          </Panel>
+        ) : null}
 
         <Panel title="Notes" className="lg:col-span-2">
           <p className="text-sm whitespace-pre-wrap text-muted">
