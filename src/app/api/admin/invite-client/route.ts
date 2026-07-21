@@ -7,7 +7,12 @@ import {
   isResendConfigured,
   sendClientInviteEmail,
 } from "@/lib/email/client-invite-email";
-import { resolveAppUrl, siteConfig } from "@/lib/site";
+import {
+  ensureInviteActionLink,
+  inviteRedirectUrl,
+  portalUrlForInvites,
+  siteConfig,
+} from "@/lib/site";
 import {
   createServiceClient,
   isServiceRoleConfigured,
@@ -161,7 +166,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const redirectTo = `${resolveAppUrl(request)}/login`;
+  const redirectTo = inviteRedirectUrl(portalUrlForInvites());
   const displayName = fullName || businessName;
 
   const { data: linkData, error: linkError } =
@@ -190,7 +195,10 @@ export async function POST(request: Request) {
   }
 
   const userId = linkData.user.id;
-  const inviteLink = linkData.properties?.action_link ?? null;
+  const inviteLink = ensureInviteActionLink(
+    linkData.properties?.action_link ?? "",
+    redirectTo,
+  );
 
   if (!inviteLink) {
     await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);

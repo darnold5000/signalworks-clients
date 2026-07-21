@@ -61,9 +61,15 @@ Client onboarding uses **Invite client** in admin (creates a `tenants` row + `te
 ## Production setup
 
 1. Set shared multi-tenant Supabase env vars in Vercel.
-2. Configure Stripe Customer Portal (branding, cancellation rules).
-3. Point Stripe webhook to `https://clients.hiresignalworks.com/api/stripe/webhook`.
-4. Deploy to Vercel; attach custom domain `clients.hiresignalworks.com`.
+2. **Vercel env:** `NEXT_PUBLIC_APP_URL=https://clients.hiresignalworks.com`
+3. **Supabase → Authentication → URL configuration:**
+   - **Site URL:** `https://clients.hiresignalworks.com`
+   - **Redirect URLs:** `https://clients.hiresignalworks.com/**` and `http://localhost:3000/**` (local dev)
+4. Configure Stripe Customer Portal (branding, cancellation rules).
+5. Point Stripe webhook to `https://clients.hiresignalworks.com/api/stripe/webhook`.
+6. Deploy to Vercel; attach custom domain `clients.hiresignalworks.com`.
+
+If Site URL is still `http://localhost:3000`, invite links redirect to localhost even from production.
 
 ## Passwords & security
 
@@ -81,6 +87,8 @@ The portal is **not** a public signup. New customers do not self-register and pi
 3. Client receives a **Signal Works** invite email (via Resend) and sets their password.
 
 Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env.local`. Verify `hiresignalworks.com` in Resend so mail sends as `Signal Works <hello@hiresignalworks.com>`. Without Resend, the admin UI shows a copy-paste invite link instead of sending Supabase’s default auth email.
+
+**Invite links always use `https://clients.hiresignalworks.com`** (or a non-localhost `NEXT_PUBLIC_APP_URL`), even when you invite from local dev — so clients never receive `localhost` redirects.
 
 Optional later: Stripe Payment Link for the Price, then attach `cus_` / `sub_` to the tenant subscription row.
 

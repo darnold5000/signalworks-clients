@@ -10,6 +10,7 @@ export const config = {
     "/",
     "/login",
     "/no-access",
+    "/auth/:path*",
     "/overview/:path*",
     "/requests/:path*",
     "/billing/:path*",

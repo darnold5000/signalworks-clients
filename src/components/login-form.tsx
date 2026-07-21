@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -15,6 +15,8 @@ function clientAuthDebug(scope: string, detail?: Record<string, unknown>) {
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackError = searchParams.get("error") === "auth_callback";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -109,6 +111,12 @@ export function LoginForm() {
         </div>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {callbackError ? (
+            <p className="text-sm text-danger">
+              That sign-in link expired or was invalid. Sign in below, or ask
+              Signal Works to resend your invite.
+            </p>
+          ) : null}
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Email</span>
             <input

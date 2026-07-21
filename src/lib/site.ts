@@ -7,7 +7,26 @@ function isLocalHost(host: string): boolean {
   );
 }
 
-/** App origin for redirects (invites, Stripe). Prefers the live request host on Vercel. */
+function hostFromUrl(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
+
+export const productionPortalUrl = "https://clients.hiresignalworks.com";
+
+/** Production portal origin for client invite links — never localhost. */
+export function portalUrlForInvites(): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+  if (configured && !isLocalAppUrl(configured)) {
+    return configured;
+  }
+  return productionPortalUrl;
+}
+
+/** App origin for Stripe return URLs (may be localhost in local dev). */
 export function resolveAppUrl(request?: Request): string {
   if (request) {
     const forwardedHost = request.headers.get("x-forwarded-host");
@@ -23,9 +42,46 @@ export function resolveAppUrl(request?: Request): string {
   }
 
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
+  if (configured) {
+    const normalized = configured.replace(/\/$/, "");
+    const configuredHost = hostFromUrl(normalized);
+    if (
+      process.env.VERCEL_ENV === "production" &&
+      configuredHost &&
+      isLocalHost(configuredHost)
+    ) {
+      // Misconfigured Vercel env — fall through to error in invite route.
+    } else {
+      return normalized;
+    }
+  }
 
   return "http://localhost:3000";
+}
+
+/** Where Supabase should send users after they click an invite link. */
+export function inviteRedirectUrl(appUrl: string): string {
+  const base = appUrl.replace(/\/$/, "");
+  return `${base}/auth/callback?next=${encodeURIComponent("/auth/accept-invite")}`;
+}
+
+/** Force the correct redirect_to on Supabase verify links embedded in email. */
+export function ensureInviteActionLink(
+  actionLink: string,
+  redirectTo: string,
+): string {
+  try {
+    const url = new URL(actionLink);
+    url.searchParams.set("redirect_to", redirectTo);
+    return url.toString();
+  } catch {
+    return actionLink;
+  }
+}
+
+export function isLocalAppUrl(appUrl: string): boolean {
+  const host = hostFromUrl(appUrl);
+  return host ? isLocalHost(host) : true;
 }
 
 export const siteConfig = {

@@ -81,6 +81,7 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     pathname === "/login" ||
     pathname === "/no-access" ||
+    pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/");
 
   // Only gate protected app routes. Do not bounce /login <-> / when the app
