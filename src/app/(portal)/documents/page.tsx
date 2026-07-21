@@ -2,11 +2,11 @@ import { PageHeader, Panel } from "@/components/ui";
 import { getDocumentsForClient, getPrimaryClient } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import { ExternalLink } from "lucide-react";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 export default async function DocumentsPage() {
   const client = await getPrimaryClient();
-  if (!client) redirect("/login");
+  if (!client) notFound();
   const docs = await getDocumentsForClient(client.id);
 
   return (

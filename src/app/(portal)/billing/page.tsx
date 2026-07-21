@@ -5,11 +5,11 @@ import { getPrimaryClient } from "@/lib/data";
 import { resolvePlanForClient } from "@/lib/plans";
 import { siteConfig } from "@/lib/site";
 import { formatDate, formatMoney } from "@/lib/utils";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 export default async function BillingPage() {
   const client = await getPrimaryClient();
-  if (!client) redirect("/login");
+  if (!client) notFound();
 
   const hasSubscription =
     !client.stripe_subscription_id?.includes("_demo_") &&

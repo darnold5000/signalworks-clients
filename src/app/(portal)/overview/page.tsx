@@ -19,7 +19,7 @@ function websiteTone(status: string) {
 
 export default async function OverviewPage() {
   const client = await getPrimaryClient();
-  if (!client) return null;
+  if (!client) notFound();
 
   const updatesLeft = Math.max(
     0,

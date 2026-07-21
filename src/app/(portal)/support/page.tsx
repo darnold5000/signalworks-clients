@@ -1,11 +1,11 @@
 import { PageHeader, Panel } from "@/components/ui";
 import { getPrimaryClient } from "@/lib/data";
 import { siteConfig } from "@/lib/site";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 export default async function SupportPage() {
   const client = await getPrimaryClient();
-  if (!client) redirect("/login");
+  if (!client) notFound();
   const email = client.support_email ?? siteConfig.supportEmail;
 
   return (

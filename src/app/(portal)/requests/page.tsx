@@ -10,7 +10,7 @@ import {
   REQUEST_TYPE_LABELS,
 } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 function statusTone(status: string) {
   if (status === "completed") return "success" as const;
@@ -21,7 +21,7 @@ function statusTone(status: string) {
 
 export default async function RequestsPage() {
   const client = await getPrimaryClient();
-  if (!client) redirect("/login");
+  if (!client) notFound();
   const requests = await getRequestsForClient(client.id);
 
   return (
