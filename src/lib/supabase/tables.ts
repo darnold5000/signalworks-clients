@@ -1,11 +1,14 @@
-/**
- * Signal Works portal tables in the shared Dugout Intel Supabase project.
- * Prefixed to avoid collisions with dawg_*, ch_*, and other apps.
- */
-export const SW_TABLES = {
-  profiles: "sw_profiles",
-  clients: "sw_clients",
-  clientMembers: "sw_client_members",
-  serviceRequests: "sw_service_requests",
-  documents: "sw_documents",
+/** Shared multi-tenant platform + client portal tables (ADR 0001–0003). */
+export const TABLES = {
+  profiles: "profiles",
+  tenants: "tenants",
+  tenantMemberships: "tenant_memberships",
+  roles: "roles",
+  tenantPortalSettings: "tenant_portal_settings",
+  tenantSubscriptions: "tenant_subscriptions",
+  serviceRequests: "service_requests",
+  documents: "documents",
 } as const;
+
+/** @deprecated Use TABLES */
+export const SW_TABLES = TABLES;

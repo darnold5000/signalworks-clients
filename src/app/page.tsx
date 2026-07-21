@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getCurrentProfile } from "@/lib/auth";
+import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
+import { getPrimaryClient } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 
 export default async function HomePage() {
@@ -10,5 +11,11 @@ export default async function HomePage() {
   }
 
   if (!profile) redirect("/login");
-  redirect(profile.role === "admin" ? "/admin" : "/overview");
+
+  if (await isPlatformAdmin()) redirect("/admin");
+
+  const client = await getPrimaryClient();
+  if (!client) redirect("/no-access");
+
+  redirect("/overview");
 }

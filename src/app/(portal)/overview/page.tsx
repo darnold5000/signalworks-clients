@@ -9,7 +9,7 @@ import { ManageBillingButton } from "@/components/manage-billing-button";
 import { getPrimaryClient } from "@/lib/data";
 import { siteConfig } from "@/lib/site";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 function websiteTone(status: string) {
   if (status === "live") return "success" as const;
@@ -19,7 +19,7 @@ function websiteTone(status: string) {
 
 export default async function OverviewPage() {
   const client = await getPrimaryClient();
-  if (!client) redirect("/login");
+  if (!client) return null;
 
   const updatesLeft = Math.max(
     0,

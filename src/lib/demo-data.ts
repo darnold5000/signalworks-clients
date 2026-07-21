@@ -100,7 +100,7 @@ export const DEMO_CLIENTS: Client[] = [
 export const DEMO_REQUESTS: ServiceRequest[] = [
   {
     id: "r1",
-    client_id: DEMO_CLIENTS[0].id,
+    tenant_id: DEMO_CLIENTS[0].id,
     created_by: DEMO_CLIENT_USER.id,
     request_type: "hours_update",
     title: "Update Saturday hours",
@@ -113,7 +113,7 @@ export const DEMO_REQUESTS: ServiceRequest[] = [
   },
   {
     id: "r2",
-    client_id: DEMO_CLIENTS[0].id,
+    tenant_id: DEMO_CLIENTS[0].id,
     created_by: DEMO_CLIENT_USER.id,
     request_type: "new_service",
     title: "Add balayage package",
@@ -127,7 +127,7 @@ export const DEMO_REQUESTS: ServiceRequest[] = [
   },
   {
     id: "r3",
-    client_id: DEMO_CLIENTS[1].id,
+    tenant_id: DEMO_CLIENTS[1].id,
     created_by: null,
     request_type: "scheduling_update",
     title: "Schedule update",
@@ -144,7 +144,7 @@ export const DEMO_REQUESTS: ServiceRequest[] = [
 export const DEMO_DOCUMENTS: Document[] = [
   {
     id: "d1",
-    client_id: DEMO_CLIENTS[0].id,
+    tenant_id: DEMO_CLIENTS[0].id,
     title: "Website & Support Agreement",
     description: "Signed service agreement",
     file_url: "https://hiresignalworks.com",
@@ -152,7 +152,7 @@ export const DEMO_DOCUMENTS: Document[] = [
   },
   {
     id: "d2",
-    client_id: DEMO_CLIENTS[1].id,
+    tenant_id: DEMO_CLIENTS[1].id,
     title: "Founding Client Agreement",
     description: "Introductory pricing terms",
     file_url: "https://hiresignalworks.com",

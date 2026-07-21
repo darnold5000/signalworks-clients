@@ -3,11 +3,11 @@ import { z } from "zod";
 import { getCurrentProfile } from "@/lib/auth";
 import { DEMO_REQUESTS } from "@/lib/demo-data";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
-import { SW_TABLES } from "@/lib/supabase/tables";
+import { TABLES } from "@/lib/supabase/tables";
 import type { RequestType, ServiceRequest } from "@/lib/types";
 
 const bodySchema = z.object({
-  clientId: z.string().uuid(),
+  tenantId: z.string().uuid(),
   requestType: z.enum([
     "text_change",
     "new_photo",
@@ -36,12 +36,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { clientId, requestType, title, description } = parsed.data;
+  const { tenantId, requestType, title, description } = parsed.data;
 
   if (!isSupabaseConfigured()) {
     const demo: ServiceRequest = {
       id: `demo-${Date.now()}`,
-      client_id: clientId,
+      tenant_id: tenantId,
       created_by: profile.id,
       request_type: requestType as RequestType,
       title,
@@ -58,9 +58,9 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from(SW_TABLES.serviceRequests)
+    .from(TABLES.serviceRequests)
     .insert({
-      client_id: clientId,
+      tenant_id: tenantId,
       created_by: profile.id,
       request_type: requestType,
       title,

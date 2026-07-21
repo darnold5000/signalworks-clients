@@ -40,12 +40,14 @@ export type Profile = {
   id: string;
   email: string;
   full_name: string | null;
-  role: UserRole;
   active: boolean;
   created_at: string;
   updated_at: string;
+  /** Present in demo mode only. */
+  role?: UserRole;
 };
 
+/** Tenant portal view (tenants + portal settings + subscription mirror). */
 export type Client = {
   id: string;
   slug: string;
@@ -86,7 +88,7 @@ export type Client = {
 
 export type ServiceRequest = {
   id: string;
-  client_id: string;
+  tenant_id: string;
   created_by: string | null;
   request_type: RequestType;
   title: string;
@@ -100,7 +102,7 @@ export type ServiceRequest = {
 
 export type Document = {
   id: string;
-  client_id: string;
+  tenant_id: string;
   title: string;
   description: string | null;
   file_url: string;

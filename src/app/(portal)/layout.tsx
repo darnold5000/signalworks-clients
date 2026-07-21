@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { requireUser } from "@/lib/auth";
+import { isPlatformAdmin, requireUser } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 
 export default async function PortalLayout({
@@ -9,15 +9,16 @@ export default async function PortalLayout({
   children: React.ReactNode;
 }) {
   const profile = await requireUser();
-  if (profile.role === "admin") redirect("/admin");
+  if (await isPlatformAdmin()) redirect("/admin");
 
   const client = await getPrimaryClient();
+  if (!client) redirect("/no-access");
 
   return (
     <AppShell
       isAdmin={false}
       userEmail={profile.email}
-      businessName={client?.business_name}
+      businessName={client.business_name}
     >
       {children}
     </AppShell>

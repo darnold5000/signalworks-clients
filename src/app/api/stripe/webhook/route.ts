@@ -4,10 +4,9 @@ import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import {
   syncClientFromCheckoutSession,
   syncClientFromSubscription,
+  syncTenantBillingStatus,
 } from "@/lib/stripe-sync";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
-import { SW_TABLES } from "@/lib/supabase/tables";
-import { createServiceClient } from "@/lib/supabase/server";
 
 function customerId(customer: string | Stripe.Customer | Stripe.DeletedCustomer) {
   return typeof customer === "string" ? customer : customer.id;
@@ -63,22 +62,22 @@ export async function POST(request: Request) {
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       if (isSupabaseConfigured() && invoice.customer) {
-        const supabase = createServiceClient();
-        await supabase
-          .from(SW_TABLES.clients)
-          .update({ subscription_status: "past_due", status: "past_due" })
-          .eq("stripe_customer_id", customerId(invoice.customer));
+        await syncTenantBillingStatus(
+          customerId(invoice.customer),
+          "past_due",
+          "past_due",
+        );
       }
       break;
     }
     case "invoice.paid": {
       const invoice = event.data.object as Stripe.Invoice;
       if (isSupabaseConfigured() && invoice.customer) {
-        const supabase = createServiceClient();
-        await supabase
-          .from(SW_TABLES.clients)
-          .update({ subscription_status: "active", status: "active" })
-          .eq("stripe_customer_id", customerId(invoice.customer));
+        await syncTenantBillingStatus(
+          customerId(invoice.customer),
+          "active",
+          "active",
+        );
       }
       break;
     }

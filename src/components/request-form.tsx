@@ -29,7 +29,7 @@ export function RequestForm({ clientId }: { clientId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientId,
+          tenantId: clientId,
           requestType,
           title,
           description,

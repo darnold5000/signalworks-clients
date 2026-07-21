@@ -1,11 +1,27 @@
--- Demo seed for Signal Works portal on shared Dugout Intel (sw_* tables).
--- Create Auth users in the Dashboard first, then link via sw_client_members.
+-- Demo seed for Signal Works client portal (shared multi-tenant DB).
+-- Run after platform foundation + client portal migrations.
+-- Create Auth users in the Dashboard, then link via tenant_memberships.
 
-insert into public.sw_clients (
-  id,
-  slug,
-  business_name,
-  status,
+insert into public.tenants (id, slug, display_name, status, platform_category)
+values
+  (
+    'a1000000-0000-4000-8000-000000000001',
+    'bloom-studio-salon',
+    'Bloom Studio Salon',
+    'active',
+    'services'
+  ),
+  (
+    'a1000000-0000-4000-8000-000000000002',
+    'zero-limits-baseball',
+    'Zero Limits Baseball',
+    'active',
+    'services'
+  )
+on conflict (id) do nothing;
+
+insert into public.tenant_portal_settings (
+  tenant_id,
   website_status,
   website_url,
   domain,
@@ -25,20 +41,12 @@ insert into public.sw_clients (
   last_deployment_at,
   last_backup_at,
   analytics_summary,
-  stripe_customer_id,
-  stripe_subscription_id,
-  stripe_price_id,
-  subscription_status,
-  current_period_end,
   estimated_infra_cost_cents,
   support_email,
   notes
 ) values
 (
   'a1000000-0000-4000-8000-000000000001',
-  'bloom-studio-salon',
-  'Bloom Studio Salon',
-  'active',
   'live',
   'https://bloomhairstudiosalon.com',
   'bloomhairstudiosalon.com',
@@ -58,20 +66,12 @@ insert into public.sw_clients (
   now() - interval '3 days',
   now() - interval '1 day',
   '412 visits last 30 days · top page: Services',
-  null,
-  null,
-  null,
-  'none',
-  null,
   420,
   'hello@hiresignalworks.com',
   'Founding salon client. Prefers text updates over calls.'
 ),
 (
   'a1000000-0000-4000-8000-000000000002',
-  'zero-limits-baseball',
-  'Zero Limits Baseball',
-  'active',
   'live',
   'https://zerolimitsbaseball.com',
   'zerolimitsbaseball.com',
@@ -91,19 +91,20 @@ insert into public.sw_clients (
   now() - interval '7 days',
   now() - interval '2 days',
   '1.2k visits last 30 days · top page: Schedule',
-  null,
-  null,
-  null,
-  'none',
-  null,
   420,
   'hello@hiresignalworks.com',
   'Introductory rate through July 2027.'
 )
-on conflict (id) do nothing;
+on conflict (tenant_id) do nothing;
 
-insert into public.sw_service_requests (
-  client_id,
+insert into public.tenant_subscriptions (tenant_id, subscription_status)
+values
+  ('a1000000-0000-4000-8000-000000000001', 'none'),
+  ('a1000000-0000-4000-8000-000000000002', 'none')
+on conflict (tenant_id) do nothing;
+
+insert into public.service_requests (
+  tenant_id,
   request_type,
   title,
   description,
@@ -135,7 +136,7 @@ insert into public.sw_service_requests (
   now() - interval '1 day'
 );
 
-insert into public.sw_documents (client_id, title, description, file_url) values
+insert into public.documents (tenant_id, title, description, file_url) values
 (
   'a1000000-0000-4000-8000-000000000001',
   'Website & Support Agreement',

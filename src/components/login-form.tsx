@@ -3,11 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { isClientAuthDebugEnabled } from "@/lib/auth-debug";
 import {
   createClient,
   isSupabaseConfigured,
 } from "@/lib/supabase/client";
 import { siteConfig } from "@/lib/site";
+
+function clientAuthDebug(scope: string, detail?: Record<string, unknown>) {
+  if (!isClientAuthDebugEnabled()) return;
+  console.info(`[auth:${scope}]`, detail ?? {});
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -25,22 +31,44 @@ export function LoginForm() {
     try {
       if (demo) {
         document.cookie = "sw_demo_mode=client; path=/; max-age=86400";
-        router.push("/overview");
         router.refresh();
+        router.push("/overview");
         return;
       }
 
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { data, error: signInError } = await supabase.auth.signInWithPassword(
+        {
+          email,
+          password,
+        },
+      );
+
+      clientAuthDebug("login", {
+        loginResultUserId: data.user?.id ?? null,
+        error: signInError?.message ?? null,
       });
+
       if (signInError) {
         setError(signInError.message);
         return;
       }
-      router.push("/");
+
+      if (!data.user) {
+        setError("Sign-in succeeded but no user was returned.");
+        return;
+      }
+
+      clientAuthDebug("login-cookies", {
+        cookieNames: document.cookie
+          .split(";")
+          .map((part) => part.trim().split("=")[0])
+          .filter(Boolean),
+      });
+
+      // Refresh RSC cache, then hard-navigate so the server receives auth cookies.
       router.refresh();
+      window.location.assign("/");
     } finally {
       setLoading(false);
     }
@@ -48,8 +76,8 @@ export function LoginForm() {
 
   function enterDemo(mode: "client" | "admin") {
     document.cookie = `sw_demo_mode=${mode}; path=/; max-age=86400`;
-    router.push(mode === "admin" ? "/admin" : "/overview");
     router.refresh();
+    router.push(mode === "admin" ? "/admin" : "/overview");
   }
 
   return (

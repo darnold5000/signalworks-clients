@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentProfile } from "@/lib/auth";
+import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import { getPlan, PLAN_KEYS } from "@/lib/plans";
+import { ROLE_SLUGS } from "@/lib/permissions";
 import { siteConfig } from "@/lib/site";
 import {
   createServiceClient,
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
-import { SW_TABLES } from "@/lib/supabase/tables";
+import { TABLES } from "@/lib/supabase/tables";
 
 const bodySchema = z.object({
   businessName: z.string().min(2).max(120),
@@ -27,8 +28,8 @@ function slugify(value: string) {
 }
 
 export async function POST(request: Request) {
-  const admin = await getCurrentProfile();
-  if (!admin || admin.role !== "admin") {
+  const profile = await getCurrentProfile();
+  if (!profile || !(await isPlatformAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
   let slug = baseSlug;
   for (let i = 0; i < 5; i++) {
     const { data: existing } = await supabase
-      .from(SW_TABLES.clients)
+      .from(TABLES.tenants)
       .select("id")
       .eq("slug", slug)
       .maybeSingle();
@@ -67,28 +68,56 @@ export async function POST(request: Request) {
     slug = `${baseSlug}-${i + 2}`;
   }
 
-  const { data: client, error: clientError } = await supabase
-    .from(SW_TABLES.clients)
+  const { data: tenant, error: tenantError } = await supabase
+    .from(TABLES.tenants)
     .insert({
       slug,
-      business_name: businessName,
+      display_name: businessName,
       status: "onboarding",
-      website_status: "building",
-      website_url: websiteUrl || null,
-      domain: domain || null,
-      plan_name: plan.name,
-      monthly_price_cents: plan.monthlyPriceCents,
-      stripe_price_id: process.env[plan.envVar] || null,
-      subscription_status: "none",
-      support_email: siteConfig.supportEmail,
-      contract_start_on: new Date().toISOString().slice(0, 10),
+      platform_category: "services",
     })
     .select("*")
     .single();
 
-  if (clientError || !client) {
+  if (tenantError || !tenant) {
     return NextResponse.json(
-      { error: clientError?.message ?? "Could not create client" },
+      { error: tenantError?.message ?? "Could not create tenant" },
+      { status: 400 },
+    );
+  }
+
+  const { error: settingsError } = await supabase
+    .from(TABLES.tenantPortalSettings)
+    .insert({
+      tenant_id: tenant.id,
+      website_url: websiteUrl || null,
+      domain: domain || null,
+      plan_name: plan.name,
+      monthly_price_cents: plan.monthlyPriceCents,
+      support_email: siteConfig.supportEmail,
+      contract_start_on: new Date().toISOString().slice(0, 10),
+    });
+
+  if (settingsError) {
+    await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
+    return NextResponse.json(
+      { error: settingsError.message },
+      { status: 400 },
+    );
+  }
+
+  const { error: subscriptionError } = await supabase
+    .from(TABLES.tenantSubscriptions)
+    .insert({
+      tenant_id: tenant.id,
+      stripe_price_id: process.env[plan.envVar] || null,
+      subscription_status: "none",
+    });
+
+  if (subscriptionError) {
+    await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
+    return NextResponse.json(
+      { error: subscriptionError.message },
       { status: 400 },
     );
   }
@@ -96,13 +125,11 @@ export async function POST(request: Request) {
   const redirectTo = `${siteConfig.url}/login`;
   const displayName = fullName || businessName;
 
-  // Prefer invite email — client sets their own password. We never store/see it.
   const { data: invited, error: inviteError } =
     await supabase.auth.admin.inviteUserByEmail(email, {
       data: {
         full_name: displayName,
-        role: "client",
-        client_id: client.id,
+        tenant_id: tenant.id,
       },
       redirectTo,
     });
@@ -119,15 +146,14 @@ export async function POST(request: Request) {
         options: {
           data: {
             full_name: displayName,
-            role: "client",
-            client_id: client.id,
+            tenant_id: tenant.id,
           },
           redirectTo,
         },
       });
 
     if (linkError || !linkData?.user) {
-      await supabase.from(SW_TABLES.clients).delete().eq("id", client.id);
+      await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
       return NextResponse.json(
         {
           error:
@@ -144,37 +170,57 @@ export async function POST(request: Request) {
     inviteMethod = "link";
   }
 
-  await supabase.from(SW_TABLES.profiles).upsert(
+  await supabase.from(TABLES.profiles).upsert(
     {
       id: userId,
       email,
       full_name: displayName,
-      role: "client",
       active: true,
     },
     { onConflict: "id" },
   );
 
+  const { data: ownerRole, error: roleError } = await supabase
+    .from(TABLES.roles)
+    .select("id")
+    .is("tenant_id", null)
+    .eq("slug", ROLE_SLUGS.tenantOwner)
+    .single();
+
+  if (roleError || !ownerRole) {
+    return NextResponse.json(
+      {
+        error: roleError?.message ?? "Tenant owner role is not configured.",
+        tenantId: tenant.id,
+        note: "Tenant created but membership failed — link manually in tenant_memberships.",
+      },
+      { status: 400 },
+    );
+  }
+
   const { error: memberError } = await supabase
-    .from(SW_TABLES.clientMembers)
+    .from(TABLES.tenantMemberships)
     .insert({
-      client_id: client.id,
-      profile_id: userId,
+      tenant_id: tenant.id,
+      user_id: userId,
+      role_id: ownerRole.id,
+      status: "active",
     });
 
   if (memberError) {
     return NextResponse.json(
       {
         error: memberError.message,
-        clientId: client.id,
-        note: "Client created but membership failed — link manually in sw_client_members.",
+        tenantId: tenant.id,
+        note: "Tenant created but membership failed — link manually in tenant_memberships.",
       },
       { status: 400 },
     );
   }
 
   return NextResponse.json({
-    clientId: client.id,
+    tenantId: tenant.id,
+    clientId: tenant.id,
     email,
     plan: plan.name,
     inviteMethod,
@@ -182,6 +228,6 @@ export async function POST(request: Request) {
     message:
       inviteMethod === "email"
         ? `Invite email sent to ${email}. They set their own password — you never see it.`
-        : `Client created. Copy the invite link and send it to ${email} (Supabase email invite was unavailable).`,
+        : `Tenant created. Copy the invite link and send it to ${email} (Supabase email invite was unavailable).`,
   });
 }

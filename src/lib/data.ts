@@ -4,45 +4,47 @@ import {
   DEMO_DOCUMENTS,
   DEMO_REQUESTS,
 } from "@/lib/demo-data";
-import { getCurrentProfile } from "@/lib/auth";
+import { isPlatformAdmin } from "@/lib/auth";
+import { mapTenantToClient, TENANT_PORTAL_SELECT } from "@/lib/tenant-mapper";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
-import { SW_TABLES } from "@/lib/supabase/tables";
+import { TABLES } from "@/lib/supabase/tables";
 import type { Client, Document, ServiceRequest } from "@/lib/types";
 
 export const getAccessibleClients = cache(async (): Promise<Client[]> => {
-  const profile = await getCurrentProfile();
-  if (!profile) return [];
-
-  if (!isSupabaseConfigured()) {
-    if (profile.role === "admin") return DEMO_CLIENTS;
-    return DEMO_CLIENTS.filter((c) => c.slug === "bloom-studio-salon");
-  }
+  if (!isSupabaseConfigured()) return DEMO_CLIENTS;
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
 
-  if (profile.role === "admin") {
+  if (await isPlatformAdmin()) {
     const { data } = await supabase
-      .from(SW_TABLES.clients)
-      .select("*")
-      .order("business_name");
-    return (data as Client[]) ?? [];
+      .from(TABLES.tenants)
+      .select(TENANT_PORTAL_SELECT)
+      .neq("platform_category", "internal")
+      .order("display_name");
+
+    return (data ?? []).map((row) => mapTenantToClient(row));
   }
 
   const { data: memberships } = await supabase
-    .from(SW_TABLES.clientMembers)
-    .select("client_id")
-    .eq("profile_id", profile.id);
+    .from(TABLES.tenantMemberships)
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .eq("status", "active");
 
-  const ids = (memberships ?? []).map((m) => m.client_id as string);
-  if (ids.length === 0) return [];
+  const tenantIds = (memberships ?? []).map((m) => m.tenant_id as string);
+  if (tenantIds.length === 0) return [];
 
   const { data } = await supabase
-    .from(SW_TABLES.clients)
-    .select("*")
-    .in("id", ids)
-    .order("business_name");
+    .from(TABLES.tenants)
+    .select(TENANT_PORTAL_SELECT)
+    .in("id", tenantIds)
+    .order("display_name");
 
-  return (data as Client[]) ?? [];
+  return (data ?? []).map((row) => mapTenantToClient(row));
 });
 
 export const getPrimaryClient = cache(async (): Promise<Client | null> => {
@@ -58,36 +60,37 @@ export const getClientById = cache(
 );
 
 export async function getRequestsForClient(
-  clientId: string,
+  tenantId: string,
 ): Promise<ServiceRequest[]> {
   if (!isSupabaseConfigured()) {
-    return DEMO_REQUESTS.filter((r) => r.client_id === clientId).sort(
-      (a, b) => b.created_at.localeCompare(a.created_at),
+    return DEMO_REQUESTS.filter((r) => r.tenant_id === tenantId).sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
   }
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from(SW_TABLES.serviceRequests)
+    .from(TABLES.serviceRequests)
     .select("*")
-    .eq("client_id", clientId)
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   return (data as ServiceRequest[]) ?? [];
 }
 
 export async function getDocumentsForClient(
-  clientId: string,
+  tenantId: string,
 ): Promise<Document[]> {
   if (!isSupabaseConfigured()) {
-    return DEMO_DOCUMENTS.filter((d) => d.client_id === clientId);
+    return DEMO_DOCUMENTS.filter((d) => d.tenant_id === tenantId);
   }
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from(SW_TABLES.documents)
+    .from(TABLES.documents)
     .select("*")
-    .eq("client_id", clientId)
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   return (data as Document[]) ?? [];
@@ -97,8 +100,7 @@ export function computeMrrCents(clients: Client[]): number {
   return clients
     .filter(
       (c) =>
-        c.subscription_status === "active" ||
-        c.subscription_status === "trialing",
+        c.subscription_status === "active" || c.subscription_status === "trialing",
     )
     .reduce((sum, c) => sum + c.monthly_price_cents, 0);
 }

@@ -6,8 +6,8 @@ import {
   type PlanKey,
 } from "@/lib/plans";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase/server";
-import { SW_TABLES } from "@/lib/supabase/tables";
-import type { SubscriptionStatus } from "@/lib/types";
+import { TABLES } from "@/lib/supabase/tables";
+import type { ClientStatus, SubscriptionStatus } from "@/lib/types";
 
 function mapSubStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
   switch (status) {
@@ -29,6 +29,15 @@ function customerId(
   return typeof customer === "string" ? customer : customer.id;
 }
 
+function resolveTenantId(session: Stripe.Checkout.Session): string | null {
+  return (
+    session.client_reference_id ||
+    session.metadata?.tenant_id ||
+    session.metadata?.client_id ||
+    null
+  );
+}
+
 export async function syncClientFromCheckoutSession(
   session: Stripe.Checkout.Session,
 ) {
@@ -36,8 +45,7 @@ export async function syncClientFromCheckoutSession(
   if (session.mode !== "subscription") return;
 
   const supabase = createServiceClient();
-  const clientId =
-    session.client_reference_id || session.metadata?.client_id || null;
+  const tenantId = resolveTenantId(session);
   const customer =
     typeof session.customer === "string"
       ? session.customer
@@ -49,27 +57,58 @@ export async function syncClientFromCheckoutSession(
   const planKey = session.metadata?.plan_key;
   const plan = planKey ? getPlan(planKey) : undefined;
 
-  const payload: Record<string, unknown> = {
+  const subscriptionPayload: Record<string, unknown> = {
     stripe_customer_id: customer ?? null,
     stripe_subscription_id: subscription ?? null,
     subscription_status: "active",
-    status: "active",
   };
 
   if (plan && planKey) {
-    payload.plan_name = plan.name;
-    payload.monthly_price_cents = plan.monthlyPriceCents;
     const priceId = getPriceIdForPlan(planKey as PlanKey);
-    if (priceId) payload.stripe_price_id = priceId;
+    if (priceId) subscriptionPayload.stripe_price_id = priceId;
   }
 
-  if (clientId) {
-    await supabase.from(SW_TABLES.clients).update(payload).eq("id", clientId);
+  const tenantStatus: ClientStatus = "active";
+
+  if (tenantId) {
+    await supabase
+      .from(TABLES.tenantSubscriptions)
+      .upsert({ tenant_id: tenantId, ...subscriptionPayload }, {
+        onConflict: "tenant_id",
+      });
+
+    await supabase
+      .from(TABLES.tenants)
+      .update({ status: tenantStatus })
+      .eq("id", tenantId);
+
+    if (plan) {
+      await supabase
+        .from(TABLES.tenantPortalSettings)
+        .update({
+          plan_name: plan.name,
+          monthly_price_cents: plan.monthlyPriceCents,
+        })
+        .eq("tenant_id", tenantId);
+    }
   } else if (customer) {
     await supabase
-      .from(SW_TABLES.clients)
-      .update(payload)
+      .from(TABLES.tenantSubscriptions)
+      .update(subscriptionPayload)
       .eq("stripe_customer_id", customer);
+
+    const { data: subRow } = await supabase
+      .from(TABLES.tenantSubscriptions)
+      .select("tenant_id")
+      .eq("stripe_customer_id", customer)
+      .maybeSingle();
+
+    if (subRow?.tenant_id) {
+      await supabase
+        .from(TABLES.tenants)
+        .update({ status: tenantStatus })
+        .eq("id", subRow.tenant_id);
+    }
   }
 }
 
@@ -85,7 +124,7 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
     (priceId ? getPlanKeyFromPriceId(priceId) : null);
   const plan = planKey ? getPlan(planKey) : undefined;
 
-  const payload: Record<string, unknown> = {
+  const subscriptionPayload: Record<string, unknown> = {
     stripe_subscription_id: sub.id,
     stripe_customer_id: customerId(sub.customer),
     stripe_price_id: priceId ?? null,
@@ -95,22 +134,80 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
       : null,
   };
 
-  if (plan) {
-    payload.plan_name = plan.name;
-    payload.monthly_price_cents = plan.monthlyPriceCents;
-  } else if (price && typeof price !== "string" && price.unit_amount != null) {
-    payload.monthly_price_cents = price.unit_amount;
-    if (price.currency) payload.currency = price.currency;
-  }
+  const tenantId = sub.metadata?.tenant_id || sub.metadata?.client_id;
+  const tenantStatus: ClientStatus =
+    sub.status === "past_due"
+      ? "past_due"
+      : sub.status === "canceled"
+        ? "canceled"
+        : "active";
 
-  const clientId = sub.metadata?.client_id;
-  if (clientId) {
-    await supabase.from(SW_TABLES.clients).update(payload).eq("id", clientId);
+  if (tenantId) {
+    await supabase
+      .from(TABLES.tenantSubscriptions)
+      .upsert({ tenant_id: tenantId, ...subscriptionPayload }, {
+        onConflict: "tenant_id",
+      });
+
+    await supabase
+      .from(TABLES.tenants)
+      .update({ status: tenantStatus })
+      .eq("id", tenantId);
+
+    if (plan) {
+      await supabase
+        .from(TABLES.tenantPortalSettings)
+        .update({
+          plan_name: plan.name,
+          monthly_price_cents: plan.monthlyPriceCents,
+        })
+        .eq("tenant_id", tenantId);
+    }
     return;
   }
 
   await supabase
-    .from(SW_TABLES.clients)
-    .update(payload)
+    .from(TABLES.tenantSubscriptions)
+    .update(subscriptionPayload)
     .eq("stripe_customer_id", customerId(sub.customer));
+
+  const { data: subRow } = await supabase
+    .from(TABLES.tenantSubscriptions)
+    .select("tenant_id")
+    .eq("stripe_customer_id", customerId(sub.customer))
+    .maybeSingle();
+
+  if (subRow?.tenant_id) {
+    await supabase
+      .from(TABLES.tenants)
+      .update({ status: tenantStatus })
+      .eq("id", subRow.tenant_id);
+  }
+}
+
+export async function syncTenantBillingStatus(
+  stripeCustomerId: string,
+  subscriptionStatus: SubscriptionStatus,
+  tenantStatus: ClientStatus,
+) {
+  if (!isSupabaseConfigured()) return;
+
+  const supabase = createServiceClient();
+  const { data: subRow } = await supabase
+    .from(TABLES.tenantSubscriptions)
+    .select("tenant_id")
+    .eq("stripe_customer_id", stripeCustomerId)
+    .maybeSingle();
+
+  if (!subRow?.tenant_id) return;
+
+  await supabase
+    .from(TABLES.tenantSubscriptions)
+    .update({ subscription_status: subscriptionStatus })
+    .eq("tenant_id", subRow.tenant_id);
+
+  await supabase
+    .from(TABLES.tenants)
+    .update({ status: tenantStatus })
+    .eq("id", subRow.tenant_id);
 }

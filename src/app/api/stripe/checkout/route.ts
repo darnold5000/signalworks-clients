@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
-import { getCurrentProfile } from "@/lib/auth";
+import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import { getClientById } from "@/lib/data";
 import { getPriceIdForPlan, PLAN_KEYS, resolvePlanForClient } from "@/lib/plans";
 import { siteConfig } from "@/lib/site";
@@ -41,7 +41,8 @@ export async function POST(request: Request) {
   }
 
   // Clients may only check out for their assigned plan. Admins can start any plan.
-  if (profile.role !== "admin") {
+  const isAdmin = await isPlatformAdmin();
+  if (!isAdmin) {
     const assigned = resolvePlanForClient({
       plan_name: client.plan_name,
       stripe_price_id: client.stripe_price_id,
@@ -73,7 +74,6 @@ export async function POST(request: Request) {
     ? client.stripe_customer_id
     : undefined;
 
-  const isAdmin = profile.role === "admin";
   const successUrl = isAdmin
     ? `${siteConfig.url}/admin/clients/${client.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
     : `${siteConfig.url}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
@@ -95,12 +95,12 @@ export async function POST(request: Request) {
       customer_email: existingCustomer ? undefined : profile.email || undefined,
       client_reference_id: client.id,
       metadata: {
-        client_id: client.id,
+        tenant_id: client.id,
         plan_key: parsed.data.planKey,
       },
       subscription_data: {
         metadata: {
-          client_id: client.id,
+          tenant_id: client.id,
           plan_key: parsed.data.planKey,
         },
       },
