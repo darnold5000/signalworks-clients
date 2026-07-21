@@ -95,3 +95,13 @@ export async function getDocumentsForClient(
 
   return (data as Document[]) ?? [];
 }
+
+export function computeMrrCents(clients: Client[]): number {
+  return clients
+    .filter(
+      (c) =>
+        c.subscription_status === "active" ||
+        c.subscription_status === "trialing",
+    )
+    .reduce((sum, c) => sum + c.monthly_price_cents, 0);
+}

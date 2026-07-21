@@ -3,21 +3,47 @@ import { z } from "zod";
 import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import { getPlan, PLAN_KEYS } from "@/lib/plans";
 import { ROLE_SLUGS } from "@/lib/permissions";
+import {
+  isResendConfigured,
+  sendClientInviteEmail,
+} from "@/lib/email/client-invite-email";
 import { siteConfig } from "@/lib/site";
 import {
   createServiceClient,
+  isServiceRoleConfigured,
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
+function normalizeOptionalUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+const optionalUrl = z
+  .string()
+  .transform((value) => normalizeOptionalUrl(value))
+  .pipe(z.union([z.literal(""), z.string().url()]));
+
 const bodySchema = z.object({
-  businessName: z.string().min(2).max(120),
-  email: z.string().email(),
+  businessName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email(),
   planKey: z.enum(PLAN_KEYS),
-  domain: z.string().max(200).optional().or(z.literal("")),
-  websiteUrl: z.string().url().optional().or(z.literal("")),
-  fullName: z.string().max(120).optional().or(z.literal("")),
+  domain: z.string().trim().max(200).optional().or(z.literal("")),
+  websiteUrl: optionalUrl.optional().or(z.literal("")),
+  fullName: z.string().trim().max(120).optional().or(z.literal("")),
 });
+
+function validationErrorMessage(error: z.ZodError): string {
+  const fieldErrors = error.flatten().fieldErrors;
+  const parts = Object.entries(fieldErrors).flatMap(([field, messages]) => {
+    if (!Array.isArray(messages)) return [];
+    return messages.map((message) => `${field}: ${message}`);
+  });
+  return parts[0] ?? "Invalid request";
+}
 
 function slugify(value: string) {
   return value
@@ -40,10 +66,23 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!isServiceRoleConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "SUPABASE_SERVICE_ROLE_KEY is missing. Add it to .env.local (Supabase → Project Settings → API → service_role secret).",
+      },
+      { status: 503 },
+    );
+  }
+
   const parsed = bodySchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid request", details: parsed.error.flatten() },
+      {
+        error: validationErrorMessage(parsed.error),
+        details: parsed.error.flatten(),
+      },
       { status: 400 },
     );
   }
@@ -125,49 +164,57 @@ export async function POST(request: Request) {
   const redirectTo = `${siteConfig.url}/login`;
   const displayName = fullName || businessName;
 
-  const { data: invited, error: inviteError } =
-    await supabase.auth.admin.inviteUserByEmail(email, {
-      data: {
-        full_name: displayName,
-        tenant_id: tenant.id,
+  const { data: linkData, error: linkError } =
+    await supabase.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        data: {
+          full_name: displayName,
+          tenant_id: tenant.id,
+        },
+        redirectTo,
       },
-      redirectTo,
     });
 
-  let userId = invited?.user?.id ?? null;
-  let inviteLink: string | null = null;
-  let inviteMethod: "email" | "link" = "email";
+  if (linkError || !linkData?.user) {
+    await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
+    return NextResponse.json(
+      {
+        error:
+          linkError?.message ||
+          "Could not create invite link. Check Supabase Auth settings.",
+      },
+      { status: 400 },
+    );
+  }
 
-  if (inviteError || !userId) {
-    const { data: linkData, error: linkError } =
-      await supabase.auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: {
-          data: {
-            full_name: displayName,
-            tenant_id: tenant.id,
-          },
-          redirectTo,
-        },
-      });
+  const userId = linkData.user.id;
+  const inviteLink = linkData.properties?.action_link ?? null;
 
-    if (linkError || !linkData?.user) {
-      await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
-      return NextResponse.json(
-        {
-          error:
-            inviteError?.message ||
-            linkError?.message ||
-            "Could not invite user. Check Supabase Auth email settings.",
-        },
-        { status: 400 },
-      );
+  if (!inviteLink) {
+    await supabase.from(TABLES.tenants).delete().eq("id", tenant.id);
+    return NextResponse.json(
+      { error: "Could not create invite link." },
+      { status: 400 },
+    );
+  }
+
+  let inviteMethod: "email" | "link" = "link";
+  let inviteEmailError: string | null = null;
+
+  if (isResendConfigured()) {
+    const sent = await sendClientInviteEmail({
+      email,
+      fullName: displayName,
+      businessName,
+      inviteLink,
+    });
+    if (sent.ok) {
+      inviteMethod = "email";
+    } else {
+      inviteEmailError = sent.error ?? "Could not send invite email.";
     }
-
-    userId = linkData.user.id;
-    inviteLink = linkData.properties?.action_link ?? null;
-    inviteMethod = "link";
   }
 
   await supabase.from(TABLES.profiles).upsert(
@@ -224,10 +271,14 @@ export async function POST(request: Request) {
     email,
     plan: plan.name,
     inviteMethod,
-    inviteLink,
+    inviteLink: inviteMethod === "link" ? inviteLink : null,
     message:
       inviteMethod === "email"
-        ? `Invite email sent to ${email}. They set their own password — you never see it.`
-        : `Tenant created. Copy the invite link and send it to ${email} (Supabase email invite was unavailable).`,
+        ? `Invite email sent from ${siteConfig.name} to ${email}. They set their own password — you never see it.`
+        : inviteEmailError
+          ? `${inviteEmailError} Copy the invite link below and send it to ${email}.`
+          : isResendConfigured()
+            ? `Copy the invite link below and send it to ${email}.`
+            : `Client created. Add RESEND_API_KEY to send branded invite email automatically, or copy the link below for ${email}.`,
   });
 }

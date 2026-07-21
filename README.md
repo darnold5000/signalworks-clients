@@ -39,7 +39,10 @@ No Supabase/Stripe env vars required for UI review.
 This app uses the **shared Signal Works multi-tenant Supabase project** (`signalworks-services`). Apply migrations in order:
 
 1. [`signalworks-platform/core/supabase/migrations/001_platform_foundation.sql`](../signalworks-platform/core/supabase/migrations/001_platform_foundation.sql) — `tenants`, `profiles`, `tenant_memberships`, roles/permissions, RLS helpers
-2. [`supabase/migrations/001_client_portal.sql`](supabase/migrations/001_client_portal.sql) — portal settings, `tenant_subscriptions`, `service_requests`, `documents`
+2. [`signalworks-platform/core/supabase/migrations/002_has_platform_permission_global_roles_only.sql`](../signalworks-platform/core/supabase/migrations/002_has_platform_permission_global_roles_only.sql) — only if 001 was applied before global-role hardening
+3. [`signalworks-platform/core/supabase/migrations/003_table_grants.sql`](../signalworks-platform/core/supabase/migrations/003_table_grants.sql) — **required** `GRANT`s for `authenticated` / `service_role` (without this, invites fail with “permission denied for table tenants”)
+4. [`supabase/migrations/001_client_portal.sql`](supabase/migrations/001_client_portal.sql) — portal settings, `tenant_subscriptions`, `service_requests`, `documents`
+5. [`supabase/migrations/002_table_grants.sql`](supabase/migrations/002_table_grants.sql) — portal table `GRANT`s (safe to run after step 3)
 3. Optionally [`supabase/seed.sql`](supabase/seed.sql)
 
 **Bootstrap your admin account** after creating an Auth user:
@@ -75,9 +78,11 @@ The portal is **not** a public signup. New customers do not self-register and pi
 
 1. You close the deal and choose the plan (Launch, Growth, etc.).
 2. In admin, use **Invite client** (creates a `tenants` row with portal settings and membership).
-3. Client receives invite email and sets their password.
+3. Client receives a **Signal Works** invite email (via Resend) and sets their password.
 
-Optional later: Stripe Payment Link for the Price, then attach `cus_` / `sub_` to the client row; invite email from Supabase; admin “Invite client” button.
+Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env.local`. Verify `hiresignalworks.com` in Resend so mail sends as `Signal Works <hello@hiresignalworks.com>`. Without Resend, the admin UI shows a copy-paste invite link instead of sending Supabase’s default auth email.
+
+Optional later: Stripe Payment Link for the Price, then attach `cus_` / `sub_` to the tenant subscription row.
 
 ## Docs
 

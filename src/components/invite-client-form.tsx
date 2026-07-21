@@ -42,7 +42,15 @@ export function InviteClientForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Invite failed");
+        const detail =
+          data.details?.fieldErrors &&
+          Object.entries(data.details.fieldErrors as Record<string, string[]>)
+            .map(([field, messages]) =>
+              messages?.length ? `${field}: ${messages[0]}` : null,
+            )
+            .filter(Boolean)
+            .join(" · ");
+        setError(detail || data.error || "Invite failed");
         return;
       }
       setResult({
@@ -135,7 +143,7 @@ export function InviteClientForm() {
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-            placeholder="https://client.com"
+            placeholder="client.com or https://client.com"
           />
         </label>
       </div>
