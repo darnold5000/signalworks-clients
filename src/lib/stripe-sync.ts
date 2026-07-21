@@ -38,6 +38,48 @@ function resolveTenantId(session: Stripe.Checkout.Session): string | null {
   );
 }
 
+async function upsertTenantSubscription(
+  supabase: ReturnType<typeof createServiceClient>,
+  args: {
+    tenantId: string;
+    stripeSubscriptionId: string | null;
+    payload: Record<string, unknown>;
+  },
+) {
+  if (args.stripeSubscriptionId) {
+    await supabase.from(TABLES.tenantSubscriptions).upsert(
+      {
+        tenant_id: args.tenantId,
+        stripe_subscription_id: args.stripeSubscriptionId,
+        ...args.payload,
+      },
+      { onConflict: "stripe_subscription_id" },
+    );
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from(TABLES.tenantSubscriptions)
+    .select("id")
+    .eq("tenant_id", args.tenantId)
+    .is("stripe_subscription_id", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await supabase
+      .from(TABLES.tenantSubscriptions)
+      .update(args.payload)
+      .eq("id", existing.id);
+    return;
+  }
+
+  await supabase.from(TABLES.tenantSubscriptions).insert({
+    tenant_id: args.tenantId,
+    ...args.payload,
+  });
+}
+
 export async function syncClientFromCheckoutSession(
   session: Stripe.Checkout.Session,
 ) {
@@ -71,11 +113,11 @@ export async function syncClientFromCheckoutSession(
   const tenantStatus: ClientStatus = "active";
 
   if (tenantId) {
-    await supabase
-      .from(TABLES.tenantSubscriptions)
-      .upsert({ tenant_id: tenantId, ...subscriptionPayload }, {
-        onConflict: "tenant_id",
-      });
+    await upsertTenantSubscription(supabase, {
+      tenantId,
+      stripeSubscriptionId: subscription ?? null,
+      payload: subscriptionPayload,
+    });
 
     await supabase
       .from(TABLES.tenants)
@@ -92,15 +134,24 @@ export async function syncClientFromCheckoutSession(
         .eq("tenant_id", tenantId);
     }
   } else if (customer) {
-    await supabase
-      .from(TABLES.tenantSubscriptions)
-      .update(subscriptionPayload)
-      .eq("stripe_customer_id", customer);
+    if (subscription) {
+      await supabase
+        .from(TABLES.tenantSubscriptions)
+        .update(subscriptionPayload)
+        .eq("stripe_subscription_id", subscription);
+    } else {
+      await supabase
+        .from(TABLES.tenantSubscriptions)
+        .update(subscriptionPayload)
+        .eq("stripe_customer_id", customer);
+    }
 
     const { data: subRow } = await supabase
       .from(TABLES.tenantSubscriptions)
       .select("tenant_id")
       .eq("stripe_customer_id", customer)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (subRow?.tenant_id) {
@@ -143,11 +194,11 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
         : "active";
 
   if (tenantId) {
-    await supabase
-      .from(TABLES.tenantSubscriptions)
-      .upsert({ tenant_id: tenantId, ...subscriptionPayload }, {
-        onConflict: "tenant_id",
-      });
+    await upsertTenantSubscription(supabase, {
+      tenantId,
+      stripeSubscriptionId: sub.id,
+      payload: subscriptionPayload,
+    });
 
     await supabase
       .from(TABLES.tenants)
@@ -169,12 +220,14 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
   await supabase
     .from(TABLES.tenantSubscriptions)
     .update(subscriptionPayload)
-    .eq("stripe_customer_id", customerId(sub.customer));
+    .eq("stripe_subscription_id", sub.id);
 
   const { data: subRow } = await supabase
     .from(TABLES.tenantSubscriptions)
     .select("tenant_id")
     .eq("stripe_customer_id", customerId(sub.customer))
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (subRow?.tenant_id) {
@@ -197,6 +250,8 @@ export async function syncTenantBillingStatus(
     .from(TABLES.tenantSubscriptions)
     .select("tenant_id")
     .eq("stripe_customer_id", stripeCustomerId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!subRow?.tenant_id) return;
@@ -204,7 +259,7 @@ export async function syncTenantBillingStatus(
   await supabase
     .from(TABLES.tenantSubscriptions)
     .update({ subscription_status: subscriptionStatus })
-    .eq("tenant_id", subRow.tenant_id);
+    .eq("stripe_customer_id", stripeCustomerId);
 
   await supabase
     .from(TABLES.tenants)

@@ -60,9 +60,27 @@ function first<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+const PRIMARY_SUBSCRIPTION_STATUSES = new Set<SubscriptionStatus>([
+  "active",
+  "trialing",
+  "past_due",
+]);
+
+function pickPrimarySubscription(
+  value: SubscriptionRow | SubscriptionRow[] | null | undefined,
+): SubscriptionRow | null {
+  const rows = !value ? [] : Array.isArray(value) ? value : [value];
+  if (rows.length === 0) return null;
+
+  const preferred = rows.find((row) =>
+    PRIMARY_SUBSCRIPTION_STATUSES.has(row.subscription_status ?? "none"),
+  );
+  return preferred ?? rows[0] ?? null;
+}
+
 export function mapTenantToClient(row: TenantRow): Client {
   const settings = first(row.tenant_portal_settings);
-  const subscription = first(row.tenant_subscriptions);
+  const subscription = pickPrimarySubscription(row.tenant_subscriptions);
 
   return {
     id: row.id,

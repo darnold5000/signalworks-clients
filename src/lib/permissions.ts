@@ -3,10 +3,15 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
 export const PERMISSIONS = {
   manageTenants: "manage_tenants",
+  viewAllTenants: "view_all_tenants",
   manageMemberships: "manage_memberships",
   manageBilling: "manage_billing",
+  manageClientBilling: "manage_client_billing",
   manageWebsite: "manage_website",
   viewTenantPortal: "view_tenant_portal",
+  manageClientTechnicalDetails: "manage_client_technical_details",
+  manageClientOffers: "manage_client_offers",
+  manageClientAgreements: "manage_client_agreements",
 } as const;
 
 export const ROLE_SLUGS = {
