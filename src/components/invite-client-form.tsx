@@ -159,7 +159,7 @@ export function InviteClientForm() {
             </div>
           ) : null}
           <a
-            href={`/admin/clients/${result.clientId}`}
+            href={`/admin/clients/${result.clientId}/overview`}
             className="inline-flex text-sm font-medium underline underline-offset-2"
           >
             Open client record →

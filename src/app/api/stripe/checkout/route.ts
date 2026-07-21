@@ -77,10 +77,10 @@ export async function POST(request: Request) {
   const appUrl = resolveAppUrl(request);
 
   const successUrl = isAdmin
-    ? `${appUrl}/admin/clients/${client.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
+    ? `${appUrl}/admin/clients/${client.id}/overview?checkout=success&session_id={CHECKOUT_SESSION_ID}`
     : `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = isAdmin
-    ? `${appUrl}/admin/clients/${client.id}`
+    ? `${appUrl}/admin/clients/${client.id}/overview`
     : `${appUrl}/billing`;
 
   // Tax requires a head office address in Stripe Tax settings.
