@@ -6,6 +6,10 @@ import {
   syncClientFromSubscription,
   syncTenantBillingStatus,
 } from "@/lib/stripe-sync";
+import {
+  claimStripeWebhookEvent,
+  markStripeWebhookProcessed,
+} from "@/lib/stripe/webhook-idempotency";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 
 function customerId(customer: string | Stripe.Customer | Stripe.DeletedCustomer) {
@@ -44,45 +48,71 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      await syncClientFromCheckoutSession(
-        event.data.object as Stripe.Checkout.Session,
-      );
-      break;
-    }
-    case "customer.subscription.created":
-    case "customer.subscription.updated":
-    case "customer.subscription.deleted": {
-      await syncClientFromSubscription(
-        event.data.object as Stripe.Subscription,
-      );
-      break;
-    }
-    case "invoice.payment_failed": {
-      const invoice = event.data.object as Stripe.Invoice;
-      if (isSupabaseConfigured() && invoice.customer) {
-        await syncTenantBillingStatus(
-          customerId(invoice.customer),
-          "past_due",
-          "past_due",
-        );
+  if (isSupabaseConfigured()) {
+    try {
+      const { duplicate } = await claimStripeWebhookEvent(event);
+      if (duplicate) {
+        return NextResponse.json({ received: true, duplicate: true });
       }
-      break;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Webhook idempotency failed";
+      return NextResponse.json({ error: message }, { status: 500 });
     }
-    case "invoice.paid": {
-      const invoice = event.data.object as Stripe.Invoice;
-      if (isSupabaseConfigured() && invoice.customer) {
-        await syncTenantBillingStatus(
-          customerId(invoice.customer),
-          "active",
-          "active",
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        await syncClientFromCheckoutSession(
+          event.data.object as Stripe.Checkout.Session,
         );
+        break;
       }
-      break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        await syncClientFromSubscription(
+          event.data.object as Stripe.Subscription,
+        );
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (isSupabaseConfigured() && invoice.customer) {
+          await syncTenantBillingStatus(
+            customerId(invoice.customer),
+            "past_due",
+            "past_due",
+          );
+        }
+        break;
+      }
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (isSupabaseConfigured() && invoice.customer) {
+          await syncTenantBillingStatus(
+            customerId(invoice.customer),
+            "active",
+            "active",
+          );
+        }
+        break;
+      }
+      default:
+        break;
     }
-    default:
-      break;
+
+    if (isSupabaseConfigured()) {
+      await markStripeWebhookProcessed(event.id);
+    }
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Webhook processing failed";
+    if (isSupabaseConfigured()) {
+      await markStripeWebhookProcessed(event.id, message);
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });

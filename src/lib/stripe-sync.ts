@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import {
   getPlan,
   getPlanKeyFromPriceId,
@@ -84,10 +85,11 @@ export async function syncClientFromCheckoutSession(
   session: Stripe.Checkout.Session,
 ) {
   if (!isSupabaseConfigured()) return;
-  if (session.mode !== "subscription") return;
 
   const supabase = createServiceClient();
   const tenantId = resolveTenantId(session);
+  const purchaseId = session.metadata?.purchase_id ?? null;
+  const offerId = session.metadata?.offer_id ?? null;
   const customer =
     typeof session.customer === "string"
       ? session.customer
@@ -96,6 +98,77 @@ export async function syncClientFromCheckoutSession(
     typeof session.subscription === "string"
       ? session.subscription
       : session.subscription?.id;
+  const paymentIntent =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+  const isPaid =
+    session.payment_status === "paid" || session.status === "complete";
+
+  if (purchaseId && isPaid) {
+    await supabase
+      .from(TABLES.purchases)
+      .update({
+        status: session.mode === "subscription" ? "active" : "paid",
+        stripe_customer_id: customer ?? null,
+        stripe_subscription_id: subscription ?? null,
+        stripe_payment_intent_id: paymentIntent ?? null,
+        purchased_at: new Date().toISOString(),
+      })
+      .eq("id", purchaseId);
+
+    await supabase
+      .from(TABLES.purchaseItems)
+      .update({ service_status: "active" })
+      .eq("purchase_id", purchaseId)
+      .eq("billing_type", "recurring");
+
+    if (offerId) {
+      await supabase
+        .from(TABLES.clientOffers)
+        .update({
+          status: "purchased",
+          purchased_at: new Date().toISOString(),
+        })
+        .eq("id", offerId);
+    }
+
+    if (tenantId) {
+      await supabase
+        .from(TABLES.tenantProfiles)
+        .update({ onboarding_status: "payment_complete" })
+        .eq("tenant_id", tenantId);
+
+      await logTenantActivity({
+        tenantId,
+        actorType: "stripe_webhook",
+        action: "purchase.completed",
+        entityType: "purchase",
+        entityId: purchaseId,
+        summary: "Checkout completed for client offer",
+        metadata: { offer_id: offerId, session_id: session.id },
+      });
+
+      if (session.mode === "payment") {
+        await supabase
+          .from(TABLES.tenants)
+          .update({ status: "active" })
+          .eq("id", tenantId);
+
+        await supabase
+          .from(TABLES.tenantProfiles)
+          .update({
+            internal_status: "active",
+            onboarding_status: "onboarding_complete",
+          })
+          .eq("tenant_id", tenantId);
+      }
+    }
+  }
+
+  if (session.mode !== "subscription") return;
+
   const planKey = session.metadata?.plan_key;
   const plan = planKey ? getPlan(planKey) : undefined;
 
@@ -103,6 +176,7 @@ export async function syncClientFromCheckoutSession(
     stripe_customer_id: customer ?? null,
     stripe_subscription_id: subscription ?? null,
     subscription_status: "active",
+    purchase_id: purchaseId,
   };
 
   if (plan && planKey) {
@@ -130,6 +204,31 @@ export async function syncClientFromCheckoutSession(
         .update({
           plan_name: plan.name,
           monthly_price_cents: plan.monthlyPriceCents,
+        })
+        .eq("tenant_id", tenantId);
+    } else if (purchaseId) {
+      const { data: purchase } = await supabase
+        .from(TABLES.purchases)
+        .select("recurring_total_cents, purchase_snapshot")
+        .eq("id", purchaseId)
+        .maybeSingle();
+
+      if (purchase?.recurring_total_cents) {
+        await supabase
+          .from(TABLES.tenantPortalSettings)
+          .update({
+            monthly_price_cents: purchase.recurring_total_cents,
+          })
+          .eq("tenant_id", tenantId);
+      }
+    }
+
+    if (purchaseId) {
+      await supabase
+        .from(TABLES.tenantProfiles)
+        .update({
+          internal_status: "active",
+          onboarding_status: "onboarding_complete",
         })
         .eq("tenant_id", tenantId);
     }

@@ -13,6 +13,7 @@ import {
   portalUrlForInvites,
   siteConfig,
 } from "@/lib/site";
+import { ensureTenantProfile } from "@/lib/tenant-profiles";
 import {
   createServiceClient,
   isServiceRoleConfigured,
@@ -165,6 +166,16 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  await ensureTenantProfile({
+    tenantId: tenant.id,
+    displayName: businessName,
+    primaryContactEmail: email,
+    websiteUrl: websiteUrl || null,
+    primaryDomain: domain || null,
+    internalStatus: "invited",
+    onboardingStatus: "invited",
+  });
 
   const redirectTo = inviteRedirectUrl(portalUrlForInvites());
   const displayName = fullName || businessName;

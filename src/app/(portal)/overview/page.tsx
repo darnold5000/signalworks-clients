@@ -1,3 +1,5 @@
+import { ManageBillingButton } from "@/components/manage-billing-button";
+import { ActionRequiredCard } from "@/components/portal/action-required-card";
 import {
   ButtonLink,
   MetaRow,
@@ -5,8 +7,9 @@ import {
   Panel,
   StatusPill,
 } from "@/components/ui";
-import { ManageBillingButton } from "@/components/manage-billing-button";
+import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
+import { getOnboardingState } from "@/lib/portal/onboarding-state";
 import { siteConfig } from "@/lib/site";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -18,8 +21,11 @@ function websiteTone(status: string) {
 }
 
 export default async function OverviewPage() {
+  const profile = await getCurrentProfile();
   const client = await getPrimaryClient();
-  if (!client) notFound();
+  if (!client || !profile) notFound();
+
+  const onboarding = await getOnboardingState(client, profile.id);
 
   const updatesLeft = Math.max(
     0,
@@ -48,6 +54,8 @@ export default async function OverviewPage() {
           </>
         }
       />
+
+      <ActionRequiredCard nextAction={onboarding.nextAction} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Overview">

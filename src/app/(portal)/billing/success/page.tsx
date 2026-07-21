@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader, Panel } from "@/components/ui";
 import { getStripe } from "@/lib/stripe";
@@ -29,13 +28,13 @@ export default async function BillingSuccessPage({
   }
 
   if (synced) {
-    redirect("/billing");
+    redirect("/billing?checkout=success");
   }
 
   return (
     <>
       <PageHeader
-        title="You're subscribed"
+        title="Payment received"
         description="Stripe confirmed your payment."
       />
       <Panel>
@@ -48,18 +47,18 @@ export default async function BillingSuccessPage({
           If Billing still looks empty, refresh once — sync can take a moment.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link
+          <a
             href="/billing"
             className="inline-flex rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
           >
             Go to Billing
-          </Link>
-          <Link
-            href="/overview"
+          </a>
+          <a
+            href="/purchases"
             className="inline-flex rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium hover:bg-background"
           >
-            Overview
-          </Link>
+            View purchases
+          </a>
         </div>
       </Panel>
     </>

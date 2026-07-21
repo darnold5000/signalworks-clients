@@ -3,6 +3,7 @@ import { StartCheckoutButton } from "@/components/start-checkout-button";
 import { MetaRow, PageHeader, Panel, StatusPill } from "@/components/ui";
 import { getPrimaryClient } from "@/lib/data";
 import { resolvePlanForClient } from "@/lib/plans";
+import { listPurchasesForTenant } from "@/lib/purchases/service";
 import { siteConfig } from "@/lib/site";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -21,6 +22,7 @@ export default async function BillingPage() {
     plan_name: client.plan_name,
     stripe_price_id: client.stripe_price_id,
   });
+  const purchases = await listPurchasesForTenant(client.id);
 
   return (
     <>
@@ -108,6 +110,38 @@ export default async function BillingPage() {
             No plan is assigned to this account yet. Signal Works will set your
             plan and send login details when your site is ready for billing.
           </p>
+        </Panel>
+      ) : null}
+
+      {purchases.length > 0 ? (
+        <Panel title="Purchases" className="mt-6">
+          <ul className="divide-y divide-border">
+            {purchases.map((purchase) => (
+              <li
+                key={purchase.id}
+                className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium">
+                    {formatMoney(
+                      purchase.amount_due_today_cents,
+                      purchase.currency,
+                    )}{" "}
+                    purchase
+                  </p>
+                  <p className="text-xs text-muted">
+                    {formatDate(purchase.created_at)} · {purchase.status}
+                  </p>
+                </div>
+                <a
+                  href={`/purchases/${purchase.id}`}
+                  className="text-sm font-medium underline underline-offset-2"
+                >
+                  View details
+                </a>
+              </li>
+            ))}
+          </ul>
         </Panel>
       ) : null}
     </>

@@ -17,8 +17,10 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 const CLIENT_NAV = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/offer", label: "Proposal", icon: FileText },
   { href: "/requests", label: "Requests", icon: MessageSquarePlus },
   { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/purchases", label: "Purchases", icon: FileText },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/support", label: "Support", icon: LifeBuoy },
 ];
