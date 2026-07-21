@@ -2,12 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui";
 import { isClientAuthDebugEnabled } from "@/lib/auth-debug";
-import {
-  createClient,
-  isSupabaseConfigured,
-} from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { siteConfig } from "@/lib/site";
 
 function clientAuthDebug(scope: string, detail?: Record<string, unknown>) {
@@ -19,6 +17,7 @@ export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const demo = !isSupabaseConfigured();
@@ -36,26 +35,28 @@ export function LoginForm() {
         return;
       }
 
-      const supabase = createClient();
-      const { data, error: signInError } = await supabase.auth.signInWithPassword(
-        {
-          email,
-          password,
-        },
-      );
-
-      clientAuthDebug("login", {
-        loginResultUserId: data.user?.id ?? null,
-        error: signInError?.message ?? null,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (signInError) {
-        setError(signInError.message);
-        return;
-      }
+      const data = (await res.json()) as {
+        error?: string;
+        ok?: boolean;
+        userId?: string;
+        redirectTo?: string;
+      };
 
-      if (!data.user) {
-        setError("Sign-in succeeded but no user was returned.");
+      clientAuthDebug("login", {
+        loginResultUserId: data.userId ?? null,
+        redirectTo: data.redirectTo ?? null,
+        status: res.status,
+        error: data.error ?? null,
+      });
+
+      if (!res.ok) {
+        setError(data.error ?? "Could not sign in.");
         return;
       }
 
@@ -66,9 +67,7 @@ export function LoginForm() {
           .filter(Boolean),
       });
 
-      // Refresh RSC cache, then hard-navigate so the server receives auth cookies.
-      router.refresh();
-      window.location.assign("/");
+      window.location.assign(data.redirectTo ?? "/");
     } finally {
       setLoading(false);
     }
@@ -122,13 +121,27 @@ export function LoginForm() {
           </label>
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Password</span>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-border bg-background py-2.5 pr-10 pl-3 text-sm outline-none focus:border-foreground"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted hover:text-foreground"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
+              </button>
+            </div>
           </label>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={loading}>

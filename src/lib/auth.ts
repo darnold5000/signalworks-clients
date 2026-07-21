@@ -101,7 +101,25 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   if (!user) return null;
 
-  return ensureProfileForUser(user);
+  const profile = await ensureProfileForUser(user);
+  if (profile) return profile;
+
+  authDebug("getCurrentProfile", {
+    dashboardServerUserId: user.id,
+    profileFallback: true,
+  });
+
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    full_name:
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : null,
+    active: true,
+    created_at: user.created_at,
+    updated_at: user.updated_at ?? user.created_at,
+  };
 }
 
 export async function requireUser(): Promise<Profile> {

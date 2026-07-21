@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   CreditCard,
   FileText,
@@ -13,10 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { siteConfig } from "@/lib/site";
-import {
-  createClient,
-  isSupabaseConfigured,
-} from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 const CLIENT_NAV = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
@@ -42,17 +39,14 @@ export function AppShell({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const nav = isAdmin ? ADMIN_NAV : CLIENT_NAV;
 
   async function signOut() {
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      await fetch("/api/auth/logout", { method: "POST" });
     }
     document.cookie = "sw_demo_mode=; Max-Age=0; path=/";
-    router.push("/login");
-    router.refresh();
+    window.location.assign("/login");
   }
 
   return (

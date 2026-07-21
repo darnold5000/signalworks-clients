@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { InviteClientForm } from "@/components/invite-client-form";
 import { PageHeader, Panel, StatusPill } from "@/components/ui";
-import { computeMrrCents, getAccessibleClients } from "@/lib/data";
+import { getAccessibleClients } from "@/lib/data";
 import { formatMoney, monthlyMarginCents } from "@/lib/utils";
 
 export default async function AdminHomePage() {
   const clients = await getAccessibleClients();
-  const mrr = computeMrrCents(clients);
   const active = clients.filter((c) => c.status === "active").length;
   const pastDue = clients.filter(
     (c) => c.subscription_status === "past_due",
@@ -19,11 +18,7 @@ export default async function AdminHomePage() {
         description="Operating view across Signal Works managed websites."
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Panel>
-          <p className="text-xs tracking-wide text-muted uppercase">MRR</p>
-          <p className="mt-2 font-display text-3xl">{formatMoney(mrr)}</p>
-        </Panel>
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <Panel>
           <p className="text-xs tracking-wide text-muted uppercase">
             Active clients
