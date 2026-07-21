@@ -6,7 +6,7 @@ function safeNextPath(nextRaw: string | null): string {
   if (nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")) {
     return nextRaw;
   }
-  return "/auth/accept-invite";
+  return "/auth/set-password";
 }
 
 /**
@@ -41,12 +41,14 @@ export async function GET(request: NextRequest) {
     });
 
     if (code) {
+      await supabase.auth.signOut();
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (!error) {
         return response;
       }
       console.error("[auth/callback] exchangeCodeForSession", error.message);
     } else if (tokenHash && type) {
+      await supabase.auth.signOut();
       const { error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: type as "invite" | "recovery" | "email" | "signup" | "magiclink",
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const fallback = new URL("/auth/accept-invite", origin);
+  const fallback = new URL("/auth/set-password", origin);
   fallback.searchParams.set("error", "invite_link");
   return NextResponse.redirect(fallback);
 }

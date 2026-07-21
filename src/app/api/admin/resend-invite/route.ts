@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "This client has already signed in. Use Supabase password recovery if they need a new password.",
+          "This client has already set a password and signed in. Use forgot password on the login page if they need a new one.",
         alreadyActive: true,
       },
       { status: 400 },

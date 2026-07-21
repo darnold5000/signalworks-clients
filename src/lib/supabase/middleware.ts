@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAuthSetupPath, userNeedsPasswordSetup } from "@/lib/auth/password-setup";
 import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
 import { authDebug } from "@/lib/auth-debug";
 
@@ -79,6 +80,14 @@ export async function updateSession(request: NextRequest) {
     middlewareUserId: user?.id ?? null,
     cookieNames: request.cookies.getAll().map((c) => c.name),
   });
+
+  if (user && userNeedsPasswordSetup(user) && !isAuthSetupPath(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/auth/set-password";
+    redirectUrl.search = "";
+    redirectUrl.hash = "";
+    return NextResponse.redirect(redirectUrl);
+  }
 
   const isPublic =
     pathname === "/login" ||

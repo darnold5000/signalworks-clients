@@ -36,7 +36,7 @@ export function getAuthTokensRedirectUrl(): string | null {
 
   const type = readHashAuthType();
   const path =
-    type === "recovery" ? "/auth/reset-password" : "/auth/accept-invite";
+    type === "recovery" ? "/auth/reset-password" : "/auth/set-password";
   return `${path}${hash}`;
 }
 

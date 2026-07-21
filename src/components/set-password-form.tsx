@@ -11,7 +11,13 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 const inviteLinkErrorMessage =
   "This invitation link is invalid or has expired. Invite links work once — if you already opened it on another device, ask Signal Works to resend. On mobile, open the link in Safari or Chrome (not the in-app email browser).";
 
-export function AcceptInviteForm() {
+type SetPasswordFormProps = {
+  cleanPath?: string;
+};
+
+export function SetPasswordForm({
+  cleanPath = "/auth/set-password",
+}: SetPasswordFormProps) {
   const [email, setEmail] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -40,10 +46,7 @@ export function AcceptInviteForm() {
       }
 
       const supabase = createClient();
-      const result = await establishSessionFromAuthLink(
-        supabase,
-        "/auth/accept-invite",
-      );
+      const result = await establishSessionFromAuthLink(supabase, cleanPath);
 
       if (cancelled) return;
 
@@ -63,7 +66,7 @@ export function AcceptInviteForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cleanPath]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,9 +113,20 @@ export function AcceptInviteForm() {
       <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-8 shadow-sm">
         <h1 className="font-display text-2xl">Invitation expired</h1>
         <p className="text-sm text-muted">{sessionError}</p>
-        <Link href="/login" className="text-sm font-medium underline underline-offset-2">
-          Back to sign in
-        </Link>
+        <div className="flex flex-col gap-2 text-sm">
+          <Link
+            href="/login"
+            className="font-medium underline underline-offset-2"
+          >
+            Back to sign in
+          </Link>
+          <Link
+            href="/login?forgot=1"
+            className="font-medium underline underline-offset-2"
+          >
+            Request a password reset email
+          </Link>
+        </div>
       </div>
     );
   }
@@ -128,10 +142,10 @@ export function AcceptInviteForm() {
   return (
     <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-surface p-8 shadow-sm">
       <div>
-        <h1 className="font-display text-2xl">Set up your account</h1>
+        <h1 className="font-display text-2xl">Create your password</h1>
         <p className="mt-1 text-sm text-muted">
-          Welcome to {siteConfig.name} {siteConfig.productName}
-          {email ? ` — ${email}` : ""}
+          Your {siteConfig.name} account is ready
+          {email ? ` for ${email}` : ""}. Choose a password to finish setup.
         </p>
       </div>
 
@@ -152,6 +166,7 @@ export function AcceptInviteForm() {
             <input
               required
               type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-md border border-border bg-background px-3 py-2.5 pr-10 text-sm"
@@ -172,6 +187,7 @@ export function AcceptInviteForm() {
           <input
             required
             type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
@@ -181,7 +197,7 @@ export function AcceptInviteForm() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
         <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Activating…" : "Activate account"}
+          {pending ? "Saving…" : "Create password & continue"}
         </Button>
       </form>
     </div>

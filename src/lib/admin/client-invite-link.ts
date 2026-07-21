@@ -69,7 +69,12 @@ export async function getTenantOwnerInviteTarget(
     const { data: authUser } = await options.checkSignIn.auth.admin.getUserById(
       profile.id,
     );
-    hasSignedIn = Boolean(authUser.user?.last_sign_in_at);
+    hasSignedIn =
+      authUser.user?.user_metadata?.password_set === true ||
+      Boolean(
+        authUser.user?.last_sign_in_at &&
+          !authUser.user?.invited_at,
+      );
   }
 
   return {

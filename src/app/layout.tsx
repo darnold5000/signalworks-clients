@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Instrument_Serif } from "next/font/google";
+import { AuthTokenHandler } from "@/components/auth-token-handler";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
 
@@ -36,7 +37,10 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthTokenHandler />
+        {children}
+      </body>
     </html>
   );
 }

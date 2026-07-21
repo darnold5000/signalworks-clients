@@ -19,6 +19,10 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const callbackError = searchParams.get("error") === "auth_callback";
   const passwordReset = searchParams.get("reset") === "1";
+  const showForgot = searchParams.get("forgot") === "1";
+  const [forgotMode, setForgotMode] = useState(showForgot);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +37,33 @@ export function LoginForm() {
     setRedirecting(true);
     window.location.replace(target);
   }, []);
+
+  async function onForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setForgotMessage(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? "Could not send reset email.");
+        return;
+      }
+
+      setForgotMessage(
+        "If that email has an account, we sent a link to create or reset your password.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -127,6 +158,41 @@ export function LoginForm() {
             </Button>
           </div>
         </div>
+      ) : forgotMode ? (
+        <form onSubmit={onForgotSubmit} className="mt-6 space-y-4">
+          <p className="text-sm text-muted">
+            Enter your email and we&apos;ll send a secure link to create or
+            reset your password.
+          </p>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Email</span>
+            <input
+              type="email"
+              required
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground"
+            />
+          </label>
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {forgotMessage ? (
+            <p className="text-sm text-muted">{forgotMessage}</p>
+          ) : null}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Sending…" : "Send reset link"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setForgotMode(false);
+              setError(null);
+              setForgotMessage(null);
+            }}
+            className="w-full text-sm text-muted underline underline-offset-2"
+          >
+            Back to sign in
+          </button>
+        </form>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           {passwordReset ? (
@@ -178,6 +244,17 @@ export function LoginForm() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setForgotMode(true);
+              setForgotEmail(email);
+              setError(null);
+            }}
+            className="w-full text-sm text-muted underline underline-offset-2"
+          >
+            Forgot password or need to create one?
+          </button>
         </form>
       )}
     </div>

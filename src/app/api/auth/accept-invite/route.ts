@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     password: parsed.data.password,
     data: {
       full_name: parsed.data.fullName,
+      password_set: true,
     },
   });
 

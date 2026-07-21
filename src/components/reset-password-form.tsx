@@ -71,6 +71,7 @@ export function ResetPasswordForm() {
       const supabase = createClient();
       const { error: updateError } = await supabase.auth.updateUser({
         password,
+        data: { password_set: true },
       });
       if (updateError) {
         setError(updateError.message);
