@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { supabaseAuthClientOptions } from "@/lib/supabase/auth-options";
+import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
 
 function safeNextPath(nextRaw: string | null): string {
   if (nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const redirectUrl = new URL(next, origin);
     const response = NextResponse.redirect(redirectUrl);
     const supabase = createServerClient(url, anonKey, {
-      ...supabaseAuthClientOptions,
+      ...supabaseServerAuthOptions,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -39,9 +39,6 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-
-    // Replace any existing session (e.g. admin) with the invited user.
-    await supabase.auth.signOut();
 
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authDebug } from "@/lib/auth-debug";
 import { PERMISSIONS } from "@/lib/permissions";
+import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
   const pendingCookies: PendingCookie[] = [];
 
   const supabase = createServerClient(url, anonKey, {
+    ...supabaseServerAuthOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -104,6 +106,9 @@ export async function POST(request: Request) {
       },
     },
   });
+
+  // Clear stale or half-finished invite sessions before password login.
+  await supabase.auth.signOut().catch(() => undefined);
 
   const { data: signIn, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,

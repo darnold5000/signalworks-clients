@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
+
 type PendingCookie = {
   name: string;
   value: string;
@@ -20,6 +22,7 @@ export async function POST() {
   const pendingCookies: PendingCookie[] = [];
 
   const supabase = createServerClient(url, anonKey, {
+    ...supabaseServerAuthOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();
