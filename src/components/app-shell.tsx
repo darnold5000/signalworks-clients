@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CreditCard,
   FileText,
+  GitBranch,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -26,7 +27,8 @@ const CLIENT_NAV = [
 ];
 
 const ADMIN_NAV = [
-  { href: "/admin", label: "Clients", icon: Shield },
+  { href: "/admin/clients", label: "Clients", icon: Shield },
+  { href: "/admin/pipeline", label: "Pipeline", icon: GitBranch },
 ];
 
 export function AppShell({
@@ -56,7 +58,7 @@ export function AppShell({
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
-            <Link href={isAdmin ? "/admin" : "/overview"} className="block">
+            <Link href={isAdmin ? "/admin/clients" : "/overview"} className="block">
               <p className="font-display text-xl text-foreground">
                 {siteConfig.name}
               </p>

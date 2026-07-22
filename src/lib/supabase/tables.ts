@@ -21,6 +21,7 @@ export const TABLES = {
   tenantActivityLog: "tenant_activity_log",
   stripeWebhookEvents: "stripe_webhook_events",
   tenantInternalNotes: "tenant_internal_notes",
+  clientPipeline: "client_pipeline",
 } as const;
 
 /** @deprecated Use TABLES */
