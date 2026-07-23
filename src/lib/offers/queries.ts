@@ -221,7 +221,21 @@ export async function ensureOfferSowDocument(args: {
     .single();
 
   if (error || !created) {
-    throw new Error(error?.message ?? "Could not create SOW document");
+    const detail = error?.message ?? "Could not create SOW document";
+    if (
+      detail.includes("legal_documents_platform_types_require_global_tenant") ||
+      detail.includes("legal_documents_document_type_check")
+    ) {
+      throw new Error(
+        "Database migration required for Statement of Work. Apply migrations 013 and 014 in Supabase, then retry.",
+      );
+    }
+    if (detail.includes("sow_document_id")) {
+      throw new Error(
+        "Database migration required: apply migration 013 (sow_document_id on client_offers), then retry.",
+      );
+    }
+    throw new Error(detail);
   }
 
   return created as LegalDocument;

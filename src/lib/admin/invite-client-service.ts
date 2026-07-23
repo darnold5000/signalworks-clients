@@ -504,6 +504,8 @@ export async function inviteClientWithOffer(
   } catch (error) {
     console.error("inviteClientWithOffer", error);
     await rollbackInviteResources(supabase, created);
-    return { ok: false, error: "Could not complete client invite." };
+    const message =
+      error instanceof Error ? error.message : "Could not complete client invite.";
+    return { ok: false, error: message };
   }
 }

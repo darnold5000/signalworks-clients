@@ -277,6 +277,7 @@ export function InviteClientForm({
                   type="url"
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://"
                   className={inputClassName}
                 />
               </label>
@@ -285,6 +286,7 @@ export function InviteClientForm({
                 <input
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
+                  placeholder="example.com"
                   className={inputClassName}
                 />
               </label>
@@ -318,18 +320,18 @@ export function InviteClientForm({
                 Setup fees are due upfront. Monthly discounts reduce recurring MRR.
               </p>
             </header>
+            <label className="block max-w-xs space-y-1.5">
+              <span className="text-sm font-medium">Setup fee (USD)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={setupFeeDollars}
+                onChange={(e) => setSetupFeeDollars(e.target.value)}
+                className={inputClassName}
+              />
+            </label>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">Setup fee (USD)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={setupFeeDollars}
-                  onChange={(e) => setSetupFeeDollars(e.target.value)}
-                  className={inputClassName}
-                />
-              </label>
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium">Monthly discount (USD)</span>
                 <input
@@ -341,27 +343,25 @@ export function InviteClientForm({
                   className={inputClassName}
                 />
               </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Duration (months)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="120"
+                  step="1"
+                  value={monthlyDiscountDurationMonths}
+                  onChange={(e) =>
+                    setMonthlyDiscountDurationMonths(e.target.value)
+                  }
+                  className={inputClassName}
+                />
+              </label>
             </div>
-            <label className="block max-w-xs space-y-1.5">
-              <span className="text-sm font-medium">
-                Discount duration (months)
-              </span>
-              <input
-                type="number"
-                min="0"
-                max="120"
-                step="1"
-                value={monthlyDiscountDurationMonths}
-                onChange={(e) =>
-                  setMonthlyDiscountDurationMonths(e.target.value)
-                }
-                className={inputClassName}
-              />
-              <span className="block text-xs text-muted">
-                Leave at 0 for a permanent discount. After the selected months,
-                Stripe charges full recurring price.
-              </span>
-            </label>
+            <p className="text-xs text-muted">
+              Leave duration at 0 for a permanent discount. After the selected
+              months, Stripe charges full recurring price.
+            </p>
           </section>
         </div>
 
