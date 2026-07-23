@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from "react";
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
+import { DISCOUNT_SCOPE } from "@/lib/offers/discount-scope";
+import { defaultBillingForItemType } from "@/lib/offers/build-offer-item-payload";
 import { Button, Panel, StatusPill } from "@/components/ui";
 import { formatMoney } from "@/lib/utils";
+import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 
 type OfferWithItems = ClientOffer & { items: ClientOfferItem[] };
 
@@ -11,6 +14,7 @@ const EMPTY_ITEM = {
   itemType: "base_plan" as const,
   name: "",
   description: "",
+  productKey: "",
   quantity: 1,
   unitAmountDollars: "",
   billingType: "recurring" as const,
@@ -20,6 +24,9 @@ const EMPTY_ITEM = {
   discountPercent: "",
   discountDurationType: "repeating" as const,
   discountDurationMonths: 6,
+  discountScope: DISCOUNT_SCOPE.RECURRING as
+    | typeof DISCOUNT_SCOPE.RECURRING
+    | typeof DISCOUNT_SCOPE.FIRST_CYCLE,
 };
 
 function dollarsToCents(value: string): number {
@@ -127,6 +134,11 @@ export function OfferBuilder({
                 itemForm.discountDurationType === "repeating"
                   ? itemForm.discountDurationMonths
                   : undefined,
+              productKey: itemForm.productKey.trim() || undefined,
+              discountScope:
+                itemForm.itemType === "discount" || itemForm.itemType === "credit"
+                  ? itemForm.discountScope
+                  : undefined,
               sortOrder: selected.items.length,
             },
           }),
@@ -220,7 +232,19 @@ export function OfferBuilder({
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   <StatusPill label={selected.status} tone="warning" />
                   <span className="text-sm text-muted">
-                    Due today{" "}
+                    Due at first cycle{" "}
+                    {formatMoney(
+                      calculateAmountDueFirstCycle({
+                        subtotal_cents: selected.subtotal_cents,
+                        discount_total_cents: selected.discount_total_cents,
+                        initial_total_cents: selected.initial_total_cents,
+                        recurring_total_cents: selected.recurring_total_cents,
+                      }),
+                      selected.currency,
+                    )}
+                  </span>
+                  <span className="text-sm text-muted">
+                    One-time{" "}
                     {formatMoney(
                       selected.initial_total_cents,
                       selected.currency,
@@ -279,19 +303,37 @@ export function OfferBuilder({
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
                       value={itemForm.itemType}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const itemType = e.target.value as typeof itemForm.itemType;
                         setItemForm((current) => ({
                           ...current,
-                          itemType: e.target.value as typeof itemForm.itemType,
-                        }))
-                      }
+                          itemType,
+                          billingType: defaultBillingForItemType(itemType),
+                          unitAmountDollars:
+                            itemType === "product" ? "0" : current.unitAmountDollars,
+                        }));
+                      }}
                       className="rounded-md border border-border bg-background px-3 py-2 text-sm"
                     >
                       <option value="base_plan">Base plan</option>
                       <option value="setup_fee">Setup fee</option>
-                      <option value="add_on">Add-on</option>
+                      <option value="add_on">Add-on (paid)</option>
+                      <option value="product">Included product</option>
                       <option value="custom_service">Custom service</option>
+                      <option value="discount">Discount</option>
+                      <option value="credit">Credit</option>
                     </select>
+                    <input
+                      value={itemForm.productKey}
+                      onChange={(e) =>
+                        setItemForm((current) => ({
+                          ...current,
+                          productKey: e.target.value,
+                        }))
+                      }
+                      placeholder="Catalog product key (optional)"
+                      className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    />
                     <input
                       value={itemForm.name}
                       onChange={(e) =>
@@ -327,7 +369,9 @@ export function OfferBuilder({
                       <option value="recurring">Recurring</option>
                       <option value="one_time">One-time</option>
                     </select>
-                    {itemForm.billingType === "recurring" ? (
+                    {itemForm.billingType === "recurring" &&
+                    itemForm.itemType !== "discount" &&
+                    itemForm.itemType !== "credit" ? (
                       <select
                         value={itemForm.discountType}
                         onChange={(e) =>
@@ -368,6 +412,26 @@ export function OfferBuilder({
                         placeholder="Discount amount (USD)"
                         className="rounded-md border border-border bg-background px-3 py-2 text-sm"
                       />
+                    ) : null}
+                    {itemForm.itemType === "discount" ||
+                    itemForm.itemType === "credit" ? (
+                      <select
+                        value={itemForm.discountScope}
+                        onChange={(e) =>
+                          setItemForm((current) => ({
+                            ...current,
+                            discountScope: e.target.value as typeof itemForm.discountScope,
+                          }))
+                        }
+                        className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        <option value={DISCOUNT_SCOPE.RECURRING}>
+                          Reduces monthly recurring
+                        </option>
+                        <option value={DISCOUNT_SCOPE.FIRST_CYCLE}>
+                          First billing cycle only
+                        </option>
+                      </select>
                     ) : null}
                   </div>
                   <Button className="mt-4" onClick={addItem} disabled={busy}>

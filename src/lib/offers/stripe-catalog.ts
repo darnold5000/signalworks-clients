@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
+import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
@@ -61,6 +62,12 @@ export async function syncOfferItemToStripe(
       tenant_id: offer.tenant_id,
       offer_id: offer.id,
       offer_item_id: item.id,
+      plan_key:
+        typeof item.metadata?.plan_key === "string" ? item.metadata.plan_key : "",
+      product_key:
+        typeof item.metadata?.product_key === "string"
+          ? item.metadata.product_key
+          : "",
     },
   });
 
@@ -102,11 +109,12 @@ export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: Clien
     (item) =>
       item.is_selected &&
       item.item_type !== "discount" &&
-      item.item_type !== "credit",
+      item.item_type !== "credit" &&
+      !isEntitlementOfferItem(item),
   );
 
   for (const item of billable) {
-    if (!item.stripe_price_id) {
+    if (!item.stripe_price_id && item.unit_amount_cents > 0) {
       await syncOfferItemToStripe(offer, item);
     }
   }

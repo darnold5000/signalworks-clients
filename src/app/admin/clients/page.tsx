@@ -2,11 +2,19 @@ import { InviteClientForm } from "@/components/invite-client-form";
 import { AdminClientsTable } from "@/components/admin/admin-clients-table";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAdminClientList } from "@/lib/admin/client-records";
+import {
+  getActivePlanTemplates,
+  getActiveProductCatalog,
+} from "@/lib/catalog/queries";
 import { computeMrrCents } from "@/lib/data";
 import { formatMoney } from "@/lib/utils";
 
 export default async function AdminClientsPage() {
-  const clients = await getAdminClientList();
+  const [clients, plans, products] = await Promise.all([
+    getAdminClientList(),
+    getActivePlanTemplates(),
+    getActiveProductCatalog(),
+  ]);
   const mrr = computeMrrCents(clients);
   const active = clients.filter((c) => c.status === "active").length;
   const pastDue = clients.filter(
@@ -42,7 +50,7 @@ export default async function AdminClientsPage() {
       </div>
 
       <Panel title="Invite a client" className="mb-6">
-        <InviteClientForm />
+        <InviteClientForm plans={plans} products={products} />
       </Panel>
 
       <Panel title="All clients">

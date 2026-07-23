@@ -60,6 +60,7 @@ export type ClientOfferItemType =
   | "base_plan"
   | "setup_fee"
   | "add_on"
+  | "product"
   | "custom_service"
   | "credit"
   | "discount";
@@ -216,6 +217,7 @@ export type ClientOffer = {
   requires_terms_acceptance: boolean;
   subtotal_cents: number;
   discount_total_cents: number;
+  /** One-time charges due upfront (setup fees, etc.). Not the first subscription cycle. */
   initial_total_cents: number;
   recurring_total_cents: number;
   created_by: string | null;
@@ -249,6 +251,7 @@ export type ClientOfferItem = {
   is_optional: boolean;
   is_selected: boolean;
   sort_order: number;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };

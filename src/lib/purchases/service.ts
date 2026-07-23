@@ -4,7 +4,8 @@ import type {
   Purchase,
   PurchaseItem,
 } from "@/lib/database/phase1-types";
-import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
+import { calculateOfferTotals, calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
+import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -84,7 +85,7 @@ export async function createPurchaseFromOffer(args: {
       currency: args.offer.currency,
       subtotal_cents: totals.subtotal_cents,
       discount_total_cents: totals.discount_total_cents,
-      amount_due_today_cents: totals.initial_total_cents,
+      amount_due_today_cents: calculateAmountDueFirstCycle(totals),
       recurring_total_cents: totals.recurring_total_cents,
       purchased_by: args.purchasedBy,
       purchase_snapshot: snapshot,
@@ -100,7 +101,9 @@ export async function createPurchaseFromOffer(args: {
   const purchaseItemsPayload = selected
     .filter(
       (item) =>
-        item.item_type !== "discount" && item.item_type !== "credit",
+        item.item_type !== "discount" &&
+        item.item_type !== "credit" &&
+        !isEntitlementOfferItem(item),
     )
     .map((item) => ({
       purchase_id: purchase.id,

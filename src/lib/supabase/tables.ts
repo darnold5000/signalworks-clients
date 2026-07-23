@@ -22,6 +22,8 @@ export const TABLES = {
   stripeWebhookEvents: "stripe_webhook_events",
   tenantInternalNotes: "tenant_internal_notes",
   clientPipeline: "client_pipeline",
+  platformPlanTemplates: "platform_plan_templates",
+  platformProductCatalog: "platform_product_catalog",
 } as const;
 
 /** @deprecated Use TABLES */

@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
+import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createPurchaseFromOffer } from "@/lib/purchases/service";
 import type { OfferWithItems } from "@/lib/offers/queries";
 import { resolveAppUrl } from "@/lib/site";
@@ -13,7 +14,8 @@ function selectedBillableItems(items: ClientOfferItem[]) {
       item.is_selected &&
       item.stripe_price_id &&
       item.item_type !== "discount" &&
-      item.item_type !== "credit",
+      item.item_type !== "credit" &&
+      !isEntitlementOfferItem(item),
   );
 }
 

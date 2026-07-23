@@ -1,45 +1,167 @@
 "use client";
 
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import type {
+  InviteCommercialExtras,
+  InvitePlanSelection,
+  InviteProductSelection,
+} from "@/lib/catalog/build-invite-offer";
+import { dollarsToCents } from "@/lib/catalog/build-invite-offer";
+import type {
+  PlatformPlanTemplate,
+  PlatformProductCatalogItem,
+} from "@/lib/catalog/types";
 import { Button } from "@/components/ui";
-import { PLAN_KEYS, PLANS } from "@/lib/plans";
+import { InviteClientFinancialSummary } from "@/components/invite-client-financial-summary";
+import { InviteClientPlanSelect } from "@/components/invite-client-plan-select";
+import { InviteClientPaidAddOnSelect } from "@/components/invite-client-paid-add-on-select";
+import type { PaidAddOnSelection } from "@/components/invite-client-paid-add-on-select";
+import { InviteClientProductSelect } from "@/components/invite-client-product-select";
 
-export function InviteClientForm() {
+const inputClassName =
+  "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm";
+
+export function InviteClientForm({
+  plans,
+  products,
+}: {
+  plans: PlatformPlanTemplate[];
+  products: PlatformProductCatalogItem[];
+}) {
   const router = useRouter();
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
+
   const [businessName, setBusinessName] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
-  const [planKey, setPlanKey] = useState<(typeof PLAN_KEYS)[number]>("launch-website");
-  const [domain, setDomain] = useState("");
+  const [phone, setPhone] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [domain, setDomain] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<PlatformPlanTemplate | null>(
+    plans.find((plan) => plan.plan_key === "launch") ?? plans[0] ?? null,
+  );
+  const [monthlyPriceDollars, setMonthlyPriceDollars] = useState(
+    selectedPlan ? String(selectedPlan.default_price_cents / 100) : "",
+  );
+  const [selectedProductKeys, setSelectedProductKeys] = useState<string[]>([]);
+  const [paidAddOnSelections, setPaidAddOnSelections] = useState<
+    PaidAddOnSelection[]
+  >([]);
+  const [setupFeeDollars, setSetupFeeDollars] = useState("0");
+  const [monthlyDiscountDollars, setMonthlyDiscountDollars] = useState("0");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     message: string;
-    clientId: string;
     inviteLink: string | null;
-    inviteMethod: string;
+    redirectTo: string;
   } | null>(null);
+
+  const selectedProducts = useMemo<InviteProductSelection[]>(() => {
+    return products
+      .filter((product) => selectedProductKeys.includes(product.product_key))
+      .map((product) => ({
+        product_key: product.product_key,
+        name: product.name,
+      }));
+  }, [products, selectedProductKeys]);
+
+  const selectedPlanSummary = useMemo<InvitePlanSelection | null>(() => {
+    if (!selectedPlan) return null;
+    const parsed = Number.parseFloat(monthlyPriceDollars);
+    if (Number.isNaN(parsed)) return null;
+    return {
+      plan_key: selectedPlan.plan_key,
+      name: selectedPlan.name,
+      monthly_price_cents: Math.round(parsed * 100),
+      billing_interval: selectedPlan.billing_interval as InvitePlanSelection["billing_interval"],
+    };
+  }, [selectedPlan, monthlyPriceDollars]);
+
+  const inviteExtras = useMemo<InviteCommercialExtras>(() => {
+    const setupFeeCents = dollarsToCents(
+      Number.parseFloat(setupFeeDollars) || 0,
+    );
+    const monthlyDiscountCents = dollarsToCents(
+      Number.parseFloat(monthlyDiscountDollars) || 0,
+    );
+    const paid_add_ons = paidAddOnSelections
+      .map((selection) => {
+        const catalogItem = products.find(
+          (product) => product.product_key === selection.productKey,
+        );
+        if (!catalogItem) return null;
+        return {
+          product_key: catalogItem.product_key,
+          name: catalogItem.name,
+          unit_amount_cents: dollarsToCents(
+            Number.parseFloat(selection.monthlyPriceDollars) || 0,
+          ),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    return {
+      setup_fee_cents: setupFeeCents > 0 ? setupFeeCents : undefined,
+      monthly_discount_cents:
+        monthlyDiscountCents > 0 ? monthlyDiscountCents : undefined,
+      paid_add_ons: paid_add_ons.length > 0 ? paid_add_ons : undefined,
+    };
+  }, [
+    monthlyDiscountDollars,
+    paidAddOnSelections,
+    products,
+    setupFeeDollars,
+  ]);
+
+  if (plans.length === 0) {
+    return (
+      <p className="text-sm text-danger">
+        Plan catalog is not available. Apply migration
+        {" "}
+        <code className="text-xs">010_platform_catalogs.sql</code>
+        {" "}
+        and refresh this page.
+      </p>
+    );
+  }
+
+  function handleSelectPlan(plan: PlatformPlanTemplate) {
+    setSelectedPlan(plan);
+    setMonthlyPriceDollars(String(plan.default_price_cents / 100));
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setResult(null);
     setLoading(true);
+
     try {
       const res = await fetch("/api/admin/invite-client", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessName,
-          fullName,
+          contactName,
           email,
-          planKey,
-          domain,
+          phone,
           websiteUrl,
+          domain,
+          planKey: selectedPlan?.plan_key,
+          monthlyPriceDollars: Number.parseFloat(monthlyPriceDollars),
+          productKeys: selectedProductKeys,
+          paidAddOns: paidAddOnSelections.map((selection) => ({
+            productKey: selection.productKey,
+            monthlyPriceDollars: Number.parseFloat(selection.monthlyPriceDollars) || 0,
+          })),
+          setupFeeDollars: Number.parseFloat(setupFeeDollars) || 0,
+          monthlyDiscountDollars: Number.parseFloat(monthlyDiscountDollars) || 0,
+          idempotencyKey: idempotencyKeyRef.current,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) {
         const detail =
@@ -50,97 +172,171 @@ export function InviteClientForm() {
             )
             .filter(Boolean)
             .join(" · ");
-        setError(detail || data.error || "Invite failed");
+        setError(detail || data.error || data.note || "Invite failed");
         return;
       }
+
       setResult({
         message: data.message,
-        clientId: data.clientId,
         inviteLink: data.inviteLink,
-        inviteMethod: data.inviteMethod,
+        redirectTo: data.redirectTo,
       });
-      setBusinessName("");
-      setFullName("");
-      setEmail("");
-      setDomain("");
-      setWebsiteUrl("");
-      router.refresh();
+
+      if (data.redirectTo) {
+        router.push(data.redirectTo);
+        router.refresh();
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  if (plans.length === 0 || products.length === 0) {
+    return (
+      <p className="text-sm text-danger">
+        Plan and product catalogs are not available. Apply migration
+        {" "}
+        <code className="text-xs">010_platform_catalogs.sql</code>
+        {" "}
+        and refresh this page.
+      </p>
+    );
+  }
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-8">
       <p className="text-sm text-muted">
-        Creates the client record, assigns one plan, and invites them to set
-        their own password. You never see or store their password.
+        Create the client tenant, commercial offer, and portal invite in one step.
+        Offer line items are the source of truth for what they purchased.
       </p>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Business name</span>
-        <input
-          required
-          value={businessName}
-          onChange={(e) => setBusinessName(e.target.value)}
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-        />
-      </label>
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <header>
+              <h3 className="text-sm font-medium">Client</h3>
+            </header>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Contact name (optional)</span>
-        <input
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-        />
-      </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Business name</span>
+              <input
+                required
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                className={inputClassName}
+              />
+            </label>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Client email</span>
-        <input
-          required
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-        />
-      </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Contact name (optional)</span>
+              <input
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                className={inputClassName}
+              />
+            </label>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Plan</span>
-        <select
-          value={planKey}
-          onChange={(e) =>
-            setPlanKey(e.target.value as (typeof PLAN_KEYS)[number])
-          }
-          className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
-        >
-          {PLANS.map((plan) => (
-            <option key={plan.key} value={plan.key}>
-              {plan.name} — ${(plan.monthlyPriceCents / 100).toFixed(2)}/mo
-            </option>
-          ))}
-        </select>
-      </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Client email</span>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputClassName}
+              />
+            </label>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Domain (optional)</span>
-          <input
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Phone (optional)</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={inputClassName}
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Website URL (optional)</span>
+                <input
+                  type="url"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  className={inputClassName}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Domain (optional)</span>
+                <input
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  className={inputClassName}
+                />
+              </label>
+            </div>
+          </section>
+
+          <InviteClientPlanSelect
+            plans={plans}
+            selectedPlanKey={selectedPlan?.plan_key ?? null}
+            monthlyPriceDollars={monthlyPriceDollars}
+            onSelectPlan={handleSelectPlan}
+            onMonthlyPriceChange={setMonthlyPriceDollars}
           />
-        </label>
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Website URL (optional)</span>
-          <input
-            value={websiteUrl}
-            onChange={(e) => setWebsiteUrl(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm"
+
+          <InviteClientProductSelect
+            products={products}
+            selectedKeys={selectedProductKeys}
+            onChange={setSelectedProductKeys}
           />
-        </label>
+
+          <InviteClientPaidAddOnSelect
+            catalog={products}
+            selections={paidAddOnSelections}
+            onChange={setPaidAddOnSelections}
+          />
+
+          <section className="space-y-4">
+            <header>
+              <h3 className="text-sm font-medium">One-time &amp; discounts</h3>
+              <p className="mt-1 text-sm text-muted">
+                Setup fees are due upfront. Monthly discounts reduce recurring MRR.
+              </p>
+            </header>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Setup fee (USD)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={setupFeeDollars}
+                  onChange={(e) => setSetupFeeDollars(e.target.value)}
+                  className={inputClassName}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium">Monthly discount (USD)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={monthlyDiscountDollars}
+                  onChange={(e) => setMonthlyDiscountDollars(e.target.value)}
+                  className={inputClassName}
+                />
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <InviteClientFinancialSummary
+          plan={selectedPlanSummary}
+          products={selectedProducts}
+          extras={inviteExtras}
+        />
       </div>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -149,26 +345,17 @@ export function InviteClientForm() {
         <div className="space-y-2 rounded-lg border border-border bg-background p-4 text-sm">
           <p className="text-success">{result.message}</p>
           {result.inviteLink ? (
-            <div className="space-y-1">
-              <p className="font-medium">Invite link (send privately):</p>
-              <textarea
-                readOnly
-                value={result.inviteLink}
-                className="h-24 w-full rounded-md border border-border bg-surface p-2 text-xs"
-              />
-            </div>
+            <textarea
+              readOnly
+              value={result.inviteLink}
+              className="h-24 w-full rounded-md border border-border bg-surface p-2 text-xs"
+            />
           ) : null}
-          <a
-            href={`/admin/clients/${result.clientId}/overview`}
-            className="inline-flex text-sm font-medium underline underline-offset-2"
-          >
-            Open client record →
-          </a>
         </div>
       ) : null}
 
-      <Button type="submit" disabled={loading}>
-        {loading ? "Inviting…" : "Invite client"}
+      <Button type="submit" disabled={loading || !selectedPlan}>
+        {loading ? "Creating client & invite…" : "Create client & send invite"}
       </Button>
     </form>
   );

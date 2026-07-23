@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
+import {
+  defaultBillingForItemType,
+  resolveOfferItemMetadata,
+} from "@/lib/offers/build-offer-item-payload";
+import { DISCOUNT_SCOPE } from "@/lib/offers/discount-scope";
 import { getOfferWithItems } from "@/lib/offers/queries";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +16,7 @@ const itemSchema = z.object({
     "base_plan",
     "setup_fee",
     "add_on",
+    "product",
     "custom_service",
     "credit",
     "discount",
@@ -30,6 +36,11 @@ const itemSchema = z.object({
   isOptional: z.boolean().default(false),
   isSelected: z.boolean().default(true),
   sortOrder: z.number().int().nonnegative().default(0),
+  productKey: z.string().trim().min(1).optional(),
+  discountScope: z
+    .enum([DISCOUNT_SCOPE.RECURRING, DISCOUNT_SCOPE.FIRST_CYCLE])
+    .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const patchSchema = z.object({
@@ -120,6 +131,7 @@ export async function PATCH(
 
   if (parsed.data.addItem) {
     const item = parsed.data.addItem;
+    const billingType = item.billingType ?? defaultBillingForItemType(item.itemType);
     await supabase.from(TABLES.clientOfferItems).insert({
       offer_id: offerId,
       tenant_id: tenantId,
@@ -128,9 +140,9 @@ export async function PATCH(
       description: item.description ?? null,
       quantity: item.quantity,
       unit_amount_cents: item.unitAmountCents,
-      billing_type: item.billingType,
+      billing_type: billingType,
       billing_interval:
-        item.billingType === "recurring" ? item.billingInterval ?? "month" : null,
+        billingType === "recurring" ? item.billingInterval ?? "month" : null,
       billing_interval_count: item.billingIntervalCount,
       discount_type: item.discountType ?? null,
       discount_amount_cents: item.discountAmountCents ?? null,
@@ -140,11 +152,13 @@ export async function PATCH(
       is_optional: item.isOptional,
       is_selected: item.isSelected,
       sort_order: item.sortOrder,
+      metadata: resolveOfferItemMetadata({ ...item, billingType }),
     });
   }
 
   if (parsed.data.updateItem) {
     const item = parsed.data.updateItem;
+    const billingType = item.billingType ?? defaultBillingForItemType(item.itemType);
     await supabase
       .from(TABLES.clientOfferItems)
       .update({
@@ -153,9 +167,9 @@ export async function PATCH(
         description: item.description ?? null,
         quantity: item.quantity,
         unit_amount_cents: item.unitAmountCents,
-        billing_type: item.billingType,
+        billing_type: billingType,
         billing_interval:
-          item.billingType === "recurring"
+          billingType === "recurring"
             ? item.billingInterval ?? "month"
             : null,
         billing_interval_count: item.billingIntervalCount,
@@ -167,6 +181,7 @@ export async function PATCH(
         is_optional: item.isOptional,
         is_selected: item.isSelected,
         sort_order: item.sortOrder,
+        metadata: resolveOfferItemMetadata({ ...item, billingType }),
       })
       .eq("id", item.id)
       .eq("offer_id", offerId);

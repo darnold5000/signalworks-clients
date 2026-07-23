@@ -10,6 +10,7 @@ import type { OnboardingState } from "@/lib/portal/onboarding-state";
 import type { Client } from "@/lib/types";
 import { Button, Panel } from "@/components/ui";
 import { formatMoney } from "@/lib/utils";
+import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 
 type OfferPayload = {
   client: Client;
@@ -214,11 +215,25 @@ export function OfferPortal() {
                 </li>
               ))}
             </ul>
-            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
               <p>
-                Due today:{" "}
+                One-time:{" "}
                 <strong>
                   {formatMoney(offer.initial_total_cents, offer.currency)}
+                </strong>
+              </p>
+              <p>
+                Due at first cycle:{" "}
+                <strong>
+                  {formatMoney(
+                    calculateAmountDueFirstCycle({
+                      subtotal_cents: offer.subtotal_cents,
+                      discount_total_cents: offer.discount_total_cents,
+                      initial_total_cents: offer.initial_total_cents,
+                      recurring_total_cents: offer.recurring_total_cents,
+                    }),
+                    offer.currency,
+                  )}
                 </strong>
               </p>
               <p>

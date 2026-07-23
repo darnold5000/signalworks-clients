@@ -1,9 +1,21 @@
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
+import {
+  DISCOUNT_SCOPE,
+  discountScopeFromMetadata,
+} from "@/lib/offers/discount-scope";
+import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 
 export type OfferTotals = {
+  /** Sum of billable line amounts before offer-level discount/credit lines. */
   subtotal_cents: number;
+  /** Total value of discount/credit line items (positive cents). */
   discount_total_cents: number;
+  /**
+   * One-time charges due upfront (setup fees, etc.).
+   * Recurring-only offers store 0 — not the first subscription cycle.
+   */
   initial_total_cents: number;
+  /** Recurring amount per billing cycle (MRR when monthly). */
   recurring_total_cents: number;
 };
 
@@ -38,30 +50,47 @@ export function calculateOfferTotals(
     const line = lineAmount(item);
 
     if (item.item_type === "discount" || item.item_type === "credit") {
-      discount_total_cents += line;
+      if (discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING) {
+        recurring_total_cents = Math.max(0, recurring_total_cents - line);
+      } else {
+        discount_total_cents += line;
+      }
+      continue;
+    }
+
+    if (isEntitlementOfferItem(item)) {
       continue;
     }
 
     subtotal_cents += line;
 
+    const netLine = line - discountFromFields(line, item);
+
     if (item.billing_type === "one_time") {
-      initial_total_cents += line - discountFromFields(line, item);
+      initial_total_cents += netLine;
       continue;
     }
 
-    const recurringLine = line - discountFromFields(line, item);
-    recurring_total_cents += recurringLine;
-    initial_total_cents += recurringLine;
+    recurring_total_cents += netLine;
   }
 
-  initial_total_cents = Math.max(0, initial_total_cents - discount_total_cents);
-  subtotal_cents = Math.max(0, subtotal_cents);
-  discount_total_cents = Math.max(0, discount_total_cents);
-
   return {
-    subtotal_cents,
-    discount_total_cents,
-    initial_total_cents,
-    recurring_total_cents,
+    subtotal_cents: Math.max(0, subtotal_cents),
+    discount_total_cents: Math.max(0, discount_total_cents),
+    initial_total_cents: Math.max(0, initial_total_cents),
+    recurring_total_cents: Math.max(0, recurring_total_cents),
   };
+}
+
+/**
+ * Amount due when the client first pays (first billing cycle):
+ * upfront one-time charges plus the first recurring cycle, minus offer discounts.
+ */
+export function calculateAmountDueFirstCycle(totals: OfferTotals): number {
+  return Math.max(
+    0,
+    totals.initial_total_cents +
+      totals.recurring_total_cents -
+      totals.discount_total_cents,
+  );
 }
