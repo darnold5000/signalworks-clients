@@ -9,6 +9,7 @@ import {
   demoGetPipelineClients,
   demoUpdatePipelineClient,
 } from "@/lib/pipeline/demo-store";
+import { getSignalWorksTenantId } from "@/lib/pipeline/internal-tenant";
 import type {
   ClientPipelineRecord,
   PipelineStatus,
@@ -25,6 +26,14 @@ export type PipelineActionResult<T = void> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+const PIPELINE_ERRORS = {
+  create: "Could not create client. Please try again.",
+  update: "Could not update client. Please try again.",
+  updateStatus: "Could not update status. Please try again.",
+  delete: "Could not delete client. Please try again.",
+  notFound: "Client not found",
+} as const;
+
 async function requirePipelineAdmin(): Promise<void> {
   if (!(await isPlatformAdmin())) {
     throw new Error("Unauthorized");
@@ -39,6 +48,7 @@ function revalidatePipeline() {
 function mapRow(row: Record<string, unknown>): ClientPipelineRecord {
   return {
     id: row.id as string,
+    tenant_id: row.tenant_id as string,
     business_name: row.business_name as string,
     contact_name: row.contact_name as string,
     status: row.status as PipelineStatus,
@@ -56,10 +66,12 @@ export async function getPipelineClients(): Promise<ClientPipelineRecord[]> {
     return demoGetPipelineClients();
   }
 
+  const tenantId = await getSignalWorksTenantId();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(TABLES.clientPipeline)
     .select("*")
+    .eq("tenant_id", tenantId)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -79,15 +91,21 @@ export async function getPipelineClient(
     return demoGetPipelineClient(id);
   }
 
+  const tenantId = await getSignalWorksTenantId();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(TABLES.clientPipeline)
     .select("*")
     .eq("id", id)
+    .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (error || !data) {
-    if (error) console.error("getPipelineClient", error.message);
+  if (error) {
+    console.error("getPipelineClient", error.message);
+    return null;
+  }
+
+  if (!data) {
     return null;
   }
 
@@ -119,26 +137,37 @@ export async function createPipelineClient(
       return { ok: true, data: record };
     }
 
+    const tenantId = await getSignalWorksTenantId();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from(TABLES.clientPipeline)
-      .insert(payload)
+      .insert({
+        tenant_id: tenantId,
+        business_name: payload.business_name,
+        contact_name: payload.contact_name,
+        status: payload.status,
+        last_conversation: payload.last_conversation,
+        plan: payload.plan,
+      })
       .select("*")
       .single();
 
     if (error || !data) {
-      return {
-        ok: false,
-        error: error?.message ?? "Could not create client",
-      };
+      console.error("createPipelineClient", error?.message);
+      return { ok: false, error: PIPELINE_ERRORS.create };
     }
 
     revalidatePipeline();
     return { ok: true, data: mapRow(data) };
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
+      return { ok: false, error: err.message };
+    }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Could not create client",
+      error: err instanceof Error && err.message === "Unauthorized"
+        ? err.message
+        : PIPELINE_ERRORS.create,
     };
   }
 }
@@ -165,32 +194,41 @@ export async function updatePipelineClient(
 
     if (!isSupabaseConfigured()) {
       const record = demoUpdatePipelineClient(id, payload);
-      if (!record) return { ok: false, error: "Client not found" };
+      if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();
       return { ok: true, data: record };
     }
 
+    const tenantId = await getSignalWorksTenantId();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from(TABLES.clientPipeline)
       .update(payload)
       .eq("id", id)
+      .eq("tenant_id", tenantId)
       .select("*")
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      return {
-        ok: false,
-        error: error?.message ?? "Could not update client",
-      };
+    if (error) {
+      console.error("updatePipelineClient", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.update };
+    }
+
+    if (!data) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
     }
 
     revalidatePipeline();
     return { ok: true, data: mapRow(data) };
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
+      return { ok: false, error: err.message };
+    }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Could not update client",
+      error: err instanceof Error && err.message === "Unauthorized"
+        ? err.message
+        : PIPELINE_ERRORS.update,
     };
   }
 }
@@ -211,32 +249,41 @@ export async function updatePipelineStatus(
       const record = demoUpdatePipelineClient(id, {
         status: parsed.data.status as PipelineStatus,
       });
-      if (!record) return { ok: false, error: "Client not found" };
+      if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();
       return { ok: true, data: record };
     }
 
+    const tenantId = await getSignalWorksTenantId();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from(TABLES.clientPipeline)
       .update({ status: parsed.data.status })
       .eq("id", id)
+      .eq("tenant_id", tenantId)
       .select("*")
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      return {
-        ok: false,
-        error: error?.message ?? "Could not update status",
-      };
+    if (error) {
+      console.error("updatePipelineStatus", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.updateStatus };
+    }
+
+    if (!data) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
     }
 
     revalidatePipeline();
     return { ok: true, data: mapRow(data) };
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
+      return { ok: false, error: err.message };
+    }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Could not update status",
+      error: err instanceof Error && err.message === "Unauthorized"
+        ? err.message
+        : PIPELINE_ERRORS.updateStatus,
     };
   }
 }
@@ -249,27 +296,41 @@ export async function deletePipelineClient(
 
     if (!isSupabaseConfigured()) {
       const deleted = demoDeletePipelineClient(id);
-      if (!deleted) return { ok: false, error: "Client not found" };
+      if (!deleted) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();
       return { ok: true, data: undefined };
     }
 
+    const tenantId = await getSignalWorksTenantId();
     const supabase = await createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(TABLES.clientPipeline)
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
-      return { ok: false, error: error.message };
+      console.error("deletePipelineClient", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.delete };
+    }
+
+    if (!data) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
     }
 
     revalidatePipeline();
     return { ok: true, data: undefined };
   } catch (err) {
+    if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
+      return { ok: false, error: err.message };
+    }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Could not delete client",
+      error: err instanceof Error && err.message === "Unauthorized"
+        ? err.message
+        : PIPELINE_ERRORS.delete,
     };
   }
 }

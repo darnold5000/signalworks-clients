@@ -9,6 +9,7 @@ export type PipelineStatus =
 
 export interface ClientPipelineRecord {
   id: string;
+  tenant_id: string;
   business_name: string;
   contact_name: string;
   status: PipelineStatus;

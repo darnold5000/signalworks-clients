@@ -1,10 +1,15 @@
 import type { ClientPipelineRecord } from "@/lib/pipeline/types";
 
+/** Placeholder tenant ID used only when Supabase is not configured. */
+export const DEMO_SIGNALWORKS_TENANT_ID =
+  "00000000-0000-4000-8000-000000000001";
+
 const now = () => new Date().toISOString();
 
 let demoRecords: ClientPipelineRecord[] = [
   {
     id: "p1000000-0000-4000-8000-000000000001",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "MA5",
     contact_name: "TBD",
     status: "contact_made",
@@ -15,6 +20,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000002",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "DAWG",
     contact_name: "TBD",
     status: "proposal_sent",
@@ -25,6 +31,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000003",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "Zero Limits",
     contact_name: "TBD",
     status: "conversation_ongoing",
@@ -35,6 +42,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000004",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "Market Street",
     contact_name: "TBD",
     status: "potential",
@@ -45,6 +53,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000005",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "Oak Tree Golf",
     contact_name: "TBD",
     status: "reached_out",
@@ -55,6 +64,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000006",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "Shay's House of Dolls",
     contact_name: "TBD",
     status: "potential",
@@ -65,6 +75,7 @@ let demoRecords: ClientPipelineRecord[] = [
   },
   {
     id: "p1000000-0000-4000-8000-000000000007",
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     business_name: "Cornerstone",
     contact_name: "TBD",
     status: "potential",
@@ -93,10 +104,11 @@ export function demoGetPipelineClient(
 }
 
 export function demoCreatePipelineClient(
-  data: Omit<ClientPipelineRecord, "id" | "created_at" | "updated_at">,
+  data: Omit<ClientPipelineRecord, "id" | "tenant_id" | "created_at" | "updated_at">,
 ): ClientPipelineRecord {
   const record: ClientPipelineRecord = {
     id: crypto.randomUUID(),
+    tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     ...data,
     created_at: now(),
     updated_at: now(),
@@ -108,7 +120,7 @@ export function demoCreatePipelineClient(
 export function demoUpdatePipelineClient(
   id: string,
   data: Partial<
-    Omit<ClientPipelineRecord, "id" | "created_at" | "updated_at">
+    Omit<ClientPipelineRecord, "id" | "tenant_id" | "created_at" | "updated_at">
   >,
 ): ClientPipelineRecord | null {
   const index = demoRecords.findIndex((r) => r.id === id);
