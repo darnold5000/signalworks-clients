@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
+import type {
+  ClientOffer,
+  ClientOfferItem,
+  ClientOfferItemType,
+} from "@/lib/database/phase1-types";
 import { DISCOUNT_SCOPE } from "@/lib/offers/discount-scope";
 import { defaultBillingForItemType } from "@/lib/offers/build-offer-item-payload";
 import { Button, Panel, StatusPill } from "@/components/ui";
@@ -10,23 +14,40 @@ import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 
 type OfferWithItems = ClientOffer & { items: ClientOfferItem[] };
 
-const EMPTY_ITEM = {
-  itemType: "base_plan" as const,
+type ItemFormState = {
+  itemType: ClientOfferItemType;
+  name: string;
+  description: string;
+  productKey: string;
+  quantity: number;
+  unitAmountDollars: string;
+  billingType: "one_time" | "recurring";
+  billingInterval: "day" | "week" | "month" | "year";
+  discountType: "" | "amount" | "percent";
+  discountAmountDollars: string;
+  discountPercent: string;
+  discountDurationType: "once" | "repeating" | "forever";
+  discountDurationMonths: number;
+  discountScope:
+    | typeof DISCOUNT_SCOPE.RECURRING
+    | typeof DISCOUNT_SCOPE.FIRST_CYCLE;
+};
+
+const EMPTY_ITEM: ItemFormState = {
+  itemType: "base_plan",
   name: "",
   description: "",
   productKey: "",
   quantity: 1,
   unitAmountDollars: "",
-  billingType: "recurring" as const,
-  billingInterval: "month" as const,
-  discountType: "" as "" | "amount" | "percent",
+  billingType: "recurring",
+  billingInterval: "month",
+  discountType: "",
   discountAmountDollars: "",
   discountPercent: "",
-  discountDurationType: "repeating" as const,
+  discountDurationType: "repeating",
   discountDurationMonths: 6,
-  discountScope: DISCOUNT_SCOPE.RECURRING as
-    | typeof DISCOUNT_SCOPE.RECURRING
-    | typeof DISCOUNT_SCOPE.FIRST_CYCLE,
+  discountScope: DISCOUNT_SCOPE.RECURRING,
 };
 
 function dollarsToCents(value: string): number {
@@ -48,7 +69,7 @@ export function OfferBuilder({
   );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [itemForm, setItemForm] = useState(EMPTY_ITEM);
+  const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_ITEM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -304,7 +325,7 @@ export function OfferBuilder({
                     <select
                       value={itemForm.itemType}
                       onChange={(e) => {
-                        const itemType = e.target.value as typeof itemForm.itemType;
+                        const itemType = e.target.value as ClientOfferItemType;
                         setItemForm((current) => ({
                           ...current,
                           itemType,
