@@ -31,6 +31,7 @@ export function InviteClientFinancialSummary({
   const arr = totals.recurring_total_cents * 12;
   const dueFirstCycle = calculateAmountDueFirstCycle(totals);
   const monthlyDiscountCents = extras?.monthly_discount_cents ?? 0;
+  const discountDurationMonths = extras?.monthly_discount_duration_months ?? 0;
   const paidAddOnCount = extras?.paid_add_ons?.length ?? 0;
 
   return (
@@ -48,7 +49,12 @@ export function InviteClientFinancialSummary({
         {monthlyDiscountCents > 0 ? (
           <div className="flex items-start justify-between gap-4">
             <dt className="text-muted">Monthly discount</dt>
-            <dd>-{formatMoney(monthlyDiscountCents)}</dd>
+            <dd>
+              -{formatMoney(monthlyDiscountCents)}
+              {discountDurationMonths > 0
+                ? ` for ${discountDurationMonths} mo`
+                : " (ongoing)"}
+            </dd>
           </div>
         ) : null}
         <div className="flex items-start justify-between gap-4 border-t border-border pt-3 font-medium">

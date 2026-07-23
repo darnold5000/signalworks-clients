@@ -32,6 +32,7 @@ export const inviteClientRequestSchema = z
     paidAddOns: z.array(paidAddOnSchema).max(20).default([]),
     setupFeeDollars: z.coerce.number().min(0).default(0),
     monthlyDiscountDollars: z.coerce.number().min(0).default(0),
+    monthlyDiscountDurationMonths: z.coerce.number().int().min(0).max(120).default(0),
     idempotencyKey: z.string().uuid().optional(),
   })
   .superRefine((data, ctx) => {

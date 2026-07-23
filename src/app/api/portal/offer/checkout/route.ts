@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createOfferCheckoutSession } from "@/lib/offers/checkout";
 import { getActiveOfferForTenant } from "@/lib/offers/queries";
-import { hasAcceptedOfferTerms } from "@/lib/agreements/service";
+import { hasAcceptedRequiredOfferAgreements } from "@/lib/agreements/service";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -30,19 +30,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No active offer" }, { status: 404 });
   }
 
-  if (offer.requires_terms_acceptance && offer.terms_document_id) {
-    const accepted = await hasAcceptedOfferTerms({
-      tenantId: client.id,
-      offerId: offer.id,
-      userId: profile.id,
-      legalDocumentId: offer.terms_document_id,
-    });
-    if (!accepted) {
-      return NextResponse.json(
-        { error: "Accept the terms of service before checkout." },
-        { status: 403 },
-      );
-    }
+  const accepted = await hasAcceptedRequiredOfferAgreements({
+    tenantId: client.id,
+    offerId: offer.id,
+    userId: profile.id,
+    termsDocumentId: offer.terms_document_id,
+    sowDocumentId: offer.sow_document_id,
+    requiresTerms: offer.requires_terms_acceptance,
+  });
+  if (!accepted) {
+    return NextResponse.json(
+      {
+        error:
+          "Accept the Terms of Service and Statement of Work before checkout.",
+      },
+      { status: 403 },
+    );
   }
 
   try {

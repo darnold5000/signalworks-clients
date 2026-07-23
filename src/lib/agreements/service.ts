@@ -1,10 +1,11 @@
 import { hashDocumentContent } from "@/lib/agreements/document-hash";
 import type { LegalDocument } from "@/lib/database/phase1-types";
+import { renderSignalWorksTosHtml } from "@/lib/legal/signal-works-tos";
 import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
-export async function hasAcceptedOfferTerms(args: {
+export async function hasAcceptedLegalDocument(args: {
   tenantId: string;
   offerId: string;
   userId: string;
@@ -23,7 +24,47 @@ export async function hasAcceptedOfferTerms(args: {
   return Boolean(data);
 }
 
-export async function recordAgreementAcceptance(args: {
+export async function hasAcceptedOfferTerms(args: {
+  tenantId: string;
+  offerId: string;
+  userId: string;
+  legalDocumentId: string;
+}): Promise<boolean> {
+  return hasAcceptedLegalDocument(args);
+}
+
+export async function hasAcceptedRequiredOfferAgreements(args: {
+  tenantId: string;
+  offerId: string;
+  userId: string;
+  termsDocumentId?: string | null;
+  sowDocumentId?: string | null;
+  requiresTerms?: boolean;
+}): Promise<boolean> {
+  if (args.requiresTerms && args.termsDocumentId) {
+    const accepted = await hasAcceptedLegalDocument({
+      tenantId: args.tenantId,
+      offerId: args.offerId,
+      userId: args.userId,
+      legalDocumentId: args.termsDocumentId,
+    });
+    if (!accepted) return false;
+  }
+
+  if (args.sowDocumentId) {
+    const accepted = await hasAcceptedLegalDocument({
+      tenantId: args.tenantId,
+      offerId: args.offerId,
+      userId: args.userId,
+      legalDocumentId: args.sowDocumentId,
+    });
+    if (!accepted) return false;
+  }
+
+  return true;
+}
+
+async function insertAgreementAcceptance(args: {
   tenantId: string;
   userId: string;
   offerId: string;
@@ -32,9 +73,15 @@ export async function recordAgreementAcceptance(args: {
   acceptedEmail: string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  effectiveDate?: string;
 }) {
   const supabase = createServiceClient();
-  const documentHash = hashDocumentContent(args.document.content_html);
+  const snapshotHtml =
+    args.document.document_type === "terms_of_service" && args.effectiveDate
+      ? renderSignalWorksTosHtml(args.effectiveDate)
+      : args.document.content_html;
+
+  const documentHash = hashDocumentContent(snapshotHtml);
 
   const { data, error } = await supabase
     .from(TABLES.agreementAcceptances)
@@ -49,7 +96,7 @@ export async function recordAgreementAcceptance(args: {
       accepted_at: new Date().toISOString(),
       ip_address: args.ipAddress ?? null,
       user_agent: args.userAgent ?? null,
-      document_snapshot_html: args.document.content_html,
+      document_snapshot_html: snapshotHtml,
       document_hash: documentHash,
     })
     .select("*")
@@ -59,6 +106,81 @@ export async function recordAgreementAcceptance(args: {
     throw new Error(error.message);
   }
 
+  return data;
+}
+
+export async function recordAgreementAcceptance(args: {
+  tenantId: string;
+  userId: string;
+  offerId: string;
+  document: LegalDocument;
+  acceptedName: string;
+  acceptedEmail: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  effectiveDate?: string;
+}) {
+  const acceptance = await insertAgreementAcceptance(args);
+
+  await logTenantActivity({
+    tenantId: args.tenantId,
+    actorUserId: args.userId,
+    actorType: "user",
+    action: "agreement.accepted",
+    entityType: "agreement_acceptance",
+    entityId: acceptance.id as string,
+    summary: `Accepted ${args.document.title} v${args.document.version}`,
+  });
+
+  return acceptance;
+}
+
+export async function recordOfferAgreementsAcceptance(args: {
+  tenantId: string;
+  userId: string;
+  offerId: string;
+  termsDocument?: LegalDocument | null;
+  sowDocument?: LegalDocument | null;
+  acceptedName: string;
+  acceptedEmail: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}) {
+  const effectiveDate = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  if (args.termsDocument) {
+    await recordAgreementAcceptance({
+      tenantId: args.tenantId,
+      userId: args.userId,
+      offerId: args.offerId,
+      document: args.termsDocument,
+      acceptedName: args.acceptedName,
+      acceptedEmail: args.acceptedEmail,
+      ipAddress: args.ipAddress,
+      userAgent: args.userAgent,
+      effectiveDate,
+    });
+  }
+
+  if (args.sowDocument) {
+    await recordAgreementAcceptance({
+      tenantId: args.tenantId,
+      userId: args.userId,
+      offerId: args.offerId,
+      document: args.sowDocument,
+      acceptedName: args.acceptedName,
+      acceptedEmail: args.acceptedEmail,
+      ipAddress: args.ipAddress,
+      userAgent: args.userAgent,
+      effectiveDate,
+    });
+  }
+
+  const supabase = createServiceClient();
   await supabase
     .from(TABLES.clientOffers)
     .update({
@@ -71,16 +193,4 @@ export async function recordAgreementAcceptance(args: {
     .from(TABLES.tenantProfiles)
     .update({ onboarding_status: "terms_accepted" })
     .eq("tenant_id", args.tenantId);
-
-  await logTenantActivity({
-    tenantId: args.tenantId,
-    actorUserId: args.userId,
-    actorType: "user",
-    action: "agreement.accepted",
-    entityType: "agreement_acceptance",
-    entityId: data.id as string,
-    summary: `Accepted ${args.document.title} v${args.document.version}`,
-  });
-
-  return data;
 }

@@ -11,7 +11,10 @@ import {
   createClientPortalAccessLink,
   deliverClientInviteLink,
 } from "@/lib/admin/client-invite-link";
-import { ensurePlatformTermsDocument } from "@/lib/offers/queries";
+import {
+  ensureOfferSowDocument,
+  ensurePlatformTermsDocument,
+} from "@/lib/offers/queries";
 
 /**
  * Offer-first Invite Client orchestration.
@@ -158,6 +161,7 @@ export async function inviteClientWithOffer(
 
   const setupFeeCents = dollarsToCents(input.setupFeeDollars);
   const monthlyDiscountCents = dollarsToCents(input.monthlyDiscountDollars);
+  const monthlyDiscountDurationMonths = input.monthlyDiscountDurationMonths ?? 0;
   const monthlyPriceCents = dollarsToCents(input.monthlyPriceDollars);
   const supabase = createServiceClient();
   const created: CreatedResources = {};
@@ -270,8 +274,7 @@ export async function inviteClientWithOffer(
       .insert({
         tenant_id: tenantId,
         title: offerTitle,
-        description:
-          "Commercial agreement created during Invite Client. Source of truth: client_offer_items.",
+        description: null,
         currency: "usd",
         status: "published",
         requires_terms_acceptance: true,
@@ -311,6 +314,10 @@ export async function inviteClientWithOffer(
         setup_fee_cents: setupFeeCents > 0 ? setupFeeCents : undefined,
         monthly_discount_cents:
           monthlyDiscountCents > 0 ? monthlyDiscountCents : undefined,
+        monthly_discount_duration_months:
+          monthlyDiscountCents > 0 && monthlyDiscountDurationMonths > 0
+            ? monthlyDiscountDurationMonths
+            : undefined,
         paid_add_ons: paidAddOns.length > 0 ? paidAddOns : undefined,
       },
     });
@@ -327,9 +334,30 @@ export async function inviteClientWithOffer(
     }
 
     const totals = calculateOfferTotals(insertedItems as ClientOfferItem[]);
+    const fullOffer = { ...(offer as ClientOffer), ...totals };
+    const sowDocument = await ensureOfferSowDocument({
+      tenantId,
+      client: {
+        businessName: input.businessName,
+        contactName: displayName,
+        email: input.email,
+        phone,
+        website: websiteUrl,
+        domain,
+        planName: planTemplate.name,
+        projectStart: new Date().toISOString().slice(0, 10),
+      },
+      offer: fullOffer,
+      items: insertedItems as ClientOfferItem[],
+      createdBy: actorUserId,
+    });
+
     const { error: totalsError } = await supabase
       .from(TABLES.clientOffers)
-      .update(totals)
+      .update({
+        ...totals,
+        sow_document_id: sowDocument.id,
+      })
       .eq("id", created.offerId);
 
     if (totalsError) {
@@ -340,7 +368,7 @@ export async function inviteClientWithOffer(
 
     try {
       await syncAllOfferItemsToStripe(
-        { ...(offer as ClientOffer), ...totals },
+        fullOffer,
         insertedItems as ClientOfferItem[],
       );
     } catch (error) {

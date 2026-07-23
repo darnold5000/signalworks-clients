@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type {
   ClientOffer,
   ClientOfferItem,
@@ -12,11 +13,13 @@ import { Button, Panel } from "@/components/ui";
 import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
+import { getClientVisibleOfferDescription } from "@/lib/offers/client-offer-copy";
 
 type OfferPayload = {
   client: Client;
   offer: (ClientOffer & { items: ClientOfferItem[] }) | null;
   terms: LegalDocument | null;
+  sow: LegalDocument | null;
   onboarding: OnboardingState;
 };
 
@@ -24,6 +27,8 @@ export function OfferPortal() {
   const [data, setData] = useState<OfferPayload | null>(null);
   const [acceptedName, setAcceptedName] = useState("");
   const [acceptedEmail, setAcceptedEmail] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptSow, setAcceptSow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -96,7 +101,7 @@ export function OfferPortal() {
     }
   }
 
-  async function acceptTerms() {
+  async function acceptAgreements() {
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -104,14 +109,19 @@ export function OfferPortal() {
       const res = await fetch("/api/portal/agreements/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ acceptedName, acceptedEmail }),
+        body: JSON.stringify({
+          acceptedName,
+          acceptedEmail,
+          acceptTerms,
+          acceptSow,
+        }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Could not accept terms");
+      if (!res.ok) throw new Error(json.error ?? "Could not accept agreements");
       await load();
-      setMessage("Terms accepted.");
+      setMessage("Agreements accepted. You can continue to checkout.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not accept terms");
+      setError(err instanceof Error ? err.message : "Could not accept agreements");
     } finally {
       setBusy(false);
     }
@@ -121,47 +131,58 @@ export function OfferPortal() {
     return <p className="text-sm text-muted">Loading your proposal…</p>;
   }
 
-  const { offer, terms, onboarding } = data;
+  const { offer, onboarding } = data;
+  const offerDescription = offer
+    ? getClientVisibleOfferDescription(offer.description)
+    : null;
   const needsCompany =
     onboarding.nextAction === "confirm_company" ||
     onboarding.onboardingStatus === "invited" ||
     onboarding.onboardingStatus === "account_created";
+  const needsAgreements =
+    offer &&
+    !onboarding.agreementsAccepted &&
+    (onboarding.requiresTerms || onboarding.requiresSow);
+  const canCheckout =
+    offer &&
+    onboarding.agreementsAccepted &&
+    onboarding.nextAction === "complete_checkout";
 
   return (
     <div className="space-y-6">
       {needsCompany ? (
         <div id="company">
-        <Panel title="Confirm company information">
-          <div className="grid gap-3 md:grid-cols-2">
-            {(
-              [
-                ["legalBusinessName", "Legal business name"],
-                ["primaryContactName", "Primary contact name"],
-                ["primaryContactEmail", "Primary contact email"],
-                ["primaryContactPhone", "Phone"],
-                ["websiteUrl", "Website URL"],
-                ["primaryDomain", "Domain"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="text-sm">
-                <span className="mb-1 block text-muted">{label}</span>
-                <input
-                  value={company[key]}
-                  onChange={(e) =>
-                    setCompany((current) => ({
-                      ...current,
-                      [key]: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-md border border-border bg-background px-3 py-2"
-                />
-              </label>
-            ))}
-          </div>
-          <Button className="mt-4" onClick={saveCompany} disabled={busy}>
-            Save and continue
-          </Button>
-        </Panel>
+          <Panel title="Confirm company information">
+            <div className="grid gap-3 md:grid-cols-2">
+              {(
+                [
+                  ["legalBusinessName", "Legal business name"],
+                  ["primaryContactName", "Primary contact name"],
+                  ["primaryContactEmail", "Primary contact email"],
+                  ["primaryContactPhone", "Phone"],
+                  ["websiteUrl", "Website URL"],
+                  ["primaryDomain", "Domain"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="text-sm">
+                  <span className="mb-1 block text-muted">{label}</span>
+                  <input
+                    value={company[key]}
+                    onChange={(e) =>
+                      setCompany((current) => ({
+                        ...current,
+                        [key]: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-border bg-background px-3 py-2"
+                  />
+                </label>
+              ))}
+            </div>
+            <Button className="mt-4" onClick={saveCompany} disabled={busy}>
+              Save and continue
+            </Button>
+          </Panel>
         </div>
       ) : null}
 
@@ -175,30 +196,41 @@ export function OfferPortal() {
       ) : (
         <>
           <Panel title={offer.title}>
-            {offer.description ? (
-              <p className="mb-4 text-sm text-muted">{offer.description}</p>
-            ) : null}
+            {offerDescription ? (
+              <p className="mb-4 text-sm text-muted">{offerDescription}</p>
+            ) : (
+              <p className="mb-4 text-sm text-muted">
+                Review your plan, included services, and pricing below.
+              </p>
+            )}
             <ul className="divide-y divide-border">
-              {offer.items.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between gap-4 py-3 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-muted">
-                      {item.billing_type}
-                      {item.billing_interval ? ` / ${item.billing_interval}` : ""}
+              {offer.items
+                .filter(
+                  (item) =>
+                    item.item_type !== "discount" && item.item_type !== "credit",
+                )
+                .map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-4 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted">
+                        {item.billing_type}
+                        {item.billing_interval
+                          ? ` / ${item.billing_interval}`
+                          : ""}
+                      </p>
+                    </div>
+                    <p className="font-medium">
+                      {formatMoney(
+                        item.unit_amount_cents * item.quantity,
+                        offer.currency,
+                      )}
                     </p>
-                  </div>
-                  <p className="font-medium">
-                    {formatMoney(
-                      item.unit_amount_cents * item.quantity,
-                      offer.currency,
-                    )}
-                  </p>
-                </li>
-              ))}
+                  </li>
+                ))}
             </ul>
             <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
               <p>
@@ -230,12 +262,59 @@ export function OfferPortal() {
             </div>
           </Panel>
 
-          {offer.requires_terms_acceptance && terms && !onboarding.termsAccepted ? (
-            <Panel title={terms.title}>
-              <div
-                className="prose prose-sm max-w-none text-sm"
-                dangerouslySetInnerHTML={{ __html: terms.content_html }}
-              />
+          {needsAgreements ? (
+            <Panel title="Review and accept agreements">
+              <p className="text-sm text-muted">
+                Read the Terms of Service and Statement of Work, then confirm
+                below to continue to Stripe checkout. Your Terms effective date
+                will be the day you accept.
+              </p>
+
+              <div className="mt-4 space-y-3 text-sm">
+                {onboarding.requiresTerms ? (
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                    />
+                    <span>
+                      I have read and agree to the{" "}
+                      <Link
+                        href="/legal/terms"
+                        target="_blank"
+                        className="underline underline-offset-2"
+                      >
+                        Signal Works Terms of Service
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                ) : null}
+                {onboarding.requiresSow ? (
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={acceptSow}
+                      onChange={(e) => setAcceptSow(e.target.checked)}
+                    />
+                    <span>
+                      I have read and agree to the{" "}
+                      <Link
+                        href="/legal/sow"
+                        target="_blank"
+                        className="underline underline-offset-2"
+                      >
+                        Statement of Work
+                      </Link>{" "}
+                      for this proposal.
+                    </span>
+                  </label>
+                ) : null}
+              </div>
+
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <input
                   value={acceptedName}
@@ -250,18 +329,27 @@ export function OfferPortal() {
                   className="rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
               </div>
-              <Button className="mt-4" onClick={acceptTerms} disabled={busy}>
-                Accept terms
+              <Button
+                className="mt-4"
+                onClick={acceptAgreements}
+                disabled={
+                  busy ||
+                  !acceptedName.trim() ||
+                  !acceptedEmail.trim() ||
+                  (onboarding.requiresTerms && !acceptTerms) ||
+                  (onboarding.requiresSow && !acceptSow)
+                }
+              >
+                Accept and continue
               </Button>
             </Panel>
           ) : null}
 
-          {(onboarding.termsAccepted || !offer.requires_terms_acceptance) &&
-          onboarding.nextAction === "complete_checkout" ? (
+          {canCheckout ? (
             <Panel title="Checkout">
               <p className="text-sm text-muted">
-                When you&apos;re ready, continue to Stripe to add your payment
-                method. You can review the line items above anytime.
+                Agreements are on file. Continue to Stripe to add your payment
+                method and complete setup.
               </p>
               <div className="mt-4">
                 <OfferCheckoutButton label="Continue to Stripe checkout" />

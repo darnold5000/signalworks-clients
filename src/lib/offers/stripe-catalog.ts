@@ -1,5 +1,9 @@
 import type Stripe from "stripe";
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
+import {
+  DISCOUNT_SCOPE,
+  discountScopeFromMetadata,
+} from "@/lib/offers/discount-scope";
 import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -36,6 +40,38 @@ async function createCouponForItem(
     params.percent_off = Number(item.discount_percent);
   } else {
     return null;
+  }
+
+  const coupon = await stripe.coupons.create(params);
+  return coupon.id;
+}
+
+async function createCouponForDiscountLine(
+  stripe: Stripe,
+  item: ClientOfferItem,
+  currency: string,
+): Promise<string | null> {
+  const amountCents = item.discount_amount_cents ?? item.unit_amount_cents;
+  if (amountCents <= 0) return null;
+
+  const durationType = item.discount_duration_type ?? "forever";
+  const params: Stripe.CouponCreateParams = {
+    name: item.name,
+    amount_off: amountCents,
+    currency,
+    duration:
+      durationType === "once"
+        ? "once"
+        : durationType === "repeating"
+          ? "repeating"
+          : "forever",
+    metadata: {
+      offer_item_id: item.id,
+    },
+  };
+
+  if (params.duration === "repeating") {
+    params.duration_in_months = item.discount_duration_months ?? 6;
   }
 
   const coupon = await stripe.coupons.create(params);
@@ -104,6 +140,27 @@ export async function syncOfferItemToStripe(
   };
 }
 
+export async function syncDiscountOfferItemToStripe(
+  offer: ClientOffer,
+  item: ClientOfferItem,
+): Promise<string | null> {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error("Stripe is not configured");
+  }
+
+  const couponId = await createCouponForDiscountLine(stripe, item, offer.currency);
+  if (!couponId) return null;
+
+  const supabase = createServiceClient();
+  await supabase
+    .from(TABLES.clientOfferItems)
+    .update({ stripe_coupon_id: couponId })
+    .eq("id", item.id);
+
+  return couponId;
+}
+
 export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: ClientOfferItem[]) {
   const billable = items.filter(
     (item) =>
@@ -116,6 +173,17 @@ export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: Clien
   for (const item of billable) {
     if (!item.stripe_price_id && item.unit_amount_cents > 0) {
       await syncOfferItemToStripe(offer, item);
+    }
+  }
+
+  for (const item of items) {
+    if (
+      item.is_selected &&
+      item.item_type === "discount" &&
+      !item.stripe_coupon_id &&
+      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING
+    ) {
+      await syncDiscountOfferItemToStripe(offer, item);
     }
   }
 }

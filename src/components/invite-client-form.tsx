@@ -50,6 +50,8 @@ export function InviteClientForm({
   >([]);
   const [setupFeeDollars, setSetupFeeDollars] = useState("0");
   const [monthlyDiscountDollars, setMonthlyDiscountDollars] = useState("0");
+  const [monthlyDiscountDurationMonths, setMonthlyDiscountDurationMonths] =
+    useState("0");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
@@ -86,6 +88,10 @@ export function InviteClientForm({
     const monthlyDiscountCents = dollarsToCents(
       Number.parseFloat(monthlyDiscountDollars) || 0,
     );
+    const durationMonths = Math.max(
+      0,
+      Number.parseInt(monthlyDiscountDurationMonths, 10) || 0,
+    );
     const paid_add_ons = paidAddOnSelections
       .map((selection) => {
         const catalogItem = products.find(
@@ -106,10 +112,15 @@ export function InviteClientForm({
       setup_fee_cents: setupFeeCents > 0 ? setupFeeCents : undefined,
       monthly_discount_cents:
         monthlyDiscountCents > 0 ? monthlyDiscountCents : undefined,
+      monthly_discount_duration_months:
+        monthlyDiscountCents > 0 && durationMonths > 0
+          ? durationMonths
+          : undefined,
       paid_add_ons: paid_add_ons.length > 0 ? paid_add_ons : undefined,
     };
   }, [
     monthlyDiscountDollars,
+    monthlyDiscountDurationMonths,
     paidAddOnSelections,
     products,
     setupFeeDollars,
@@ -158,6 +169,8 @@ export function InviteClientForm({
           })),
           setupFeeDollars: Number.parseFloat(setupFeeDollars) || 0,
           monthlyDiscountDollars: Number.parseFloat(monthlyDiscountDollars) || 0,
+          monthlyDiscountDurationMonths:
+            Number.parseInt(monthlyDiscountDurationMonths, 10) || 0,
           idempotencyKey: idempotencyKeyRef.current,
         }),
       });
@@ -329,6 +342,26 @@ export function InviteClientForm({
                 />
               </label>
             </div>
+            <label className="block max-w-xs space-y-1.5">
+              <span className="text-sm font-medium">
+                Discount duration (months)
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="120"
+                step="1"
+                value={monthlyDiscountDurationMonths}
+                onChange={(e) =>
+                  setMonthlyDiscountDurationMonths(e.target.value)
+                }
+                className={inputClassName}
+              />
+              <span className="block text-xs text-muted">
+                Leave at 0 for a permanent discount. After the selected months,
+                Stripe charges full recurring price.
+              </span>
+            </label>
           </section>
         </div>
 

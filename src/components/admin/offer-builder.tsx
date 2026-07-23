@@ -137,21 +137,33 @@ export function OfferBuilder({
                 itemForm.billingType === "recurring"
                   ? itemForm.billingInterval
                   : undefined,
-              discountType: itemForm.discountType || undefined,
-              discountAmountCents: itemForm.discountType === "amount"
-                ? dollarsToCents(itemForm.discountAmountDollars)
-                : undefined,
+              discountType:
+                itemForm.itemType === "discount"
+                  ? "amount"
+                  : itemForm.discountType || undefined,
+              discountAmountCents:
+                itemForm.itemType === "discount"
+                  ? dollarsToCents(itemForm.unitAmountDollars)
+                  : itemForm.discountType === "amount"
+                    ? dollarsToCents(itemForm.discountAmountDollars)
+                    : undefined,
               discountPercent:
                 itemForm.discountType === "percent"
                   ? Number(itemForm.discountPercent)
                   : undefined,
               discountDurationType:
-                itemForm.discountType && itemForm.billingType === "recurring"
+                (itemForm.discountType && itemForm.billingType === "recurring") ||
+                (itemForm.itemType === "discount" &&
+                  itemForm.discountScope === DISCOUNT_SCOPE.RECURRING)
                   ? itemForm.discountDurationType
-                  : undefined,
+                  : itemForm.itemType === "discount" &&
+                      itemForm.discountScope === DISCOUNT_SCOPE.FIRST_CYCLE
+                    ? "once"
+                    : undefined,
               discountDurationMonths:
-                itemForm.discountType &&
-                itemForm.billingType === "recurring" &&
+                ((itemForm.discountType && itemForm.billingType === "recurring") ||
+                  (itemForm.itemType === "discount" &&
+                    itemForm.discountScope === DISCOUNT_SCOPE.RECURRING)) &&
                 itemForm.discountDurationType === "repeating"
                   ? itemForm.discountDurationMonths
                   : undefined,
@@ -453,6 +465,46 @@ export function OfferBuilder({
                           First billing cycle only
                         </option>
                       </select>
+                    ) : null}
+                    {itemForm.itemType === "discount" &&
+                    itemForm.discountScope === DISCOUNT_SCOPE.RECURRING ? (
+                      <>
+                        <select
+                          value={itemForm.discountDurationType}
+                          onChange={(e) =>
+                            setItemForm((current) => ({
+                              ...current,
+                              discountDurationType: e.target
+                                .value as typeof itemForm.discountDurationType,
+                            }))
+                          }
+                          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="forever">Discount forever</option>
+                          <option value="repeating">
+                            Discount for limited months
+                          </option>
+                        </select>
+                        {itemForm.discountDurationType === "repeating" ? (
+                          <input
+                            type="number"
+                            min={1}
+                            max={120}
+                            value={itemForm.discountDurationMonths}
+                            onChange={(e) =>
+                              setItemForm((current) => ({
+                                ...current,
+                                discountDurationMonths: Number.parseInt(
+                                  e.target.value,
+                                  10,
+                                ) || 1,
+                              }))
+                            }
+                            placeholder="Months"
+                            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                          />
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                   <Button className="mt-4" onClick={addItem} disabled={busy}>

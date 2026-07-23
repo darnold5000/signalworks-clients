@@ -22,7 +22,7 @@ export function OfferCheckoutButton({
       const res = await fetch("/api/portal/offer/checkout", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 403 && data.error?.includes("terms")) {
+        if (res.status === 403 && data.error?.includes("accept")) {
           router.push("/offer");
           return;
         }

@@ -1,4 +1,5 @@
 import type { TenantOnboardingStatus, TenantProfile } from "@/lib/database/phase1-types";
+import { hasAcceptedRequiredOfferAgreements } from "@/lib/agreements/service";
 import { getActiveOfferForTenant } from "@/lib/offers/queries";
 import type { OnboardingAction } from "@/lib/portal/onboarding-actions";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +12,11 @@ export type OnboardingState = {
   nextAction: OnboardingAction;
   hasActiveOffer: boolean;
   offerId: string | null;
+  /** @deprecated use agreementsAccepted */
   termsAccepted: boolean;
+  agreementsAccepted: boolean;
+  requiresTerms: boolean;
+  requiresSow: boolean;
 };
 
 export async function getOnboardingState(
@@ -29,25 +34,31 @@ export async function getOnboardingState(
   const onboardingStatus = tenantProfile?.onboarding_status ?? "invited";
   const activeOffer = await getActiveOfferForTenant(client.id);
 
-  let termsAccepted = false;
-  if (activeOffer?.terms_document_id) {
-    const { data: acceptance } = await supabase
-      .from(TABLES.agreementAcceptances)
-      .select("id")
-      .eq("tenant_id", client.id)
-      .eq("offer_id", activeOffer.id)
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    termsAccepted = Boolean(acceptance);
-  } else if (activeOffer && !activeOffer.requires_terms_acceptance) {
-    termsAccepted = true;
-  } else if (
-    activeOffer?.requires_terms_acceptance &&
-    !activeOffer.terms_document_id
-  ) {
-    // Invite offers should attach a document; don't block checkout if missing.
-    termsAccepted = true;
+  const requiresTerms = Boolean(
+    activeOffer?.requires_terms_acceptance && activeOffer.terms_document_id,
+  );
+  const requiresSow = Boolean(activeOffer?.sow_document_id);
+
+  let agreementsAccepted = false;
+  if (activeOffer) {
+    if (requiresTerms || requiresSow) {
+      agreementsAccepted = await hasAcceptedRequiredOfferAgreements({
+        tenantId: client.id,
+        offerId: activeOffer.id,
+        userId,
+        termsDocumentId: activeOffer.terms_document_id,
+        sowDocumentId: activeOffer.sow_document_id,
+        requiresTerms: activeOffer.requires_terms_acceptance,
+      });
+    } else if (!activeOffer.requires_terms_acceptance) {
+      agreementsAccepted = true;
+    } else if (
+      activeOffer.requires_terms_acceptance &&
+      !activeOffer.terms_document_id &&
+      !activeOffer.sow_document_id
+    ) {
+      agreementsAccepted = true;
+    }
   }
 
   const hasSubscription =
@@ -71,8 +82,9 @@ export async function getOnboardingState(
     ) {
       nextAction = "review_offer";
     } else if (
-      activeOffer?.requires_terms_acceptance &&
-      !termsAccepted &&
+      activeOffer &&
+      !agreementsAccepted &&
+      (requiresTerms || requiresSow) &&
       ["offer_viewed", "company_information_confirmed"].includes(
         onboardingStatus,
       )
@@ -80,7 +92,7 @@ export async function getOnboardingState(
       nextAction = "accept_terms";
     } else if (
       activeOffer &&
-      (termsAccepted || !activeOffer.requires_terms_acceptance) &&
+      agreementsAccepted &&
       !["payment_complete", "onboarding_complete"].includes(onboardingStatus)
     ) {
       nextAction = "complete_checkout";
@@ -93,6 +105,9 @@ export async function getOnboardingState(
     nextAction,
     hasActiveOffer: Boolean(activeOffer),
     offerId: activeOffer?.id ?? null,
-    termsAccepted,
+    termsAccepted: agreementsAccepted,
+    agreementsAccepted,
+    requiresTerms,
+    requiresSow,
   };
 }

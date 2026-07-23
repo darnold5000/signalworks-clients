@@ -19,15 +19,20 @@ export async function GET() {
   const offer = await getActiveOfferForTenant(client.id);
   const onboarding = await getOnboardingState(client, profile.id);
   let terms = null;
+  let sow = null;
 
   if (offer?.terms_document_id) {
     terms = await getLegalDocument(offer.terms_document_id);
+  }
+  if (offer?.sow_document_id) {
+    sow = await getLegalDocument(offer.sow_document_id);
   }
 
   return NextResponse.json({
     client,
     offer,
     terms,
+    sow,
     onboarding,
   });
 }

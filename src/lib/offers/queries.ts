@@ -3,6 +3,15 @@ import type {
   ClientOfferItem,
   LegalDocument,
 } from "@/lib/database/phase1-types";
+import {
+  renderOfferSowHtml,
+  renderOfferSowText,
+  type SowClientContext,
+} from "@/lib/legal/offer-sow";
+import {
+  renderSignalWorksTosHtml,
+  renderSignalWorksTosText,
+} from "@/lib/legal/signal-works-tos";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -103,26 +112,27 @@ export async function ensurePlatformTermsDocument(
   createdBy?: string | null,
 ): Promise<LegalDocument> {
   const supabase = createServiceClient();
+  const version = "2.0";
+  const contentHtml = renderSignalWorksTosHtml();
+  const contentText = renderSignalWorksTosText();
+
   const { data: existing } = await supabase
     .from(TABLES.legalDocuments)
     .select("*")
     .is("tenant_id", null)
     .eq("document_type", "terms_of_service")
+    .eq("version", version)
     .eq("active", true)
-    .order("effective_date", { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (existing) return existing as LegalDocument;
 
-  const version = "1.0";
-  const contentHtml = `
-    <h1>Signal Works Terms of Service</h1>
-    <p>By accepting these terms, you agree to the website services, hosting, and support described in your proposal.</p>
-    <p>Monthly services renew automatically until canceled through the client portal or in writing.</p>
-    <p>Setup fees and one-time charges are due at checkout.</p>
-    <p>Signal Works may update these terms with notice; continued use constitutes acceptance of material changes.</p>
-  `.trim();
+  await supabase
+    .from(TABLES.legalDocuments)
+    .update({ active: false })
+    .is("tenant_id", null)
+    .eq("document_type", "terms_of_service")
+    .eq("active", true);
 
   const { data: created, error } = await supabase
     .from(TABLES.legalDocuments)
@@ -132,7 +142,7 @@ export async function ensurePlatformTermsDocument(
       title: "Signal Works Terms of Service",
       version,
       content_html: contentHtml,
-      content_text: contentHtml.replace(/<[^>]+>/g, " "),
+      content_text: contentText,
       effective_date: new Date().toISOString().slice(0, 10),
       active: true,
       created_by: createdBy ?? null,
@@ -142,6 +152,76 @@ export async function ensurePlatformTermsDocument(
 
   if (error || !created) {
     throw new Error(error?.message ?? "Could not create terms document");
+  }
+
+  return created as LegalDocument;
+}
+
+export async function ensureOfferSowDocument(args: {
+  tenantId: string;
+  client: SowClientContext;
+  offer: ClientOffer;
+  items: ClientOfferItem[];
+  createdBy?: string | null;
+}): Promise<LegalDocument> {
+  const supabase = createServiceClient();
+  const version = `offer-${args.offer.id.slice(0, 8)}`;
+  const contentHtml = renderOfferSowHtml({
+    client: args.client,
+    offer: args.offer,
+    items: args.items,
+  });
+  const contentText = renderOfferSowText({
+    client: args.client,
+    offer: args.offer,
+    items: args.items,
+  });
+
+  const { data: existing } = await supabase
+    .from(TABLES.legalDocuments)
+    .select("*")
+    .eq("tenant_id", args.tenantId)
+    .eq("document_type", "statement_of_work")
+    .eq("version", version)
+    .maybeSingle();
+
+  if (existing) {
+    const { data: updated, error } = await supabase
+      .from(TABLES.legalDocuments)
+      .update({
+        title: `Statement of Work — ${args.client.businessName}`,
+        content_html: contentHtml,
+        content_text: contentText,
+        effective_date: new Date().toISOString().slice(0, 10),
+        active: true,
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error || !updated) {
+      throw new Error(error?.message ?? "Could not update SOW document");
+    }
+    return updated as LegalDocument;
+  }
+
+  const { data: created, error } = await supabase
+    .from(TABLES.legalDocuments)
+    .insert({
+      tenant_id: args.tenantId,
+      document_type: "statement_of_work",
+      title: `Statement of Work — ${args.client.businessName}`,
+      version,
+      content_html: contentHtml,
+      content_text: contentText,
+      effective_date: new Date().toISOString().slice(0, 10),
+      active: true,
+      created_by: args.createdBy ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !created) {
+    throw new Error(error?.message ?? "Could not create SOW document");
   }
 
   return created as LegalDocument;

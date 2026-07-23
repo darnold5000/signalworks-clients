@@ -1,4 +1,4 @@
-import { InviteClientForm } from "@/components/invite-client-form";
+import { InviteClientPanel } from "@/components/admin/invite-client-panel";
 import { AdminClientsTable } from "@/components/admin/admin-clients-table";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAdminClientList } from "@/lib/admin/client-records";
@@ -49,9 +49,7 @@ export default async function AdminClientsPage() {
         </Panel>
       </div>
 
-      <Panel title="Invite a client" className="mb-6">
-        <InviteClientForm plans={plans} products={products} />
-      </Panel>
+      <InviteClientPanel plans={plans} products={products} />
 
       <Panel title="All clients">
         <AdminClientsTable clients={clients} />

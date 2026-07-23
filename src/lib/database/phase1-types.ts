@@ -41,6 +41,7 @@ export type TenantContactType =
 
 export type LegalDocumentType =
   | "terms_of_service"
+  | "statement_of_work"
   | "service_agreement"
   | "privacy_policy"
   | "acceptable_use_policy"
@@ -214,6 +215,7 @@ export type ClientOffer = {
   valid_from: string | null;
   expires_at: string | null;
   terms_document_id: string | null;
+  sow_document_id: string | null;
   requires_terms_acceptance: boolean;
   subtotal_cents: number;
   discount_total_cents: number;

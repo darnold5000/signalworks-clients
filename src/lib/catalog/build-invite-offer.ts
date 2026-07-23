@@ -31,6 +31,8 @@ export type InvitePaidAddOnSelection = {
 export type InviteCommercialExtras = {
   setup_fee_cents?: number;
   monthly_discount_cents?: number;
+  /** 0 or omitted = discount applies for the life of the subscription. */
+  monthly_discount_duration_months?: number;
   paid_add_ons?: InvitePaidAddOnSelection[];
 };
 
@@ -203,22 +205,27 @@ export function buildInviteOfferItemRows(args: {
   }
 
   if (extras.monthly_discount_cents && extras.monthly_discount_cents > 0) {
+    const durationMonths = extras.monthly_discount_duration_months ?? 0;
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
       item_type: "discount",
       name: "Monthly discount",
-      description: "Recurring discount on this agreement",
+      description:
+        durationMonths > 0
+          ? `Recurring discount for ${durationMonths} month${durationMonths === 1 ? "" : "s"}, then full price`
+          : "Recurring discount on this agreement",
       quantity: 1,
       unit_amount_cents: extras.monthly_discount_cents,
       billing_type: "one_time",
       billing_interval: null,
       billing_interval_count: 1,
-      discount_type: null,
-      discount_amount_cents: null,
+      discount_type: "amount",
+      discount_amount_cents: extras.monthly_discount_cents,
       discount_percent: null,
-      discount_duration_type: null,
-      discount_duration_months: null,
+      discount_duration_type:
+        durationMonths > 0 ? "repeating" : "forever",
+      discount_duration_months: durationMonths > 0 ? durationMonths : null,
       stripe_product_id: null,
       stripe_price_id: null,
       stripe_coupon_id: null,
