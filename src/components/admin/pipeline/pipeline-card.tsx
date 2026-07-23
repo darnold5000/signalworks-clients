@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import type { ClientPipelineRecord, PipelineStatus } from "@/lib/pipeline/types";
+import { formatDate, formatMoney } from "@/lib/utils";
 import { PipelineStatusBadge } from "./pipeline-status-badge";
 import { PipelineStatusSelect } from "./pipeline-status-select";
+import { PipelineTagBadges } from "./pipeline-tag-badges";
 
 function truncateText(value: string | null) {
   if (!value) return "—";
@@ -23,7 +25,7 @@ export function PipelineCard({
   statusUpdating?: boolean;
 }) {
   return (
-    <article className="rounded-xl border border-border bg-surface p-4 md:hidden">
+    <article className="rounded-xl border border-border bg-surface p-4 lg:hidden">
       <div className="flex items-start justify-between gap-3">
         <div>
           <Link
@@ -33,11 +35,30 @@ export function PipelineCard({
             {client.business_name}
           </Link>
           <p className="mt-1 text-sm text-muted">{client.contact_name}</p>
+          {client.contact_email ? (
+            <p className="text-xs text-muted">{client.contact_email}</p>
+          ) : null}
         </div>
         <PipelineStatusBadge status={client.status} />
       </div>
 
       <div className="mt-3 space-y-2 text-sm">
+        <div>
+          <p className="text-xs tracking-wide text-muted uppercase">Tags</p>
+          <PipelineTagBadges tags={client.tags} className="mt-1" />
+        </div>
+        <div>
+          <p className="text-xs tracking-wide text-muted uppercase">Est. Monthly Value</p>
+          <p className="mt-1 text-muted">
+            {client.estimated_monthly_value_cents != null
+              ? `${formatMoney(client.estimated_monthly_value_cents)}/mo`
+              : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs tracking-wide text-muted uppercase">Next Follow-up</p>
+          <p className="mt-1 text-muted">{formatDate(client.next_follow_up_date)}</p>
+        </div>
         <div>
           <p className="text-xs tracking-wide text-muted uppercase">Status</p>
           <PipelineStatusSelect
@@ -51,6 +72,9 @@ export function PipelineCard({
           <p className="text-xs tracking-wide text-muted uppercase">Last Conversation</p>
           <p className="mt-1 line-clamp-2 text-muted">
             {truncateText(client.last_conversation)}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Last contacted: {formatDate(client.last_contacted_at)}
           </p>
         </div>
         <div>

@@ -10,9 +10,11 @@ import {
   demoUpdatePipelineClient,
 } from "@/lib/pipeline/demo-store";
 import { getSignalWorksTenantId } from "@/lib/pipeline/internal-tenant";
-import type {
-  ClientPipelineRecord,
-  PipelineStatus,
+import {
+  PIPELINE_TAGS,
+  type ClientPipelineRecord,
+  type PipelineStatus,
+  type PipelineTag,
 } from "@/lib/pipeline/types";
 import {
   pipelineClientInputSchema,
@@ -34,6 +36,8 @@ const PIPELINE_ERRORS = {
   notFound: "Client not found",
 } as const;
 
+const PIPELINE_TAG_SET = new Set<string>(PIPELINE_TAGS);
+
 async function requirePipelineAdmin(): Promise<void> {
   if (!(await isPlatformAdmin())) {
     throw new Error("Unauthorized");
@@ -45,18 +49,75 @@ function revalidatePipeline() {
   revalidatePath("/admin/pipeline/[id]", "page");
 }
 
+function normalizeTags(value: unknown): PipelineTag[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((tag): tag is PipelineTag =>
+    typeof tag === "string" && PIPELINE_TAG_SET.has(tag),
+  );
+}
+
+function buildPipelinePayload(parsed: PipelineClientInput) {
+  return {
+    business_name: parsed.business_name,
+    contact_name: parsed.contact_name,
+    contact_email: parsed.contact_email ?? null,
+    phone: parsed.phone ?? null,
+    website_url: parsed.website_url ?? null,
+    status: parsed.status as PipelineStatus,
+    last_conversation: parsed.last_conversation?.trim() || null,
+    plan: parsed.plan?.trim() || null,
+    estimated_monthly_value_cents:
+      parsed.estimated_monthly_value != null
+        ? Math.round(parsed.estimated_monthly_value * 100)
+        : null,
+    next_follow_up_date: parsed.next_follow_up_date ?? null,
+    tags: (parsed.tags ?? []) as PipelineTag[],
+  };
+}
+
 function mapRow(row: Record<string, unknown>): ClientPipelineRecord {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,
     business_name: row.business_name as string,
     contact_name: row.contact_name as string,
+    contact_email: (row.contact_email as string | null) ?? null,
+    phone: (row.phone as string | null) ?? null,
+    website_url: (row.website_url as string | null) ?? null,
     status: row.status as PipelineStatus,
     last_conversation: (row.last_conversation as string | null) ?? null,
     plan: (row.plan as string | null) ?? null,
+    estimated_monthly_value_cents:
+      (row.estimated_monthly_value_cents as number | null) ?? null,
+    next_follow_up_date: (row.next_follow_up_date as string | null) ?? null,
+    last_contacted_at: (row.last_contacted_at as string | null) ?? null,
+    tags: normalizeTags(row.tags),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   };
+}
+
+function touchDemoLastContacted(
+  existing: ClientPipelineRecord,
+  payload: ReturnType<typeof buildPipelinePayload>,
+): string | null {
+  const conversationChanged =
+    (payload.last_conversation ?? "") !== (existing.last_conversation ?? "");
+  const statusChanged = payload.status !== existing.status;
+
+  if (
+    conversationChanged &&
+    payload.last_conversation &&
+    payload.last_conversation.trim() !== ""
+  ) {
+    return new Date().toISOString();
+  }
+
+  if (statusChanged && payload.status !== "potential") {
+    return new Date().toISOString();
+  }
+
+  return existing.last_contacted_at;
 }
 
 export async function getPipelineClients(): Promise<ClientPipelineRecord[]> {
@@ -123,13 +184,10 @@ export async function createPipelineClient(
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
-    const payload = {
-      business_name: parsed.data.business_name,
-      contact_name: parsed.data.contact_name,
-      status: parsed.data.status as PipelineStatus,
-      last_conversation: parsed.data.last_conversation?.trim() || null,
-      plan: parsed.data.plan?.trim() || null,
-    };
+    const payload = buildPipelinePayload({
+      ...parsed.data,
+      tags: normalizeTags(parsed.data.tags),
+    } as PipelineClientInput);
 
     if (!isSupabaseConfigured()) {
       const record = demoCreatePipelineClient(payload);
@@ -143,11 +201,7 @@ export async function createPipelineClient(
       .from(TABLES.clientPipeline)
       .insert({
         tenant_id: tenantId,
-        business_name: payload.business_name,
-        contact_name: payload.contact_name,
-        status: payload.status,
-        last_conversation: payload.last_conversation,
-        plan: payload.plan,
+        ...payload,
       })
       .select("*")
       .single();
@@ -184,16 +238,18 @@ export async function updatePipelineClient(
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
-    const payload = {
-      business_name: parsed.data.business_name,
-      contact_name: parsed.data.contact_name,
-      status: parsed.data.status as PipelineStatus,
-      last_conversation: parsed.data.last_conversation?.trim() || null,
-      plan: parsed.data.plan?.trim() || null,
-    };
+    const payload = buildPipelinePayload({
+      ...parsed.data,
+      tags: normalizeTags(parsed.data.tags),
+    } as PipelineClientInput);
 
     if (!isSupabaseConfigured()) {
-      const record = demoUpdatePipelineClient(id, payload);
+      const existing = demoGetPipelineClient(id);
+      if (!existing) return { ok: false, error: PIPELINE_ERRORS.notFound };
+      const record = demoUpdatePipelineClient(id, {
+        ...payload,
+        last_contacted_at: touchDemoLastContacted(existing, payload),
+      });
       if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();
       return { ok: true, data: record };
@@ -246,8 +302,14 @@ export async function updatePipelineStatus(
     }
 
     if (!isSupabaseConfigured()) {
+      const existing = demoGetPipelineClient(id);
+      if (!existing) return { ok: false, error: PIPELINE_ERRORS.notFound };
       const record = demoUpdatePipelineClient(id, {
         status: parsed.data.status as PipelineStatus,
+        last_contacted_at:
+          parsed.data.status !== "potential"
+            ? new Date().toISOString()
+            : existing.last_contacted_at,
       });
       if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();

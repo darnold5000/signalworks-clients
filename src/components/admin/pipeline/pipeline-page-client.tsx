@@ -14,7 +14,10 @@ import type {
   PipelineSortKey,
   PipelineStatus,
 } from "@/lib/pipeline/types";
-import type { PipelineClientInput } from "@/lib/pipeline/validation";
+import {
+  pipelineRecordToInput,
+  type PipelineClientInput,
+} from "@/lib/pipeline/validation";
 import { ClientPipelineForm } from "./client-pipeline-form";
 import { PipelineCard } from "./pipeline-card";
 import { PipelineFilters } from "./pipeline-filters";
@@ -32,6 +35,15 @@ function sortClients(
       return (
         new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
       );
+    }
+    if (sortKey === "next_follow_up_date") {
+      const aTime = a.next_follow_up_date
+        ? new Date(a.next_follow_up_date).getTime()
+        : 0;
+      const bTime = b.next_follow_up_date
+        ? new Date(b.next_follow_up_date).getTime()
+        : 0;
+      return aTime - bTime;
     }
     if (sortKey === "business_name") {
       return a.business_name.localeCompare(b.business_name);
@@ -67,7 +79,17 @@ export function PipelinePageClient({
         return false;
       }
       if (!q) return true;
-      const haystack = `${client.business_name} ${client.contact_name}`.toLowerCase();
+      const haystack = [
+        client.business_name,
+        client.contact_name,
+        client.contact_email,
+        client.phone,
+        client.website_url,
+        client.tags.join(" "),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
       return haystack.includes(q);
     });
     return sortClients(matched, sortKey, sortDirection);
@@ -258,13 +280,7 @@ export function PipelinePageClient({
       >
         {editingClient ? (
           <ClientPipelineForm
-            initial={{
-              business_name: editingClient.business_name,
-              contact_name: editingClient.contact_name,
-              status: editingClient.status,
-              last_conversation: editingClient.last_conversation ?? "",
-              plan: editingClient.plan ?? "",
-            }}
+            initial={pipelineRecordToInput(editingClient)}
             submitLabel="Save Changes"
             onCancel={closeSlideOver}
             onSubmit={handleUpdate}
