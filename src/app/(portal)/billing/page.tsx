@@ -1,7 +1,17 @@
 import { ManageBillingButton } from "@/components/manage-billing-button";
+import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { StartCheckoutButton } from "@/components/start-checkout-button";
 import { MetaRow, PageHeader, Panel, StatusPill } from "@/components/ui";
+import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
+import { getActiveOfferForTenant } from "@/lib/offers/queries";
+import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
+import {
+  clientCanUseBillingPortal,
+  clientHasActiveSubscription,
+  clientNeedsOfferCheckout,
+} from "@/lib/portal/billing-access";
+import { getOnboardingState } from "@/lib/portal/onboarding-state";
 import { resolvePlanForClient } from "@/lib/plans";
 import { listPurchasesForTenant } from "@/lib/purchases/service";
 import { siteConfig } from "@/lib/site";
@@ -9,14 +19,17 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 export default async function BillingPage() {
+  const profile = await getCurrentProfile();
   const client = await getPrimaryClient();
-  if (!client) notFound();
+  if (!client || !profile) notFound();
 
-  const hasSubscription =
-    !client.stripe_subscription_id?.includes("_demo_") &&
-    (client.subscription_status === "active" ||
-      client.subscription_status === "trialing" ||
-      Boolean(client.stripe_subscription_id));
+  const hasSubscription = clientHasActiveSubscription(client);
+  const canManageBilling = clientCanUseBillingPortal(client);
+  const onboarding = await getOnboardingState(client, profile.id);
+  const needsOfferCheckout = clientNeedsOfferCheckout(client, onboarding);
+  const activeOffer = needsOfferCheckout
+    ? await getActiveOfferForTenant(client.id)
+    : null;
 
   const assignedPlan = resolvePlanForClient({
     plan_name: client.plan_name,
@@ -28,13 +41,63 @@ export default async function BillingPage() {
     <>
       <PageHeader
         title="Billing"
-        description="Summary from your Signal Works plan. Payment methods and invoices are managed securely in Stripe."
+        description="Your plan summary and secure payment setup through Stripe."
         actions={
-          hasSubscription ? (
+          canManageBilling ? (
             <ManageBillingButton clientId={client.id} />
           ) : undefined
         }
       />
+
+      {needsOfferCheckout && activeOffer ? (
+        <Panel title="Finish setting up billing" className="mb-6 border-amber-200 bg-amber-50/40">
+          <p className="text-sm text-muted">
+            You&apos;re almost done. Review your proposal if you need to, then
+            continue to Stripe to add a payment method for your plan.
+          </p>
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted">Proposal</dt>
+              <dd className="font-medium">{activeOffer.title}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted">Due at first billing cycle</dt>
+              <dd className="font-medium">
+                {formatMoney(
+                  calculateAmountDueFirstCycle({
+                    subtotal_cents: activeOffer.subtotal_cents,
+                    discount_total_cents: activeOffer.discount_total_cents,
+                    initial_total_cents: activeOffer.initial_total_cents,
+                    recurring_total_cents: activeOffer.recurring_total_cents,
+                  }),
+                  activeOffer.currency,
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted">Monthly recurring</dt>
+              <dd className="font-medium">
+                {formatMoney(
+                  activeOffer.recurring_total_cents,
+                  activeOffer.currency,
+                )}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {onboarding.nextAction === "complete_checkout" ? (
+              <OfferCheckoutButton label="Continue to Stripe checkout" />
+            ) : (
+              <a
+                href="/offer"
+                className="inline-flex rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+              >
+                Review proposal
+              </a>
+            )}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel title="Current plan">
         <dl>
@@ -65,26 +128,26 @@ export default async function BillingPage() {
         </dl>
         {hasSubscription ? (
           <p className="mt-6 text-sm text-muted">
-            Use <strong>Manage Billing</strong> to update your card, download
-            invoices, change billing info, or cancel when permitted. Stripe
-            handles all payment details — we never store your card.
+            Use <strong>Manage billing</strong> to update your card, download
+            invoices, or change billing details. Stripe handles payment details —
+            we never store your card.
           </p>
         ) : (
           <p className="mt-6 text-sm text-muted">
-            Your plan is set by Signal Works. When you&apos;re ready, start
-            billing for that plan below — or email{" "}
+            Your plan is set by Signal Works. When you&apos;re ready, complete
+            checkout from your proposal — or email{" "}
             <a
               className="underline underline-offset-2"
               href={`mailto:${client.support_email ?? siteConfig.supportEmail}`}
             >
               {client.support_email ?? siteConfig.supportEmail}
             </a>{" "}
-            if something looks wrong.
+            if you have questions.
           </p>
         )}
       </Panel>
 
-      {!hasSubscription && assignedPlan ? (
+      {!hasSubscription && !needsOfferCheckout && assignedPlan ? (
         <Panel title="Start billing" className="mt-6">
           <div className="rounded-lg border border-border p-4">
             <p className="font-medium">{assignedPlan.name}</p>
@@ -104,11 +167,11 @@ export default async function BillingPage() {
         </Panel>
       ) : null}
 
-      {!hasSubscription && !assignedPlan ? (
+      {!hasSubscription && !needsOfferCheckout && !assignedPlan ? (
         <Panel title="Billing not ready" className="mt-6">
           <p className="text-sm text-muted">
-            No plan is assigned to this account yet. Signal Works will set your
-            plan and send login details when your site is ready for billing.
+            No plan is assigned to this account yet. Signal Works will publish
+            your proposal when billing is ready.
           </p>
         </Panel>
       ) : null}

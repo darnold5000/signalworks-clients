@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "No real Stripe customer linked yet. Complete Checkout first, then Manage Billing will work.",
+          "Billing portal opens after your first checkout. Go to Proposal to continue setup, or use the checkout button on Billing.",
       },
       { status: 400 },
     );

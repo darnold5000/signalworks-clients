@@ -9,6 +9,7 @@ import type {
 import type { OnboardingState } from "@/lib/portal/onboarding-state";
 import type { Client } from "@/lib/types";
 import { Button, Panel } from "@/components/ui";
+import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 
@@ -111,22 +112,6 @@ export function OfferPortal() {
       setMessage("Terms accepted.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not accept terms");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function startCheckout() {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/portal/offer/checkout", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Could not start checkout");
-      if (json.url) window.location.assign(json.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start checkout");
     } finally {
       setBusy(false);
     }
@@ -275,12 +260,12 @@ export function OfferPortal() {
           onboarding.nextAction === "complete_checkout" ? (
             <Panel title="Checkout">
               <p className="text-sm text-muted">
-                Start secure checkout when you are ready. Stripe handles payment
-                details.
+                When you&apos;re ready, continue to Stripe to add your payment
+                method. You can review the line items above anytime.
               </p>
-              <Button className="mt-4" onClick={startCheckout} disabled={busy}>
-                Continue to checkout
-              </Button>
+              <div className="mt-4">
+                <OfferCheckoutButton label="Continue to Stripe checkout" />
+              </div>
             </Panel>
           ) : null}
         </>

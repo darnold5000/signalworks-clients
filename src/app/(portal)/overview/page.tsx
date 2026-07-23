@@ -1,4 +1,5 @@
 import { ManageBillingButton } from "@/components/manage-billing-button";
+import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { ActionRequiredCard } from "@/components/portal/action-required-card";
 import {
   ButtonLink,
@@ -9,6 +10,10 @@ import {
 } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
+import {
+  clientCanUseBillingPortal,
+  clientNeedsOfferCheckout,
+} from "@/lib/portal/billing-access";
 import { getOnboardingState } from "@/lib/portal/onboarding-state";
 import { siteConfig } from "@/lib/site";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
@@ -26,6 +31,8 @@ export default async function OverviewPage() {
   if (!client || !profile) notFound();
 
   const onboarding = await getOnboardingState(client, profile.id);
+  const canManageBilling = clientCanUseBillingPortal(client);
+  const needsOfferCheckout = clientNeedsOfferCheckout(client, onboarding);
 
   const updatesLeft = Math.max(
     0,
@@ -44,7 +51,14 @@ export default async function OverviewPage() {
                 View Website
               </ButtonLink>
             ) : null}
-            <ManageBillingButton clientId={client.id} />
+            {canManageBilling ? (
+              <ManageBillingButton clientId={client.id} />
+            ) : needsOfferCheckout &&
+              onboarding.nextAction === "complete_checkout" ? (
+              <OfferCheckoutButton label="Set up billing" />
+            ) : needsOfferCheckout ? (
+              <ButtonLink href="/offer">Review proposal</ButtonLink>
+            ) : null}
             <ButtonLink href="/requests" variant="secondary">
               Request an Update
             </ButtonLink>

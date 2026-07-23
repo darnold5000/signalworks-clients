@@ -8,15 +8,24 @@ export type OnboardingAction =
 export function onboardingActionLabel(action: OnboardingAction): string {
   switch (action) {
     case "confirm_company":
-      return "Confirm company information";
+      return "Confirm your company details";
     case "review_offer":
       return "Review your proposal";
     case "accept_terms":
-      return "Accept terms of service";
+      return "Review and accept your agreement";
     case "complete_checkout":
-      return "Complete checkout";
+      return "Set up billing in Stripe";
     default:
       return "";
+  }
+}
+
+export function onboardingActionButtonLabel(action: OnboardingAction): string {
+  switch (action) {
+    case "complete_checkout":
+      return "Continue to checkout";
+    default:
+      return "Continue";
   }
 }
 

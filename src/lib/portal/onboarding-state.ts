@@ -42,6 +42,12 @@ export async function getOnboardingState(
     termsAccepted = Boolean(acceptance);
   } else if (activeOffer && !activeOffer.requires_terms_acceptance) {
     termsAccepted = true;
+  } else if (
+    activeOffer?.requires_terms_acceptance &&
+    !activeOffer.terms_document_id
+  ) {
+    // Invite offers should attach a document; don't block checkout if missing.
+    termsAccepted = true;
   }
 
   const hasSubscription =

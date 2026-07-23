@@ -34,7 +34,14 @@ export function ManageBillingButton({ clientId }: { clientId: string }) {
       <Button type="button" onClick={openPortal} disabled={loading}>
         {loading ? "Opening…" : "Manage Billing"}
       </Button>
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-muted">
+          {error}{" "}
+          <a href="/offer" className="underline underline-offset-2">
+            Open your proposal
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

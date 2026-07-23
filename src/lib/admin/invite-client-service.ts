@@ -1,5 +1,4 @@
-import {
-  buildInviteOfferItemRows,
+import { buildInviteOfferItemRows,
   dollarsToCents,
 } from "@/lib/catalog/build-invite-offer";
 import type { InviteClientRequest } from "@/lib/catalog/invite-validation";
@@ -12,6 +11,7 @@ import {
   createClientPortalAccessLink,
   deliverClientInviteLink,
 } from "@/lib/admin/client-invite-link";
+import { ensurePlatformTermsDocument } from "@/lib/offers/queries";
 
 /**
  * Offer-first Invite Client orchestration.
@@ -264,6 +264,7 @@ export async function inviteClientWithOffer(
     }
 
     const offerTitle = `${input.businessName} — ${planTemplate.name}`;
+    const termsDocument = await ensurePlatformTermsDocument(actorUserId);
     const { data: offer, error: offerError } = await supabase
       .from(TABLES.clientOffers)
       .insert({
@@ -274,6 +275,7 @@ export async function inviteClientWithOffer(
         currency: "usd",
         status: "published",
         requires_terms_acceptance: true,
+        terms_document_id: termsDocument.id,
         published_at: new Date().toISOString(),
         created_by: actorUserId,
       })
