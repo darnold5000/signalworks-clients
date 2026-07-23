@@ -1,3 +1,4 @@
+import type { AuthError } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isResendConfigured,
@@ -86,6 +87,100 @@ export async function getTenantOwnerInviteTarget(
   };
 }
 
+
+type GenerateLinkResponse = Awaited<
+  ReturnType<ServiceClient["auth"]["admin"]["generateLink"]>
+>;
+
+export type ClientPortalAccessLinkResult =
+  | {
+      inviteLink: string;
+      userId: string;
+      linkType: "invite" | "recovery";
+    }
+  | {
+      error: string;
+      detail?: string;
+    };
+
+function normalizeAuthEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export function formatAuthInviteError(
+  message: string,
+  redirectTo: string,
+): string {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("already been registered") || lower.includes("already exists")) {
+    return "That email already has a Supabase Auth account. Use Resend invite on the client overview, or remove the user in Supabase Auth and try again.";
+  }
+
+  if (lower.includes("redirect") || lower.includes("invalid url")) {
+    return `Supabase rejected the invite redirect URL. Add this to Authentication → URL configuration → Redirect URLs: ${redirectTo}`;
+  }
+
+  if (lower.includes("signup") && lower.includes("disabled")) {
+    return "Email signups are disabled in Supabase Auth. Enable the Email provider under Authentication → Providers.";
+  }
+
+  if (lower.includes("rate limit")) {
+    return "Supabase Auth rate limit reached. Wait a minute and try again.";
+  }
+
+  return "Could not create invite link. Check Supabase Auth settings.";
+}
+
+function extractAccessLink(
+  attempt: GenerateLinkResponse,
+  redirectTo: string,
+): { inviteLink: string; userId: string } | null {
+  if (attempt.error || !attempt.data?.properties?.action_link) {
+    return null;
+  }
+
+  const inviteLink = ensureInviteActionLink(
+    attempt.data.properties.action_link,
+    redirectTo,
+  );
+  if (!inviteLink) return null;
+
+  const userId = attempt.data.user?.id;
+  if (!userId) return null;
+
+  return { inviteLink, userId };
+}
+
+async function findAuthUserIdByEmail(
+  supabase: ServiceClient,
+  email: string,
+): Promise<string | null> {
+  const normalized = normalizeAuthEmail(email);
+  let page = 1;
+
+  while (page <= 5) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
+
+    if (error || !data.users.length) {
+      return null;
+    }
+
+    const match = data.users.find(
+      (user) => user.email?.trim().toLowerCase() === normalized,
+    );
+    if (match?.id) return match.id;
+
+    if (data.users.length < 200) break;
+    page += 1;
+  }
+
+  return null;
+}
+
 export async function createClientPortalAccessLink(
   supabase: ServiceClient,
   args: {
@@ -93,14 +188,15 @@ export async function createClientPortalAccessLink(
     fullName: string;
     tenantId: string;
   },
-): Promise<{ inviteLink: string } | { error: string }> {
+): Promise<ClientPortalAccessLinkResult> {
+  const email = normalizeAuthEmail(args.email);
   const portalUrl = portalUrlForInvites();
   const inviteRedirect = inviteRedirectUrl(portalUrl);
   const recoveryRedirect = recoveryRedirectUrl(portalUrl);
 
   const inviteAttempt = await supabase.auth.admin.generateLink({
     type: "invite",
-    email: args.email,
+    email,
     options: {
       data: {
         full_name: args.fullName,
@@ -110,31 +206,72 @@ export async function createClientPortalAccessLink(
     },
   });
 
-  if (!inviteAttempt.error && inviteAttempt.data.properties?.action_link) {
-    const inviteLink = ensureInviteActionLink(
-      inviteAttempt.data.properties.action_link,
-      inviteRedirect,
-    );
-    if (inviteLink) return { inviteLink };
+  const inviteResult = extractAccessLink(inviteAttempt, inviteRedirect);
+  if (inviteResult) {
+    return {
+      inviteLink: inviteResult.inviteLink,
+      userId: inviteResult.userId,
+      linkType: "invite",
+    };
   }
 
   const recoveryAttempt = await supabase.auth.admin.generateLink({
     type: "recovery",
-    email: args.email,
+    email,
     options: {
       redirectTo: recoveryRedirect,
     },
   });
 
-  if (!recoveryAttempt.error && recoveryAttempt.data.properties?.action_link) {
-    const inviteLink = ensureInviteActionLink(
-      recoveryAttempt.data.properties.action_link,
-      recoveryRedirect,
-    );
-    if (inviteLink) return { inviteLink };
+  const recoveryResult = extractAccessLink(recoveryAttempt, recoveryRedirect);
+  if (recoveryResult) {
+    return {
+      inviteLink: recoveryResult.inviteLink,
+      userId: recoveryResult.userId,
+      linkType: "recovery",
+    };
   }
 
-  return { error: "Could not create a new invite link." };
+  const inviteLinkOnly = inviteAttempt.data?.properties?.action_link
+    ? ensureInviteActionLink(inviteAttempt.data.properties.action_link, inviteRedirect)
+    : recoveryAttempt.data?.properties?.action_link
+      ? ensureInviteActionLink(
+          recoveryAttempt.data.properties.action_link,
+          recoveryRedirect,
+        )
+      : null;
+
+  if (inviteLinkOnly) {
+    const userId =
+      inviteAttempt.data?.user?.id ??
+      recoveryAttempt.data?.user?.id ??
+      (await findAuthUserIdByEmail(supabase, email));
+
+    if (userId) {
+      return {
+        inviteLink: inviteLinkOnly,
+        userId,
+        linkType: recoveryAttempt.data?.properties?.action_link
+          ? "recovery"
+          : "invite",
+      };
+    }
+  }
+
+  const primaryError =
+    inviteAttempt.error?.message ??
+    recoveryAttempt.error?.message ??
+    "Could not create a new invite link.";
+  const redirectHint = formatAuthInviteError(primaryError, inviteRedirect);
+
+  return {
+    error: redirectHint,
+    detail: primaryError,
+  };
+}
+
+export function authErrorDetail(error: AuthError | null | undefined): string {
+  return error?.message?.trim() ?? "";
 }
 
 export async function deliverClientInviteLink(args: {

@@ -9,6 +9,7 @@ import {
   getProductsByKeys,
 } from "@/lib/catalog/queries";
 import {
+  createClientPortalAccessLink,
   deliverClientInviteLink,
 } from "@/lib/admin/client-invite-link";
 
@@ -350,39 +351,26 @@ export async function inviteClientWithOffer(
     }
 
     const redirectTo = inviteRedirectUrl(portalUrlForInvites());
-    const { data: linkData, error: linkError } =
-      await supabase.auth.admin.generateLink({
-        type: "invite",
-        email: input.email,
-        options: {
-          data: {
-            full_name: displayName,
-            tenant_id: tenantId,
-          },
-          redirectTo,
-        },
-      });
+    const linkResult = await createClientPortalAccessLink(supabase, {
+      email: input.email,
+      fullName: displayName,
+      tenantId,
+    });
 
-    if (linkError || !linkData?.user) {
-      console.error("inviteClientWithOffer.authInvite", linkError?.message);
+    if ("error" in linkResult) {
+      console.error(
+        "inviteClientWithOffer.authInvite",
+        linkResult.detail ?? linkResult.error,
+      );
       await rollbackInviteResources(supabase, created);
       return {
         ok: false,
-        error: "Could not create invite link. Check Supabase Auth settings.",
+        error: linkResult.error,
       };
     }
 
-    created.authUserId = linkData.user.id;
-
-    const inviteLink = ensureInviteActionLink(
-      linkData.properties?.action_link ?? "",
-      redirectTo,
-    );
-
-    if (!inviteLink) {
-      await rollbackInviteResources(supabase, created);
-      return { ok: false, error: "Could not create invite link." };
-    }
+    created.authUserId = linkResult.userId;
+    const inviteLink = linkResult.inviteLink;
 
     let inviteMethod: "email" | "link" = "link";
     let inviteEmailError: string | null = null;
