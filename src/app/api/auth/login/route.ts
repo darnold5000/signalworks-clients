@@ -11,7 +11,15 @@ import { TABLES } from "@/lib/supabase/tables";
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  next: z.string().optional(),
 });
+
+function safeNextPath(next: string | undefined): string | null {
+  if (next && next.startsWith("/") && !next.startsWith("//")) {
+    return next;
+  }
+  return null;
+}
 
 type PendingCookie = {
   name: string;
@@ -149,11 +157,14 @@ export async function POST(request: Request) {
   }
 
   const redirectTo = await resolveRedirectTo(supabase, user.id);
+  const nextPath = safeNextPath(parsed.data.next);
+  const finalRedirect =
+    nextPath && redirectTo !== "/admin" ? nextPath : redirectTo;
 
   const response = NextResponse.json({
     ok: true,
     userId: user.id,
-    redirectTo,
+    redirectTo: finalRedirect,
   });
   applyCookies(response, pendingCookies);
   response.cookies.set("sw_demo_mode", "", { path: "/", maxAge: 0 });

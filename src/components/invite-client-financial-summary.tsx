@@ -32,7 +32,11 @@ export function InviteClientFinancialSummary({
   const dueFirstCycle = calculateAmountDueFirstCycle(totals);
   const monthlyDiscountCents = extras?.monthly_discount_cents ?? 0;
   const discountDurationMonths = extras?.monthly_discount_duration_months ?? 0;
-  const paidAddOnCount = extras?.paid_add_ons?.length ?? 0;
+  const paidAddOnCount =
+    (extras?.paid_add_ons?.length ?? 0) +
+    (extras?.custom_service_add_ons?.length ?? 0);
+  const componentCount =
+    products.length + (extras?.custom_platform_components?.length ?? 0);
 
   return (
     <aside className="rounded-xl border border-border bg-surface p-4">
@@ -74,13 +78,13 @@ export function InviteClientFinancialSummary({
           <dd>{formatMoney(dueFirstCycle)}</dd>
         </div>
       </dl>
-      {products.length > 0 || paidAddOnCount > 0 ? (
+      {componentCount > 0 || paidAddOnCount > 0 ? (
         <p className="mt-4 text-xs text-muted">
-          {products.length > 0
-            ? `${products.length} bundled product${products.length === 1 ? "" : "s"} included. `
+          {componentCount > 0
+            ? `${componentCount} platform component${componentCount === 1 ? "" : "s"} selected. `
             : ""}
           {paidAddOnCount > 0
-            ? `${paidAddOnCount} paid add-on${paidAddOnCount === 1 ? "" : "s"} selected.`
+            ? `${paidAddOnCount} service add-on${paidAddOnCount === 1 ? "" : "s"} selected.`
             : ""}
         </p>
       ) : null}

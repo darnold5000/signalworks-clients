@@ -35,7 +35,7 @@ describe("build-invite-offer", () => {
     expect(rows[0].unit_amount_cents).toBe(19900);
     expect(rows[0].metadata).toEqual({
       plan_key: "launch",
-      catalog_version: 1,
+      catalog_version: 2,
     });
   });
 
@@ -54,13 +54,13 @@ describe("build-invite-offer", () => {
     expect(rows[1].item_type).toBe("product");
     expect(rows[1].metadata).toEqual({
       product_key: "website",
-      catalog_version: 1,
+      catalog_version: 2,
       commercial_role: "bundled_product",
       included_in_plan: true,
     });
     expect(rows[2].metadata).toEqual({
       product_key: "online_booking",
-      catalog_version: 1,
+      catalog_version: 2,
       commercial_role: "bundled_product",
       included_in_plan: true,
     });
@@ -134,14 +134,14 @@ describe("inviteClientRequestSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts paid add-ons and commercial extras", () => {
+  it("accepts service add-ons and commercial extras", () => {
     const parsed = inviteClientRequestSchema.safeParse({
       businessName: "MA5 Performance",
       email: "owner@ma5.com",
       planKey: "launch",
       monthlyPriceDollars: 149,
       productKeys: ["website"],
-      paidAddOns: [{ productKey: "sms_notifications", monthlyPriceDollars: 29 }],
+      serviceAddOns: [{ productKey: "sms_notifications", monthlyPriceDollars: 29 }],
       setupFeeDollars: 500,
       monthlyDiscountDollars: 49,
     });
@@ -149,17 +149,17 @@ describe("inviteClientRequestSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects overlapping bundled and paid add-on selections", () => {
+  it("allows platform component and related service add-on together", () => {
     const parsed = inviteClientRequestSchema.safeParse({
-      businessName: "Overlap Co",
-      email: "owner@overlap.com",
+      businessName: "AI Co",
+      email: "owner@ai.com",
       planKey: "launch",
       monthlyPriceDollars: 149,
-      productKeys: ["sms_notifications"],
-      paidAddOns: [{ productKey: "sms_notifications", monthlyPriceDollars: 29 }],
+      productKeys: ["ai_chatbot"],
+      serviceAddOns: [{ productKey: "ai_chatbot_service", monthlyPriceDollars: 49 }],
     });
 
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
   });
 
   it("rejects custom plans without a monthly amount", () => {

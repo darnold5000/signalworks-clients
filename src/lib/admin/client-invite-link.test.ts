@@ -11,7 +11,7 @@ describe("formatAuthInviteError", () => {
         "A user with this email address has already been registered",
         redirect,
       ),
-    ).toMatch(/already has a Supabase Auth account/i);
+    ).toMatch(/already has a portal account/i);
   });
 
   it("explains redirect URL problems", () => {

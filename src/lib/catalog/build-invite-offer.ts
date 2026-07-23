@@ -7,6 +7,8 @@ import {
 import { recurringMonthlyDiscountMetadata } from "@/lib/offers/discount-scope";
 import {
   bundledProductMetadata,
+  customBundledProductMetadata,
+  customPaidAddOnMetadata,
   paidAddOnMetadata,
 } from "@/lib/offers/offer-item-metadata";
 
@@ -26,6 +28,18 @@ export type InvitePaidAddOnSelection = {
   product_key: string;
   name: string;
   unit_amount_cents: number;
+  quantity?: number;
+};
+
+export type InviteCustomPlatformComponent = {
+  name: string;
+};
+
+export type InviteCustomServiceAddOn = {
+  name: string;
+  description?: string;
+  unit_amount_cents: number;
+  quantity?: number;
 };
 
 export type InviteCommercialExtras = {
@@ -34,6 +48,8 @@ export type InviteCommercialExtras = {
   /** 0 or omitted = discount applies for the life of the subscription. */
   monthly_discount_duration_months?: number;
   paid_add_ons?: InvitePaidAddOnSelection[];
+  custom_platform_components?: InviteCustomPlatformComponent[];
+  custom_service_add_ons?: InviteCustomServiceAddOn[];
 };
 
 const PLACEHOLDER_UUID = "00000000-0000-4000-8000-000000000001";
@@ -150,14 +166,44 @@ export function buildInviteOfferItemRows(args: {
     });
   }
 
+  for (const custom of extras.custom_platform_components ?? []) {
+    const trimmed = custom.name.trim();
+    if (!trimmed) continue;
+    rows.push({
+      offer_id: args.offerId,
+      tenant_id: args.tenantId,
+      item_type: "product",
+      name: trimmed,
+      description: "Custom platform component",
+      quantity: 1,
+      unit_amount_cents: 0,
+      billing_type: "recurring",
+      billing_interval: "month",
+      billing_interval_count: 1,
+      discount_type: null,
+      discount_amount_cents: null,
+      discount_percent: null,
+      discount_duration_type: null,
+      discount_duration_months: null,
+      stripe_product_id: null,
+      stripe_price_id: null,
+      stripe_coupon_id: null,
+      is_optional: false,
+      is_selected: true,
+      sort_order: sortOrder++,
+      metadata: customBundledProductMetadata(trimmed),
+    });
+  }
+
   for (const addOn of extras.paid_add_ons ?? []) {
+    const quantity = Math.max(1, addOn.quantity ?? 1);
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
       item_type: "add_on",
       name: addOn.name,
-      description: "Paid add-on",
-      quantity: 1,
+      description: "Service add-on",
+      quantity,
       unit_amount_cents: addOn.unit_amount_cents,
       billing_type: "recurring",
       billing_interval: "month",
@@ -174,6 +220,36 @@ export function buildInviteOfferItemRows(args: {
       is_selected: true,
       sort_order: sortOrder++,
       metadata: paidAddOnMetadata(addOn.product_key),
+    });
+  }
+
+  for (const custom of extras.custom_service_add_ons ?? []) {
+    const trimmed = custom.name.trim();
+    if (!trimmed) continue;
+    const quantity = Math.max(1, custom.quantity ?? 1);
+    rows.push({
+      offer_id: args.offerId,
+      tenant_id: args.tenantId,
+      item_type: "add_on",
+      name: trimmed,
+      description: custom.description?.trim() || "Custom service add-on",
+      quantity,
+      unit_amount_cents: custom.unit_amount_cents,
+      billing_type: "recurring",
+      billing_interval: "month",
+      billing_interval_count: 1,
+      discount_type: null,
+      discount_amount_cents: null,
+      discount_percent: null,
+      discount_duration_type: null,
+      discount_duration_months: null,
+      stripe_product_id: null,
+      stripe_price_id: null,
+      stripe_coupon_id: null,
+      is_optional: false,
+      is_selected: true,
+      sort_order: sortOrder++,
+      metadata: customPaidAddOnMetadata(trimmed),
     });
   }
 

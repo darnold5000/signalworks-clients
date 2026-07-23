@@ -13,9 +13,21 @@ const optionalUrl = z
   .transform((value) => normalizeOptionalUrl(value))
   .pipe(z.union([z.literal(""), z.string().url()]));
 
-const paidAddOnSchema = z.object({
+const serviceAddOnSchema = z.object({
   productKey: z.string().trim().min(1),
   monthlyPriceDollars: z.coerce.number().min(0),
+  quantity: z.coerce.number().int().min(1).max(999).optional(),
+});
+
+const customPlatformComponentSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+});
+
+const customServiceAddOnSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(500).optional().or(z.literal("")),
+  monthlyPriceDollars: z.coerce.number().min(0),
+  quantity: z.coerce.number().int().min(1).max(999).optional(),
 });
 
 export const inviteClientRequestSchema = z
@@ -29,11 +41,26 @@ export const inviteClientRequestSchema = z
     planKey: z.enum(["brand", "launch", "platform", "custom"]),
     monthlyPriceDollars: z.coerce.number().min(0),
     productKeys: z.array(z.string().trim().min(1)).max(50).default([]),
-    paidAddOns: z.array(paidAddOnSchema).max(20).default([]),
+    /** @deprecated use serviceAddOns */
+    paidAddOns: z.array(serviceAddOnSchema).max(30).default([]),
+    serviceAddOns: z.array(serviceAddOnSchema).max(30).default([]),
+    customPlatformComponents: z
+      .array(customPlatformComponentSchema)
+      .max(20)
+      .default([]),
+    customServiceAddOns: z
+      .array(customServiceAddOnSchema)
+      .max(20)
+      .default([]),
     setupFeeDollars: z.coerce.number().min(0).default(0),
     monthlyDiscountDollars: z.coerce.number().min(0).default(0),
     monthlyDiscountDurationMonths: z.coerce.number().int().min(0).max(120).default(0),
     idempotencyKey: z.string().uuid().optional(),
+  })
+  .transform((data) => {
+    const serviceAddOns =
+      data.serviceAddOns.length > 0 ? data.serviceAddOns : data.paidAddOns;
+    return { ...data, serviceAddOns };
   })
   .superRefine((data, ctx) => {
     const monthlyPriceCents = Math.round(data.monthlyPriceDollars * 100);
@@ -46,16 +73,15 @@ export const inviteClientRequestSchema = z
       });
     }
 
-    const overlap = data.paidAddOns.filter((addOn) =>
-      data.productKeys.includes(addOn.productKey),
-    );
-    if (overlap.length > 0) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "A product cannot be both bundled and a paid add-on on the same offer.",
-        path: ["paidAddOns"],
-      });
+    if (data.productKeys.includes("other")) {
+      const named = data.customPlatformComponents.filter((row) => row.name.trim());
+      if (named.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Add at least one custom platform component name.",
+          path: ["customPlatformComponents"],
+        });
+      }
     }
   });
 

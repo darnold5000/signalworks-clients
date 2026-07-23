@@ -10,6 +10,7 @@ import {
 import {
   createClientPortalAccessLink,
   deliverClientInviteLink,
+  findExistingPortalClientByEmail,
 } from "@/lib/admin/client-invite-link";
 import {
   ensureOfferSowDocument,
@@ -134,36 +135,69 @@ export async function inviteClientWithOffer(
     return { ok: false, error: "Selected plan is not available." };
   }
 
-  const products = await getProductsByKeys(input.productKeys);
-  if (products.length !== input.productKeys.length) {
-    return { ok: false, error: "One or more selected products are invalid." };
+  const componentKeys = input.productKeys.filter((key) => key !== "other");
+  const products = await getProductsByKeys(componentKeys);
+  if (products.length !== componentKeys.length) {
+    return { ok: false, error: "One or more selected platform components are invalid." };
   }
 
-  const paidAddOnKeys = input.paidAddOns.map((addOn) => addOn.productKey);
-  const paidAddOnCatalog = await getPaidAddOnsByKeys(paidAddOnKeys);
-  if (paidAddOnCatalog.length !== paidAddOnKeys.length) {
+  const serviceAddOnKeys = input.serviceAddOns.map((addOn) => addOn.productKey);
+  const serviceAddOnCatalog = await getPaidAddOnsByKeys(serviceAddOnKeys);
+  if (serviceAddOnCatalog.length !== serviceAddOnKeys.length) {
     return {
       ok: false,
-      error: "One or more selected paid add-ons are invalid.",
+      error: "One or more selected service add-ons are invalid.",
     };
   }
 
-  const paidAddOns = input.paidAddOns.map((selection) => {
-    const catalogItem = paidAddOnCatalog.find(
+  const paidAddOns = input.serviceAddOns.map((selection) => {
+    const catalogItem = serviceAddOnCatalog.find(
       (item) => item.product_key === selection.productKey,
     )!;
     return {
       product_key: catalogItem.product_key,
       name: catalogItem.name,
       unit_amount_cents: dollarsToCents(selection.monthlyPriceDollars),
+      quantity: selection.quantity,
     };
   });
+
+  const customPlatformComponents = (input.customPlatformComponents ?? []).map(
+    (row) => ({ name: row.name.trim() }),
+  ).filter((row) => row.name.length > 0);
+
+  const customServiceAddOns = (input.customServiceAddOns ?? []).map((row) => ({
+    name: row.name.trim(),
+    description: row.description?.trim() || undefined,
+    unit_amount_cents: dollarsToCents(row.monthlyPriceDollars),
+    quantity: row.quantity,
+  })).filter((row) => row.name.length > 0);
 
   const setupFeeCents = dollarsToCents(input.setupFeeDollars);
   const monthlyDiscountCents = dollarsToCents(input.monthlyDiscountDollars);
   const monthlyDiscountDurationMonths = input.monthlyDiscountDurationMonths ?? 0;
   const monthlyPriceCents = dollarsToCents(input.monthlyPriceDollars);
   const supabase = createServiceClient();
+
+  const existingClient = await findExistingPortalClientByEmail(
+    supabase,
+    input.email,
+  );
+  if (existingClient) {
+    const clientLabel = existingClient.businessName;
+    if (existingClient.tenantId) {
+      return {
+        ok: false,
+        error: `“${input.email}” already belongs to ${clientLabel}. Open that client and use Offers → Send proposal for add-ons or new services.`,
+        tenantId: existingClient.tenantId,
+      };
+    }
+    return {
+      ok: false,
+      error: `“${input.email}” already has a portal login. Use Send proposal on the existing client instead of creating a duplicate.`,
+    };
+  }
+
   const created: CreatedResources = {};
 
   try {
@@ -319,6 +353,12 @@ export async function inviteClientWithOffer(
             ? monthlyDiscountDurationMonths
             : undefined,
         paid_add_ons: paidAddOns.length > 0 ? paidAddOns : undefined,
+        custom_platform_components:
+          customPlatformComponents.length > 0
+            ? customPlatformComponents
+            : undefined,
+        custom_service_add_ons:
+          customServiceAddOns.length > 0 ? customServiceAddOns : undefined,
       },
     });
 

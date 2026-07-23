@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
   InviteCommercialExtras,
@@ -15,19 +16,27 @@ import type {
 import { Button } from "@/components/ui";
 import { InviteClientFinancialSummary } from "@/components/invite-client-financial-summary";
 import { InviteClientPlanSelect } from "@/components/invite-client-plan-select";
-import { InviteClientPaidAddOnSelect } from "@/components/invite-client-paid-add-on-select";
-import type { PaidAddOnSelection } from "@/components/invite-client-paid-add-on-select";
-import { InviteClientProductSelect } from "@/components/invite-client-product-select";
+import {
+  InviteClientPlatformComponentsSelect,
+  type CustomPlatformComponentRow,
+} from "@/components/invite-client-platform-components-select";
+import {
+  InviteClientServiceAddOnsSelect,
+  type CustomServiceAddOnRow,
+  type ServiceAddOnSelection,
+} from "@/components/invite-client-service-add-ons-select";
 
 const inputClassName =
   "w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm";
 
 export function InviteClientForm({
   plans,
-  products,
+  platformComponents,
+  serviceAddOns,
 }: {
   plans: PlatformPlanTemplate[];
-  products: PlatformProductCatalogItem[];
+  platformComponents: PlatformProductCatalogItem[];
+  serviceAddOns: PlatformProductCatalogItem[];
 }) {
   const router = useRouter();
   const idempotencyKeyRef = useRef(crypto.randomUUID());
@@ -45,29 +54,45 @@ export function InviteClientForm({
     selectedPlan ? String(selectedPlan.default_price_cents / 100) : "",
   );
   const [selectedProductKeys, setSelectedProductKeys] = useState<string[]>([]);
-  const [paidAddOnSelections, setPaidAddOnSelections] = useState<
-    PaidAddOnSelection[]
+  const [customPlatformRows, setCustomPlatformRows] = useState<
+    CustomPlatformComponentRow[]
   >([]);
+  const [serviceAddOnSelections, setServiceAddOnSelections] = useState<
+    ServiceAddOnSelection[]
+  >([]);
+  const [customServiceAddOnRows, setCustomServiceAddOnRows] = useState<
+    CustomServiceAddOnRow[]
+  >([]);
+  const [customAddOnsSelected, setCustomAddOnsSelected] = useState(false);
   const [setupFeeDollars, setSetupFeeDollars] = useState("0");
   const [monthlyDiscountDollars, setMonthlyDiscountDollars] = useState("0");
   const [monthlyDiscountDurationMonths, setMonthlyDiscountDurationMonths] =
     useState("0");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTenantId, setErrorTenantId] = useState<string | null>(null);
   const [result, setResult] = useState<{
     message: string;
     inviteLink: string | null;
     redirectTo: string;
   } | null>(null);
 
+  const catalogComponentKeys = useMemo(
+    () =>
+      selectedProductKeys.filter(
+        (key) => key !== "other" && key !== "other_add_on",
+      ),
+    [selectedProductKeys],
+  );
+
   const selectedProducts = useMemo<InviteProductSelection[]>(() => {
-    return products
-      .filter((product) => selectedProductKeys.includes(product.product_key))
+    return platformComponents
+      .filter((product) => catalogComponentKeys.includes(product.product_key))
       .map((product) => ({
         product_key: product.product_key,
         name: product.name,
       }));
-  }, [products, selectedProductKeys]);
+  }, [platformComponents, catalogComponentKeys]);
 
   const selectedPlanSummary = useMemo<InvitePlanSelection | null>(() => {
     if (!selectedPlan) return null;
@@ -92,21 +117,41 @@ export function InviteClientForm({
       0,
       Number.parseInt(monthlyDiscountDurationMonths, 10) || 0,
     );
-    const paid_add_ons = paidAddOnSelections
+
+    const paid_add_ons = serviceAddOnSelections
       .map((selection) => {
-        const catalogItem = products.find(
+        const catalogItem = serviceAddOns.find(
           (product) => product.product_key === selection.productKey,
         );
         if (!catalogItem) return null;
+        const quantity = Math.max(
+          1,
+          Number.parseInt(selection.quantity ?? "1", 10) || 1,
+        );
         return {
           product_key: catalogItem.product_key,
           name: catalogItem.name,
           unit_amount_cents: dollarsToCents(
             Number.parseFloat(selection.monthlyPriceDollars) || 0,
           ),
+          quantity,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    const custom_platform_components = customPlatformRows
+      .map((row) => ({ name: row.name.trim() }))
+      .filter((row) => row.name.length > 0);
+
+    const custom_service_add_ons = customServiceAddOnRows
+      .map((row) => ({
+        name: row.name.trim(),
+        description: row.description.trim() || undefined,
+        unit_amount_cents: dollarsToCents(
+          Number.parseFloat(row.monthlyPriceDollars) || 0,
+        ),
+      }))
+      .filter((row) => row.name.length > 0);
 
     return {
       setup_fee_cents: setupFeeCents > 0 ? setupFeeCents : undefined,
@@ -117,12 +162,20 @@ export function InviteClientForm({
           ? durationMonths
           : undefined,
       paid_add_ons: paid_add_ons.length > 0 ? paid_add_ons : undefined,
+      custom_platform_components:
+        custom_platform_components.length > 0
+          ? custom_platform_components
+          : undefined,
+      custom_service_add_ons:
+        custom_service_add_ons.length > 0 ? custom_service_add_ons : undefined,
     };
   }, [
+    customPlatformRows,
+    customServiceAddOnRows,
     monthlyDiscountDollars,
     monthlyDiscountDurationMonths,
-    paidAddOnSelections,
-    products,
+    serviceAddOnSelections,
+    serviceAddOns,
     setupFeeDollars,
   ]);
 
@@ -146,6 +199,7 @@ export function InviteClientForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setErrorTenantId(null);
     setResult(null);
     setLoading(true);
 
@@ -163,10 +217,25 @@ export function InviteClientForm({
           planKey: selectedPlan?.plan_key,
           monthlyPriceDollars: Number.parseFloat(monthlyPriceDollars),
           productKeys: selectedProductKeys,
-          paidAddOns: paidAddOnSelections.map((selection) => ({
+          serviceAddOns: serviceAddOnSelections.map((selection) => ({
             productKey: selection.productKey,
-            monthlyPriceDollars: Number.parseFloat(selection.monthlyPriceDollars) || 0,
+            monthlyPriceDollars:
+              Number.parseFloat(selection.monthlyPriceDollars) || 0,
+            quantity: selection.quantity
+              ? Number.parseInt(selection.quantity, 10) || 1
+              : undefined,
           })),
+          customPlatformComponents: customPlatformRows
+            .map((row) => ({ name: row.name.trim() }))
+            .filter((row) => row.name.length > 0),
+          customServiceAddOns: customServiceAddOnRows
+            .map((row) => ({
+              name: row.name.trim(),
+              description: row.description.trim() || undefined,
+              monthlyPriceDollars:
+                Number.parseFloat(row.monthlyPriceDollars) || 0,
+            }))
+            .filter((row) => row.name.length > 0),
           setupFeeDollars: Number.parseFloat(setupFeeDollars) || 0,
           monthlyDiscountDollars: Number.parseFloat(monthlyDiscountDollars) || 0,
           monthlyDiscountDurationMonths:
@@ -186,6 +255,9 @@ export function InviteClientForm({
             .filter(Boolean)
             .join(" · ");
         setError(detail || data.error || data.note || "Invite failed");
+        setErrorTenantId(
+          typeof data.tenantId === "string" ? data.tenantId : null,
+        );
         return;
       }
 
@@ -204,14 +276,17 @@ export function InviteClientForm({
     }
   }
 
-  if (plans.length === 0 || products.length === 0) {
+  if (plans.length === 0 || platformComponents.length === 0) {
     return (
       <p className="text-sm text-danger">
-        Plan and product catalogs are not available. Apply migration
+        Plan and product catalogs are not available. Apply migrations
         {" "}
         <code className="text-xs">010_platform_catalogs.sql</code>
         {" "}
-        and refresh this page.
+        and
+        {" "}
+        <code className="text-xs">015_catalog_v2_platform_components.sql</code>
+        , then refresh.
       </p>
     );
   }
@@ -219,8 +294,9 @@ export function InviteClientForm({
   return (
     <form onSubmit={onSubmit} className="space-y-8">
       <p className="text-sm text-muted">
-        Create the client tenant, commercial offer, and portal invite in one step.
-        Offer line items are the source of truth for what they purchased.
+        Create a new client tenant, commercial offer, and first-time portal
+        invite. Platform components define what gets built; service add-ons define
+        ongoing services.
       </p>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -301,16 +377,22 @@ export function InviteClientForm({
             onMonthlyPriceChange={setMonthlyPriceDollars}
           />
 
-          <InviteClientProductSelect
-            products={products}
+          <InviteClientPlatformComponentsSelect
+            components={platformComponents}
             selectedKeys={selectedProductKeys}
             onChange={setSelectedProductKeys}
+            customRows={customPlatformRows}
+            onCustomRowsChange={setCustomPlatformRows}
           />
 
-          <InviteClientPaidAddOnSelect
-            catalog={products}
-            selections={paidAddOnSelections}
-            onChange={setPaidAddOnSelections}
+          <InviteClientServiceAddOnsSelect
+            catalog={serviceAddOns}
+            selections={serviceAddOnSelections}
+            onChange={setServiceAddOnSelections}
+            customRows={customServiceAddOnRows}
+            onCustomRowsChange={setCustomServiceAddOnRows}
+            otherSelected={customAddOnsSelected}
+            onOtherSelectedChange={setCustomAddOnsSelected}
           />
 
           <section className="space-y-4">
@@ -372,7 +454,21 @@ export function InviteClientForm({
         />
       </div>
 
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {error ? (
+        <div className="space-y-2 text-sm text-danger">
+          <p>{error}</p>
+          {errorTenantId ? (
+            <p>
+              <Link
+                href={`/admin/clients/${errorTenantId}/offers`}
+                className="font-medium underline underline-offset-2"
+              >
+                Open existing client offers
+              </Link>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {result ? (
         <div className="space-y-2 rounded-lg border border-border bg-background p-4 text-sm">
@@ -393,3 +489,4 @@ export function InviteClientForm({
     </form>
   );
 }
+

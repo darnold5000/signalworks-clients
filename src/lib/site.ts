@@ -71,6 +71,18 @@ export function recoveryRedirectUrl(appUrl: string): string {
   return `${base}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`;
 }
 
+/** After sign-in, land on the active proposal. */
+export function offerRedirectUrl(appUrl: string): string {
+  const base = appUrl.replace(/\/$/, "");
+  return `${base}/auth/callback?next=${encodeURIComponent("/offer")}`;
+}
+
+/** Plain login link when the client already has a password. */
+export function loginWithNextUrl(appUrl: string, nextPath = "/offer"): string {
+  const base = appUrl.replace(/\/$/, "");
+  return `${base}/login?next=${encodeURIComponent(nextPath)}`;
+}
+
 /** Force the correct redirect_to on Supabase verify links embedded in email. */
 export function ensureInviteActionLink(
   actionLink: string,

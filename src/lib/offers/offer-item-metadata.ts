@@ -42,6 +42,25 @@ export function paidAddOnMetadata(productKey: string): PaidAddOnMetadata {
   };
 }
 
+export function customBundledProductMetadata(name: string) {
+  return {
+    product_key: "custom",
+    catalog_version: CATALOG_VERSION,
+    commercial_role: COMMERCIAL_ROLE.BUNDLED_PRODUCT,
+    included_in_plan: true,
+    custom_name: name,
+  };
+}
+
+export function customPaidAddOnMetadata(name: string) {
+  return {
+    product_key: "custom",
+    commercial_role: COMMERCIAL_ROLE.PAID_ADD_ON,
+    included_in_plan: false,
+    custom_name: name,
+  };
+}
+
 export function isBundledProductItem(item: ClientOfferItem): boolean {
   return (
     item.item_type === "product" ||

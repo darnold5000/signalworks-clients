@@ -10,10 +10,12 @@ import { Button, Panel } from "@/components/ui";
 
 export function InviteClientPanel({
   plans,
-  products,
+  platformComponents,
+  serviceAddOns,
 }: {
   plans: PlatformPlanTemplate[];
-  products: PlatformProductCatalogItem[];
+  platformComponents: PlatformProductCatalogItem[];
+  serviceAddOns: PlatformProductCatalogItem[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -23,7 +25,8 @@ export function InviteClientPanel({
         <div>
           <h2 className="font-medium">Add client</h2>
           <p className="mt-1 text-sm text-muted">
-            Invite a new client with a plan, products, and commercial terms.
+            Invite a new client with a plan, platform components, and service
+            add-ons. For existing clients, use Offers → Send proposal.
           </p>
         </div>
         {!open ? (
@@ -38,7 +41,11 @@ export function InviteClientPanel({
       </div>
       {open ? (
         <div className="mt-6 border-t border-border pt-6">
-          <InviteClientForm plans={plans} products={products} />
+          <InviteClientForm
+            plans={plans}
+            platformComponents={platformComponents}
+            serviceAddOns={serviceAddOns}
+          />
         </div>
       ) : null}
     </Panel>

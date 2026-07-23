@@ -20,6 +20,7 @@ export function LoginForm() {
   const callbackError = searchParams.get("error") === "auth_callback";
   const passwordReset = searchParams.get("reset") === "1";
   const showForgot = searchParams.get("forgot") === "1";
+  const nextPath = searchParams.get("next");
   const [forgotMode, setForgotMode] = useState(showForgot);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
@@ -81,7 +82,11 @@ export function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          next: nextPath ?? undefined,
+        }),
       });
 
       const data = (await res.json()) as {

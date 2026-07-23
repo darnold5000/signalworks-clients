@@ -9,6 +9,7 @@ import type {
 import { DISCOUNT_SCOPE } from "@/lib/offers/discount-scope";
 import { defaultBillingForItemType } from "@/lib/offers/build-offer-item-payload";
 import { Button, Panel, StatusPill } from "@/components/ui";
+import { SendProposalButton } from "@/components/admin/send-proposal-button";
 import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 
@@ -59,9 +60,11 @@ function dollarsToCents(value: string): number {
 export function OfferBuilder({
   tenantId,
   initialOffers,
+  ownerEmail,
 }: {
   tenantId: string;
   initialOffers: OfferWithItems[];
+  ownerEmail?: string | null;
 }) {
   const [offers, setOffers] = useState(initialOffers);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -328,7 +331,16 @@ export function OfferBuilder({
                   >
                     Publish offer
                   </Button>
-                ) : null}
+                ) : (
+                  <div className="mt-4">
+                    <SendProposalButton
+                      tenantId={tenantId}
+                      offerId={selected.id}
+                      offerStatus={selected.status}
+                      ownerEmail={ownerEmail}
+                    />
+                  </div>
+                )}
               </Panel>
 
               {selected.status === "draft" ? (

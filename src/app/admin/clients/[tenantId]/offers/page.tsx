@@ -21,7 +21,11 @@ export default async function AdminClientOffersPage({
         title="Offers"
         description="Build, publish, and track client proposals and checkout."
       />
-      <OfferBuilder tenantId={tenantId} initialOffers={offers} />
+      <OfferBuilder
+        tenantId={tenantId}
+        initialOffers={offers}
+        ownerEmail={bundle.owner?.email}
+      />
     </>
   );
 }
