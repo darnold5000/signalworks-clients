@@ -78,6 +78,7 @@ export type Client = {
   stripe_price_id: string | null;
   subscription_status: SubscriptionStatus;
   current_period_end: string | null;
+  cancel_at_period_end: boolean;
   estimated_infra_cost_cents: number;
   support_email: string | null;
   support_phone: string | null;

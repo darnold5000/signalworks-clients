@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { recordOfferAgreementsAcceptance } from "@/lib/agreements/service";
+import {
+  hasAcceptedRequiredOfferAgreements,
+  recordOfferAgreementsAcceptance,
+} from "@/lib/agreements/service";
+import { createOfferCheckoutSession } from "@/lib/offers/checkout";
 import { getActiveOfferForTenant, getLegalDocument } from "@/lib/offers/queries";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
+import { isStripeConfigured } from "@/lib/stripe";
 
 const bodySchema = z.object({
   acceptedName: z.string().trim().min(2).max(200),
@@ -67,17 +72,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "SOW document not found" }, { status: 404 });
   }
 
-  await recordOfferAgreementsAcceptance({
+  const alreadyAccepted = await hasAcceptedRequiredOfferAgreements({
     tenantId: client.id,
-    userId: profile.id,
     offerId: offer.id,
-    termsDocument,
-    sowDocument,
-    acceptedName: parsed.data.acceptedName,
-    acceptedEmail: parsed.data.acceptedEmail,
-    ipAddress: request.headers.get("x-forwarded-for"),
-    userAgent: request.headers.get("user-agent"),
+    userId: profile.id,
+    termsDocumentId: offer.terms_document_id,
+    sowDocumentId: offer.sow_document_id,
+    requiresTerms: offer.requires_terms_acceptance,
   });
 
-  return NextResponse.json({ ok: true });
+  if (!alreadyAccepted) {
+    await recordOfferAgreementsAcceptance({
+      tenantId: client.id,
+      userId: profile.id,
+      offerId: offer.id,
+      termsDocument,
+      sowDocument,
+      acceptedName: parsed.data.acceptedName,
+      acceptedEmail: parsed.data.acceptedEmail,
+      ipAddress: request.headers.get("x-forwarded-for"),
+      userAgent: request.headers.get("user-agent"),
+    });
+  }
+
+  if (!isStripeConfigured()) {
+    return NextResponse.json({
+      ok: true,
+      checkoutUrl: null,
+      error: "Stripe is not configured. Contact Signal Works to complete billing setup.",
+    });
+  }
+
+  try {
+    const { session } = await createOfferCheckoutSession({
+      offer,
+      purchaserUserId: profile.id,
+      purchaserEmail: parsed.data.acceptedEmail,
+      request,
+      existingCustomerId:
+        client.stripe_customer_id && !client.stripe_customer_id.includes("_demo_")
+          ? client.stripe_customer_id
+          : null,
+    });
+
+    return NextResponse.json({ ok: true, checkoutUrl: session.url });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Could not start checkout";
+    return NextResponse.json({ ok: true, checkoutUrl: null, error: message });
+  }
 }

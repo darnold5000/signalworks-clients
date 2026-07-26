@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
+import { validateOfferItemsForCustomerFacing } from "@/lib/offers/offer-item-validation";
 import {
   ensureOfferSowDocument,
   ensurePlatformTermsDocument,
@@ -38,6 +39,11 @@ export async function POST(
       { error: "Add at least one line item before publishing" },
       { status: 400 },
     );
+  }
+
+  const itemValidation = validateOfferItemsForCustomerFacing(offer.items);
+  if (itemValidation) {
+    return NextResponse.json({ error: itemValidation }, { status: 400 });
   }
 
   const totals = calculateOfferTotals(offer.items);

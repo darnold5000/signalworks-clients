@@ -9,6 +9,24 @@ import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
+export async function findReusableOfferPurchase(args: {
+  tenantId: string;
+  offerId: string;
+}): Promise<Purchase | null> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from(TABLES.purchases)
+    .select("*")
+    .eq("tenant_id", args.tenantId)
+    .eq("offer_id", args.offerId)
+    .in("status", ["pending", "checkout_created"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as Purchase | null) ?? null;
+}
+
 export async function listPurchasesForTenant(
   tenantId: string,
 ): Promise<Purchase[]> {

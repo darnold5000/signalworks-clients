@@ -282,6 +282,7 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
     current_period_end: periodEnd
       ? new Date(periodEnd * 1000).toISOString()
       : null,
+    cancel_at_period_end: sub.cancel_at_period_end ?? false,
   };
 
   const tenantId = sub.metadata?.tenant_id || sub.metadata?.client_id;

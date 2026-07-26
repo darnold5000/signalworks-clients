@@ -1,3 +1,8 @@
+import { getActiveOfferForTenant } from "@/lib/offers/queries";
+import {
+  isStorageBackedDocumentFileUrl,
+  portalDocumentDownloadPath,
+} from "@/lib/documents/paths";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import type { LegalDocument } from "@/lib/database/phase1-types";
@@ -18,6 +23,7 @@ export async function getPortalDocumentsForClient(
   tenantId: string,
 ): Promise<PortalDocumentItem[]> {
   const supabase = await createClient();
+  const activeOffer = await getActiveOfferForTenant(tenantId);
 
   const [{ data: files }, { data: legalDocs }, { data: acceptances }] =
     await Promise.all([
@@ -43,6 +49,21 @@ export async function getPortalDocumentsForClient(
 
   const items: PortalDocumentItem[] = [];
 
+  if (activeOffer) {
+    const preAcceptance =
+      activeOffer.status === "published" || activeOffer.status === "viewed";
+    if (preAcceptance) {
+      items.push({
+        id: activeOffer.id,
+        title: "Service Proposal",
+        description: `${activeOffer.title} — review pricing and included services`,
+        created_at: activeOffer.published_at ?? activeOffer.created_at,
+        kind: "legal",
+        href: "/offer",
+      });
+    }
+  }
+
   for (const doc of legalDocs ?? []) {
     const legal = doc as Pick<
       LegalDocument,
@@ -54,6 +75,12 @@ export async function getPortalDocumentsForClient(
         : legal.document_type === "terms_of_service"
           ? "/legal/terms"
           : `/documents/legal/${legal.id}`;
+    const title =
+      legal.document_type === "statement_of_work"
+        ? "Statement of Work"
+        : legal.document_type === "terms_of_service"
+          ? "Terms of Service"
+          : legal.title;
     const downloadHref =
       legal.document_type === "statement_of_work"
         ? "/api/portal/legal/sow?download=1"
@@ -62,7 +89,7 @@ export async function getPortalDocumentsForClient(
           : undefined;
     items.push({
       id: legal.id,
-      title: legal.title,
+      title,
       description:
         legal.document_type === "statement_of_work"
           ? "Statement of Work for your proposal"
@@ -104,13 +131,20 @@ export async function getPortalDocumentsForClient(
   }
 
   for (const doc of files ?? []) {
+    const fileUrl = doc.file_url as string;
+    const storageBacked = isStorageBackedDocumentFileUrl(fileUrl);
     items.push({
       id: doc.id as string,
       title: doc.title as string,
       description: (doc.description as string | null) ?? "Uploaded file",
       created_at: doc.created_at as string,
       kind: "file",
-      href: doc.file_url as string,
+      href: storageBacked
+        ? portalDocumentDownloadPath(doc.id as string)
+        : fileUrl,
+      downloadHref: storageBacked
+        ? portalDocumentDownloadPath(doc.id as string)
+        : undefined,
     });
   }
 

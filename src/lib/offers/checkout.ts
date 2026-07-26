@@ -1,7 +1,11 @@
 import type Stripe from "stripe";
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
+import { selectRecurringCheckoutCouponId } from "@/lib/offers/checkout-discount";
 import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
-import { createPurchaseFromOffer } from "@/lib/purchases/service";
+import {
+  createPurchaseFromOffer,
+  findReusableOfferPurchase,
+} from "@/lib/purchases/service";
 import type { OfferWithItems } from "@/lib/offers/queries";
 import { resolveAppUrl } from "@/lib/site";
 import { getStripe } from "@/lib/stripe";
@@ -41,11 +45,20 @@ export async function createOfferCheckoutSession(args: {
     ? "subscription"
     : "payment";
 
-  const { purchase } = await createPurchaseFromOffer({
-    offer: args.offer,
-    items: args.offer.items,
-    purchasedBy: args.purchaserUserId,
-  });
+  let purchase =
+    (await findReusableOfferPurchase({
+      tenantId: args.offer.tenant_id,
+      offerId: args.offer.id,
+    })) ?? null;
+
+  if (!purchase) {
+    const created = await createPurchaseFromOffer({
+      offer: args.offer,
+      items: args.offer.items,
+      purchasedBy: args.purchaserUserId,
+    });
+    purchase = created.purchase;
+  }
 
   const appUrl = resolveAppUrl(args.request);
   const lineItems = billable.map((item) => ({
@@ -53,10 +66,21 @@ export async function createOfferCheckoutSession(args: {
     quantity: item.quantity,
   }));
 
-  const couponItem = args.offer.items.find((item) => item.stripe_coupon_id);
-  const discounts = couponItem?.stripe_coupon_id
-    ? [{ coupon: couponItem.stripe_coupon_id }]
-    : undefined;
+  const couponId = selectRecurringCheckoutCouponId(args.offer.items);
+  const discounts = couponId ? [{ coupon: couponId }] : undefined;
+
+  if (purchase.stripe_checkout_session_id) {
+    try {
+      const existing = await stripe.checkout.sessions.retrieve(
+        purchase.stripe_checkout_session_id,
+      );
+      if (existing.status === "open" && existing.url) {
+        return { session: existing, purchaseId: purchase.id };
+      }
+    } catch {
+      // Session expired or missing — create a new one below.
+    }
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode,

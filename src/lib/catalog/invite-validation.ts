@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validateCustomPlanPrice } from "@/lib/catalog/build-invite-offer";
+import { isPlaceholderOfferItemName } from "@/lib/offers/offer-item-validation";
 
 function normalizeOptionalUrl(value: string): string {
   const trimmed = value.trim();
@@ -80,6 +81,25 @@ export const inviteClientRequestSchema = z
           code: "custom",
           message: "Add at least one custom platform component name.",
           path: ["customPlatformComponents"],
+        });
+      }
+      for (const row of named) {
+        if (isPlaceholderOfferItemName(row.name)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Use a meaningful name for each custom platform component.",
+            path: ["customPlatformComponents"],
+          });
+        }
+      }
+    }
+
+    for (const row of data.customServiceAddOns) {
+      if (isPlaceholderOfferItemName(row.name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Use a meaningful name for each custom add-on.",
+          path: ["customServiceAddOns"],
         });
       }
     }

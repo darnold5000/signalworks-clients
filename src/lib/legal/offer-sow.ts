@@ -3,13 +3,36 @@ import {
   calculateAmountDueFirstCycle,
   calculateOfferTotals,
 } from "@/lib/offers/calculate-totals";
-import { DISCOUNT_SCOPE, discountScopeFromMetadata } from "@/lib/offers/discount-scope";
 import { formatLegalEffectiveDate } from "@/lib/legal/signal-works-tos";
 import {
-  isBundledProductItem,
-  isPaidAddOnItem,
-} from "@/lib/offers/offer-item-metadata";
+  groupIncludedPlatformItems,
+  includedPlatformSummarySentence,
+} from "@/lib/offers/included-platform-summary";
+import { isPaidAddOnItem } from "@/lib/offers/offer-item-metadata";
+import { buildOfferPricingSummary } from "@/lib/offers/pricing-summary";
 import { formatDate } from "@/lib/utils";
+
+const SOW_STYLES = `
+  .sw-sow { font-family: Georgia, 'Times New Roman', serif; color: #111; line-height: 1.55; max-width: 46rem; margin: 0 auto; }
+  .sw-sow header { text-align: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid #111; }
+  .sw-sow h1 { font-size: 1.5rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 0.25rem; }
+  .sw-sow .sw-subtitle { font-size: 1.125rem; margin: 0; }
+  .sw-sow h2 { font-size: 1.05rem; margin: 1.75rem 0 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .sw-sow h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+  .sw-sow p { margin: 0.5rem 0; }
+  .sw-sow table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1.25rem; font-size: 0.95rem; }
+  .sw-sow th, .sw-sow td { border: 1px solid #ccc; padding: 0.5rem 0.65rem; vertical-align: top; }
+  .sw-sow th { background: #f5f5f5; text-align: left; }
+  .sw-sow .sw-money { text-align: right; white-space: nowrap; }
+  .sw-sow ul { margin: 0.5rem 0 1rem 1.25rem; }
+  .sw-sow li { margin-bottom: 0.35rem; word-break: break-word; }
+  .sw-sow table { page-break-inside: avoid; }
+  .sw-sow h2 { page-break-after: avoid; }
+  @media print {
+    .sw-sow { max-width: none; }
+    body { background: #fff; }
+  }
+`;
 
 export type SowClientContext = {
   businessName: string;
@@ -52,16 +75,20 @@ function estimateGoLiveDate(projectStart: string | null | undefined): string {
   return formatDate(start.toISOString().slice(0, 10));
 }
 
-function buildProductRows(items: ClientOfferItem[]): string {
-  const products = items.filter(
-    (item) => item.is_selected && isBundledProductItem(item),
-  );
-  if (products.length === 0) {
-    return `<tr><td>Standard plan services</td></tr>`;
+function buildIncludedScopeHtml(items: ClientOfferItem[]): string {
+  const groups = groupIncludedPlatformItems(items);
+  if (groups.length === 0) {
+    return `<p>The selected plan includes standard Signal Works platform services for design, hosting, maintenance, and support.</p>`;
   }
-  return products
-    .map((item) => `<tr><td>${escapeHtml(item.name)}</td></tr>`)
-    .join("");
+
+  const summary = includedPlatformSummarySentence(groups);
+  let html = `<p>Included with your plan: ${escapeHtml(summary)}.</p>`;
+  html += `<ul>`;
+  for (const group of groups) {
+    html += `<li><strong>${escapeHtml(group.sectionLabel)}:</strong> ${escapeHtml(group.itemNames.join(", "))}</li>`;
+  }
+  html += `</ul>`;
+  return html;
 }
 
 function buildAddOnRows(items: ClientOfferItem[]): string {
@@ -73,7 +100,7 @@ function buildAddOnRows(items: ClientOfferItem[]): string {
     .map(
       (item) => `<tr>
         <td>${escapeHtml(item.name)}</td>
-        <td style="text-align:right">$${formatDollars(item.unit_amount_cents * item.quantity)}</td>
+        <td class="sw-money">$${formatDollars(item.unit_amount_cents * item.quantity)}</td>
       </tr>`,
     )
     .join("");
@@ -92,7 +119,7 @@ function buildOneTimeRows(items: ClientOfferItem[]): string {
     .map(
       (item) => `<tr>
         <td>${escapeHtml(item.description || item.name)}</td>
-        <td style="text-align:right">$${formatDollars(item.unit_amount_cents * item.quantity)}</td>
+        <td class="sw-money">$${formatDollars(item.unit_amount_cents * item.quantity)}</td>
       </tr>`,
     )
     .join("");
@@ -115,7 +142,7 @@ function buildDiscountRows(items: ClientOfferItem[]): string {
           : "";
       return `<tr>
         <td>${escapeHtml(item.name)}${escapeHtml(suffix)}</td>
-        <td style="text-align:right">-$${formatDollars(amount)}</td>
+        <td class="sw-money">-$${formatDollars(amount)}</td>
       </tr>`;
     })
     .join("");
@@ -136,25 +163,15 @@ export function buildOfferSowContext(args: {
 }) {
   const totals = calculateOfferTotals(args.items);
   const dueBeforeBilling = calculateAmountDueFirstCycle(totals);
-  const basePlanItem = args.items.find(
-    (item) => item.is_selected && item.item_type === "base_plan",
-  );
-  const basePlanCents = basePlanItem
-    ? basePlanItem.unit_amount_cents * basePlanItem.quantity
-    : 0;
-  const addOnCents = args.items
-    .filter((item) => item.is_selected && isPaidAddOnItem(item))
-    .reduce((sum, item) => sum + item.unit_amount_cents * item.quantity, 0);
-  const recurringDiscountCents = args.items
-    .filter(
-      (item) =>
-        item.is_selected &&
-        (item.item_type === "discount" || item.item_type === "credit") &&
-        discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING,
-    )
-    .reduce((sum, item) => sum + item.unit_amount_cents * item.quantity, 0);
+  const pricing = buildOfferPricingSummary(args.items, args.offer.currency);
   const projectStart =
     args.client.projectStart ?? new Date().toISOString().slice(0, 10);
+
+  const discountDurationMonths = pricing.discountDurationMonths;
+  const afterDiscountNote =
+    pricing.recurringDiscountAmountCents > 0 && discountDurationMonths
+      ? `<p>After ${discountDurationMonths} month${discountDurationMonths === 1 ? "" : "s"}, the monthly subscription returns to <strong>$${formatDollars(pricing.standardMonthlyAmountAfterDiscountCents)}</strong> unless otherwise agreed in writing.</p>`
+      : "";
 
   return {
     effectiveDate: args.effectiveDate ?? formatLegalEffectiveDate(),
@@ -162,19 +179,18 @@ export function buildOfferSowContext(args: {
     estimatedGoLive:
       args.client.estimatedGoLive?.trim() ||
       estimateGoLiveDate(projectStart),
-    basePlanCents,
-    addOnCents,
-    recurringDiscountCents,
+    pricing,
     monthlyTotalCents: totals.recurring_total_cents,
     setupTotalCents: totals.initial_total_cents,
     initialTotalCents: dueBeforeBilling,
-    productRows: buildProductRows(args.items),
+    includedScopeHtml: buildIncludedScopeHtml(args.items),
     addOnRows: buildAddOnRows(args.items),
     oneTimeRows: buildOneTimeRows(args.items),
     discountRows: buildDiscountRows(args.items),
-    hasAddOns: addOnCents > 0,
+    hasAddOns: pricing.recurringAddOnAmountCents > 0,
     hasOneTime: totals.initial_total_cents > 0,
-    hasDiscounts: recurringDiscountCents > 0 || totals.discount_total_cents > 0,
+    hasDiscounts: pricing.recurringDiscountAmountCents > 0,
+    afterDiscountNote,
   };
 }
 
@@ -193,17 +209,17 @@ export function renderOfferSowHtml(args: {
   effectiveDate?: string;
 }): string {
   const ctx = buildOfferSowContext(args);
-  const monthlyPrice = formatDollars(ctx.basePlanCents);
+  const p = ctx.pricing;
 
   const addOnSection = ctx.hasAddOns
     ? `
-    <h2>5. Recurring Add-On Services</h2>
-    <p>The Client has elected to purchase the following optional recurring services.</p>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:1.5rem">
+    <h2>4. Paid add-ons</h2>
+    <p>Separately priced recurring services selected for this engagement.</p>
+    <table>
       <thead>
         <tr>
-          <th align="left">Add-On</th>
-          <th align="right">Monthly</th>
+          <th>Add-on</th>
+          <th class="sw-money">Monthly</th>
         </tr>
       </thead>
       <tbody>${ctx.addOnRows}</tbody>
@@ -212,136 +228,80 @@ export function renderOfferSowHtml(args: {
 
   const oneTimeSection = ctx.hasOneTime
     ? `
-    <h2>6. One-Time Project Charges</h2>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:1.5rem">
+    <h2>${ctx.hasAddOns ? "5" : "4"}. One-time charges</h2>
+    <table>
       <thead>
         <tr>
-          <th align="left">Description</th>
-          <th align="right">Amount</th>
+          <th>Description</th>
+          <th class="sw-money">Amount</th>
         </tr>
       </thead>
       <tbody>${ctx.oneTimeRows}</tbody>
     </table>`
     : "";
 
-  const discountSection = ctx.hasDiscounts
-    ? `
-    <h2>7. Discounts</h2>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:1.5rem">
-      <thead>
-        <tr>
-          <th align="left">Description</th>
-          <th align="right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>${ctx.discountRows}</tbody>
-    </table>`
-    : "";
-
-  const sectionNumbers = {
-    pricing: ctx.hasDiscounts ? 8 : ctx.hasOneTime ? 7 : ctx.hasAddOns ? 6 : 5,
-    standard: ctx.hasDiscounts ? 9 : ctx.hasOneTime ? 8 : ctx.hasAddOns ? 7 : 6,
-    clientResp:
-      ctx.hasDiscounts ? 10 : ctx.hasOneTime ? 9 : ctx.hasAddOns ? 8 : 7,
-    timeline:
-      ctx.hasDiscounts ? 11 : ctx.hasOneTime ? 10 : ctx.hasAddOns ? 9 : 8,
-    excluded:
-      ctx.hasDiscounts ? 12 : ctx.hasOneTime ? 11 : ctx.hasAddOns ? 10 : 9,
-    ownership:
-      ctx.hasDiscounts ? 13 : ctx.hasOneTime ? 12 : ctx.hasAddOns ? 11 : 10,
-    continuity:
-      ctx.hasDiscounts ? 14 : ctx.hasOneTime ? 13 : ctx.hasAddOns ? 12 : 11,
-    acceptance:
-      ctx.hasDiscounts ? 15 : ctx.hasOneTime ? 14 : ctx.hasAddOns ? 13 : 12,
-  };
+  const pricingSectionNumber = ctx.hasOneTime
+    ? ctx.hasAddOns
+      ? "6"
+      : "5"
+    : ctx.hasAddOns
+      ? "5"
+      : "4";
 
   return `
-    <h1>Statement of Work (SOW)</h1>
-    <h2>Signal Works</h2>
+    <style>${SOW_STYLES}</style>
+    <article class="sw-sow">
+    <header>
+      <p class="sw-subtitle">Signal Works</p>
+      <h1>Statement of Work</h1>
+    </header>
     <p>This Statement of Work ("SOW") is entered into between <strong>Signal Works</strong> ("Provider") and the Client identified below. This SOW is governed by and incorporated into the Signal Works Terms of Service.</p>
-    <p><strong>Effective Date:</strong> ${escapeHtml(ctx.effectiveDate)}</p>
+    <p><strong>Effective date:</strong> ${escapeHtml(ctx.effectiveDate)}</p>
+    <p><strong>Client:</strong> ${displayValue(args.client.businessName)}</p>
 
-    <h2>1. Client Information</h2>
-    <p><strong>Business Name</strong><br />${displayValue(args.client.businessName)}</p>
-    <p><strong>Primary Contact</strong><br />${displayValue(args.client.contactName)}</p>
-    <p><strong>Email</strong><br />${displayValue(args.client.email)}</p>
-    <p><strong>Phone</strong><br />${displayValue(args.client.phone)}</p>
-    <p><strong>Website</strong><br />${displayValue(args.client.website)}</p>
-    <p><strong>Primary Domain</strong><br />${displayValue(args.client.domain)}</p>
+    <h2>1. Project overview</h2>
+    <p>Signal Works will design, configure, deploy, host, maintain, and support the Client's selected digital platform, including the scope described in this document.</p>
 
-    <h2>2. Project Overview</h2>
-    <p>Signal Works will design, build, deploy, host, maintain, and support the Client's digital platform based on the selected subscription plan and the products listed in this Statement of Work.</p>
-    <p>Unless otherwise noted, all work will be performed using Signal Works' standard implementation process, technology stack, hosting infrastructure, security practices, deployment pipeline, and ongoing maintenance procedures.</p>
+    <h2>2. Client information</h2>
+    <p><strong>Primary contact:</strong> ${displayValue(args.client.contactName)}<br />
+    <strong>Email:</strong> ${displayValue(args.client.email)}<br />
+    <strong>Phone:</strong> ${displayValue(args.client.phone)}<br />
+    <strong>Website:</strong> ${displayValue(args.client.website)}<br />
+    <strong>Primary domain:</strong> ${displayValue(args.client.domain)}</p>
 
-    <h2>3. Subscription Plan</h2>
-    <p><strong>Selected Plan</strong><br />${displayValue(args.client.planName)}</p>
-    <p><strong>Monthly Subscription</strong><br /><strong>$${monthlyPrice} / month</strong></p>
-    <p>The selected plan includes the standard services, support, maintenance, software updates, hosting, monitoring, security updates, and platform improvements associated with that plan.</p>
-
-    <h2>4. Included Products &amp; Services</h2>
-    <p>The following products and services are included in the Client's subscription.</p>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:1.5rem">
-      <thead><tr><th align="left">Included Services</th></tr></thead>
-      <tbody>${ctx.productRows}</tbody>
-    </table>
-    <p>Unless otherwise stated, Signal Works will configure, deploy, and support these products as part of the Client's subscription.</p>
+    <h2>3. Included platform scope</h2>
+    <p><strong>Selected plan:</strong> ${displayValue(args.client.planName)}</p>
+    ${ctx.includedScopeHtml}
 
     ${addOnSection}
     ${oneTimeSection}
-    ${discountSection}
 
-    <h2>${sectionNumbers.pricing}. Pricing Summary</h2>
-    <h3>Monthly Subscription</h3>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:1rem">
+    <h2>${pricingSectionNumber}. Pricing</h2>
+    <table>
       <tbody>
-        <tr><td>Base Plan</td><td style="text-align:right">$${formatDollars(ctx.basePlanCents)}</td></tr>
-        <tr><td>Recurring Add-Ons</td><td style="text-align:right">$${formatDollars(ctx.addOnCents)}</td></tr>
-        <tr><td>Recurring Discounts</td><td style="text-align:right">-$${formatDollars(ctx.recurringDiscountCents)}</td></tr>
+        <tr><td>Standard monthly subscription</td><td class="sw-money">$${formatDollars(p.standardMonthlyAmountAfterDiscountCents)}</td></tr>
+        ${p.recurringAddOnAmountCents > 0 ? `<tr><td>Recurring add-ons</td><td class="sw-money">$${formatDollars(p.recurringAddOnAmountCents)}</td></tr>` : ""}
+        ${p.recurringDiscountAmountCents > 0 ? `<tr><td>Introductory discount</td><td class="sw-money">-$${formatDollars(p.recurringDiscountAmountCents)}</td></tr>` : ""}
+        <tr><td><strong>Your monthly price</strong></td><td class="sw-money"><strong>$${formatDollars(p.discountedMonthlyAmountCents)}</strong></td></tr>
       </tbody>
     </table>
-    <h3>Total Monthly Subscription</h3>
-    <p><strong>$${formatDollars(ctx.monthlyTotalCents)}</strong></p>
+    ${ctx.afterDiscountNote}
+    ${p.oneTimeAmountCents > 0 ? `<p><strong>One-time charges:</strong> $${formatDollars(p.oneTimeAmountCents)}</p>` : ""}
+    <p><strong>Amount due at checkout:</strong> $${formatDollars(p.dueAtCheckoutCents)}</p>
 
-    <h3>One-Time Charges</h3>
-    <p>$${formatDollars(ctx.setupTotalCents)}</p>
-    <h3>Total Due Before Ongoing Billing</h3>
-    <p><strong>$${formatDollars(ctx.initialTotalCents)}</strong></p>
+    <h2>${Number(pricingSectionNumber) + 1}. Standard services</h2>
+    <p>Unless specifically excluded in writing, Signal Works provides implementation, hosting, security updates, monitoring, deployment, and standard support applicable to the selected platform scope.</p>
 
-    <h2>${sectionNumbers.standard}. Standard Services Included</h2>
-    <p>Unless specifically excluded in writing, the following services are considered part of Signal Works' normal implementation process where applicable to the selected products.</p>
-    <ul>
-      <li>Website and application development</li>
-      <li>Hosting configuration and management</li>
-      <li>Domain and DNS configuration</li>
-      <li>SSL certificate configuration</li>
-      <li>Deployment to production</li>
-      <li>Mobile-responsive implementation</li>
-      <li>Security updates and software maintenance</li>
-      <li>Performance monitoring and technical troubleshooting</li>
-      <li>Platform updates and basic search engine optimization</li>
-      <li>Analytics, payment processor, and email configuration</li>
-      <li>Technical support according to the selected subscription plan</li>
-    </ul>
+    <h2>${Number(pricingSectionNumber) + 2}. Assumptions and exclusions</h2>
+    <p>Unless expressly listed elsewhere in this SOW, custom software outside the agreed scope, third-party licensing fees, paid advertising, ongoing content creation, photography, extensive data entry, major post-approval redesigns, and custom integrations not listed here are not included.</p>
 
-    <h2>${sectionNumbers.clientResp}. Client Responsibilities</h2>
-    <p>The Client agrees to provide branding assets, business information, requested content, timely approvals, and access to third-party accounts when required. Project timelines may be extended if required materials are delayed.</p>
+    <h2>${Number(pricingSectionNumber) + 3}. Estimated timeline</h2>
+    <p><strong>Project start:</strong> ${escapeHtml(ctx.projectStart)}<br />
+    <strong>Estimated launch:</strong> ${escapeHtml(ctx.estimatedGoLive)}</p>
 
-    <h2>${sectionNumbers.timeline}. Estimated Timeline</h2>
-    <p><strong>Project Start</strong><br />${escapeHtml(ctx.projectStart)}</p>
-    <p><strong>Estimated Launch</strong><br />${escapeHtml(ctx.estimatedGoLive)}</p>
-    <p>These dates are estimates and may change due to client-requested revisions, third-party dependencies, or unforeseen technical circumstances.</p>
-
-    <h2>${sectionNumbers.excluded}. Items Specifically Excluded</h2>
-    <p>Unless expressly listed elsewhere in this SOW, custom software outside the agreed products, third-party licensing fees, paid advertising, ongoing content creation, photography, extensive data entry, major post-approval redesigns, and custom integrations not listed here are not included. Additional work may be quoted separately.</p>
-
-    <h2>${sectionNumbers.ownership}. Ownership</h2>
-    <p>Upon payment of all outstanding invoices, the Client owns business content, branding, uploaded media, documents, customer information, and business data. Signal Works retains ownership of its software platform, reusable components, frameworks, infrastructure, and other proprietary intellectual property unless otherwise agreed in writing.</p>
-
-    <h2>${sectionNumbers.continuity}. Business Continuity</h2>
-    <p>If Signal Works permanently ceases operations, Signal Works will use commercially reasonable efforts to provide advance notice whenever reasonably possible, provide an export of Client business data in a commonly used electronic format, and provide reasonable transition assistance upon request.</p>
-
-    <h2>${sectionNumbers.acceptance}. Acceptance</h2>
-    <p>By accepting this Statement of Work, the Client agrees to the selected subscription plan, the included products and services, the pricing shown above, and the Signal Works Terms of Service. Electronic acceptance through the Signal Works Client Portal has the same legal effect as a handwritten signature.</p>
+    <h2>${Number(pricingSectionNumber) + 4}. Acceptance</h2>
+    <p>By accepting this Statement of Work, the Client agrees to the selected subscription plan, included scope, pricing above, and the Signal Works Terms of Service. Electronic acceptance through the Signal Works Client Portal has the same legal effect as a handwritten signature.</p>
+    </article>
   `.trim();
 }
 

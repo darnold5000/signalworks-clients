@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type {
   ClientOffer,
   ClientOfferItem,
@@ -11,9 +11,7 @@ import type { OnboardingState } from "@/lib/portal/onboarding-state";
 import type { Client } from "@/lib/types";
 import { Button, Panel } from "@/components/ui";
 import { OfferCheckoutButton } from "@/components/offer-checkout-button";
-import { formatMoney } from "@/lib/utils";
-import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
-import { getClientVisibleOfferDescription } from "@/lib/offers/client-offer-copy";
+import { ProposalCommercialSummary } from "@/components/portal/proposal-commercial-summary";
 
 type OfferPayload = {
   client: Client;
@@ -31,7 +29,8 @@ export function OfferPortal() {
   const [acceptSow, setAcceptSow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [checkoutRecovery, setCheckoutRecovery] = useState(false);
+  const acceptInFlight = useRef(false);
 
   const [company, setCompany] = useState({
     legalBusinessName: "",
@@ -42,48 +41,67 @@ export function OfferPortal() {
     primaryDomain: "",
   });
 
-  async function load() {
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/portal/offer");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Could not load offer");
+        if (cancelled) return;
+
+        setData(json);
+        setCompany({
+          legalBusinessName:
+            json.onboarding.profile?.legal_business_name ??
+            json.client.business_name ??
+            "",
+          primaryContactName:
+            json.onboarding.profile?.primary_contact_name ?? "",
+          primaryContactEmail:
+            json.onboarding.profile?.primary_contact_email ??
+            json.client.support_email ??
+            "",
+          primaryContactPhone:
+            json.onboarding.profile?.primary_contact_phone ?? "",
+          websiteUrl: json.client.website_url ?? "",
+          primaryDomain: json.client.domain ?? "",
+        });
+        setAcceptedName(json.onboarding.profile?.primary_contact_name ?? "");
+        setAcceptedEmail(
+          json.onboarding.profile?.primary_contact_email ??
+            json.client.support_email ??
+            "",
+        );
+
+        if (json.offer) {
+          await fetch("/api/portal/offer/view", { method: "POST" });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Could not load offer",
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function reloadOffer() {
     const res = await fetch("/api/portal/offer");
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Could not load offer");
     setData(json);
-    setCompany({
-      legalBusinessName:
-        json.onboarding.profile?.legal_business_name ??
-        json.client.business_name ??
-        "",
-      primaryContactName:
-        json.onboarding.profile?.primary_contact_name ?? "",
-      primaryContactEmail:
-        json.onboarding.profile?.primary_contact_email ??
-        json.client.support_email ??
-        "",
-      primaryContactPhone:
-        json.onboarding.profile?.primary_contact_phone ?? "",
-      websiteUrl: json.client.website_url ?? "",
-      primaryDomain: json.client.domain ?? "",
-    });
-    setAcceptedName(json.onboarding.profile?.primary_contact_name ?? "");
-    setAcceptedEmail(
-      json.onboarding.profile?.primary_contact_email ??
-        json.client.support_email ??
-        "",
-    );
-    if (json.offer) {
-      await fetch("/api/portal/offer/view", { method: "POST" });
-    }
   }
-
-  useEffect(() => {
-    load().catch((err) =>
-      setError(err instanceof Error ? err.message : "Could not load offer"),
-    );
-  }, []);
 
   async function saveCompany() {
     setBusy(true);
     setError(null);
-    setMessage(null);
     try {
       const res = await fetch("/api/portal/offer", {
         method: "PATCH",
@@ -92,8 +110,7 @@ export function OfferPortal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not save company info");
-      await load();
-      setMessage("Company information saved.");
+      await reloadOffer();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     } finally {
@@ -101,10 +118,12 @@ export function OfferPortal() {
     }
   }
 
-  async function acceptAgreements() {
+  async function acceptAgreementsAndCheckout() {
+    if (acceptInFlight.current || busy) return;
+    acceptInFlight.current = true;
     setBusy(true);
     setError(null);
-    setMessage(null);
+    setCheckoutRecovery(false);
     try {
       const res = await fetch("/api/portal/agreements/accept", {
         method: "POST",
@@ -118,11 +137,21 @@ export function OfferPortal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not accept agreements");
-      await load();
-      setMessage("Agreements accepted. You can continue to checkout.");
+
+      if (json.checkoutUrl) {
+        window.location.assign(json.checkoutUrl);
+        return;
+      }
+
+      await reloadOffer();
+      setCheckoutRecovery(true);
+      if (json.error) {
+        setError(json.error);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not accept agreements");
     } finally {
+      acceptInFlight.current = false;
       setBusy(false);
     }
   }
@@ -132,9 +161,6 @@ export function OfferPortal() {
   }
 
   const { offer, onboarding } = data;
-  const offerDescription = offer
-    ? getClientVisibleOfferDescription(offer.description)
-    : null;
   const needsCompany =
     onboarding.nextAction === "confirm_company" ||
     onboarding.onboardingStatus === "invited" ||
@@ -143,7 +169,7 @@ export function OfferPortal() {
     offer &&
     !onboarding.agreementsAccepted &&
     (onboarding.requiresTerms || onboarding.requiresSow);
-  const canCheckout =
+  const awaitingCheckout =
     offer &&
     onboarding.agreementsAccepted &&
     onboarding.nextAction === "complete_checkout";
@@ -187,7 +213,7 @@ export function OfferPortal() {
       ) : null}
 
       {!offer ? (
-        <Panel title="Proposal">
+        <Panel title="Service proposal">
           <p className="text-sm text-muted">
             No published proposal is available yet. Signal Works will publish
             your offer when it is ready.
@@ -196,78 +222,18 @@ export function OfferPortal() {
       ) : (
         <>
           <Panel title={offer.title}>
-            {offerDescription ? (
-              <p className="mb-4 text-sm text-muted">{offerDescription}</p>
-            ) : (
-              <p className="mb-4 text-sm text-muted">
-                Review your plan, included services, and pricing below.
-              </p>
-            )}
-            <ul className="divide-y divide-border">
-              {offer.items
-                .filter(
-                  (item) =>
-                    item.item_type !== "discount" && item.item_type !== "credit",
-                )
-                .map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-4 py-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-muted">
-                        {item.billing_type}
-                        {item.billing_interval
-                          ? ` / ${item.billing_interval}`
-                          : ""}
-                      </p>
-                    </div>
-                    <p className="font-medium">
-                      {formatMoney(
-                        item.unit_amount_cents * item.quantity,
-                        offer.currency,
-                      )}
-                    </p>
-                  </li>
-                ))}
-            </ul>
-            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-              <p>
-                One-time:{" "}
-                <strong>
-                  {formatMoney(offer.initial_total_cents, offer.currency)}
-                </strong>
-              </p>
-              <p>
-                Due at first cycle:{" "}
-                <strong>
-                  {formatMoney(
-                    calculateAmountDueFirstCycle({
-                      subtotal_cents: offer.subtotal_cents,
-                      discount_total_cents: offer.discount_total_cents,
-                      initial_total_cents: offer.initial_total_cents,
-                      recurring_total_cents: offer.recurring_total_cents,
-                    }),
-                    offer.currency,
-                  )}
-                </strong>
-              </p>
-              <p>
-                Recurring:{" "}
-                <strong>
-                  {formatMoney(offer.recurring_total_cents, offer.currency)}
-                </strong>
-              </p>
-            </div>
+            <p className="mb-4 text-sm text-muted">
+              Review your plan, included platform services, and pricing below.
+            </p>
+            <ProposalCommercialSummary offer={offer} items={offer.items} />
           </Panel>
 
           {needsAgreements ? (
             <Panel title="Review and accept agreements">
               <p className="text-sm text-muted">
-                Read the Terms of Service and Statement of Work, then confirm
-                below to continue to Stripe checkout. Your Terms effective date
-                will be the day you accept.
+                Read the Terms of Service and Statement of Work. When you
+                continue, your acceptance is saved and you will be taken directly
+                to secure Stripe checkout.
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
@@ -331,7 +297,7 @@ export function OfferPortal() {
               </div>
               <Button
                 className="mt-4"
-                onClick={acceptAgreements}
+                onClick={acceptAgreementsAndCheckout}
                 disabled={
                   busy ||
                   !acceptedName.trim() ||
@@ -340,19 +306,21 @@ export function OfferPortal() {
                   (onboarding.requiresSow && !acceptSow)
                 }
               >
-                Accept and continue
+                {busy
+                  ? "Saving your acceptance and opening secure checkout…"
+                  : "Accept agreement and continue to secure checkout"}
               </Button>
             </Panel>
           ) : null}
 
-          {canCheckout ? (
-            <Panel title="Checkout">
+          {awaitingCheckout && (checkoutRecovery || error) ? (
+            <Panel title="Secure checkout">
               <p className="text-sm text-muted">
-                Agreements are on file. Continue to Stripe to add your payment
+                Your agreement is on file. Continue to Stripe to add your payment
                 method and complete setup.
               </p>
               <div className="mt-4">
-                <OfferCheckoutButton label="Continue to Stripe checkout" />
+                <OfferCheckoutButton label="Continue to secure checkout" />
               </div>
             </Panel>
           ) : null}
@@ -360,7 +328,6 @@ export function OfferPortal() {
       )}
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      {message ? <p className="text-sm text-success">{message}</p> : null}
     </div>
   );
 }

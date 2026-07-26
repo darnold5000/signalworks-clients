@@ -96,6 +96,40 @@ export async function getActiveOfferForTenant(
   return getOfferWithItems(offer.id as string);
 }
 
+/** Active pre-purchase offer, else latest purchased offer, else tenant SOW legal doc. */
+export async function resolveTenantSowDocumentId(
+  tenantId: string,
+): Promise<string | null> {
+  const active = await getActiveOfferForTenant(tenantId);
+  if (active?.sow_document_id) return active.sow_document_id;
+
+  const supabase = await createClient();
+  const { data: purchasedOffer } = await supabase
+    .from(TABLES.clientOffers)
+    .select("sow_document_id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "purchased")
+    .order("purchased_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (purchasedOffer?.sow_document_id) {
+    return purchasedOffer.sow_document_id as string;
+  }
+
+  const { data: legal } = await supabase
+    .from(TABLES.legalDocuments)
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("document_type", "statement_of_work")
+    .eq("active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (legal?.id as string | undefined) ?? null;
+}
+
 export async function getLegalDocument(
   documentId: string,
 ): Promise<LegalDocument | null> {

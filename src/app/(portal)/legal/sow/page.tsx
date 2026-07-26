@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { SowPrintActions } from "@/components/portal/sow-print-actions";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader, Panel } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
-import { getActiveOfferForTenant, getLegalDocument } from "@/lib/offers/queries";
+import {
+  getLegalDocument,
+  resolveTenantSowDocumentId,
+} from "@/lib/offers/queries";
 
 export default async function SowPage() {
   const profile = await getCurrentProfile();
@@ -12,21 +16,21 @@ export default async function SowPage() {
   const client = await getPrimaryClient();
   if (!client) redirect("/no-access");
 
-  const offer = await getActiveOfferForTenant(client.id);
-  if (!offer?.sow_document_id) {
+  const sowDocumentId = await resolveTenantSowDocumentId(client.id);
+  if (!sowDocumentId) {
     return (
       <>
         <PageHeader
           title="Statement of Work"
-          description="Proposal scope and pricing for your engagement."
+          description="Scope and pricing for your engagement."
         />
         <Panel>
           <p className="text-sm text-muted">
             No Statement of Work is available for your account yet.
           </p>
           <p className="mt-4 text-sm">
-            <Link href="/offer" className="underline underline-offset-2">
-              Back to proposal
+            <Link href="/documents" className="underline underline-offset-2">
+              Back to documents
             </Link>
           </p>
         </Panel>
@@ -34,31 +38,28 @@ export default async function SowPage() {
     );
   }
 
-  const sow = await getLegalDocument(offer.sow_document_id);
+  const sow = await getLegalDocument(sowDocumentId);
   if (!sow) notFound();
 
   return (
     <>
       <PageHeader
         title="Statement of Work"
-        description="Proposal scope and pricing for your engagement."
+        description="Scope and pricing for your engagement."
       />
       <Panel>
-        <div className="mb-4 flex justify-end">
-          <a
-            href="/api/portal/legal/sow?download=1"
-            className="text-sm font-medium underline underline-offset-2"
-          >
-            Download
-          </a>
-        </div>
+        <SowPrintActions />
         <div
-          className="prose prose-sm max-w-none text-sm"
+          className="sw-sow-container max-w-none text-sm print:max-w-none"
           dangerouslySetInnerHTML={{ __html: sow.content_html }}
         />
-        <p className="mt-6 text-sm">
-          <Link href="/offer" className="underline underline-offset-2">
-            Back to proposal
+        <p className="mt-6 text-sm print:hidden">
+          <Link href="/documents" className="underline underline-offset-2">
+            Back to documents
+          </Link>
+          {" · "}
+          <Link href="/billing" className="underline underline-offset-2">
+            Billing
           </Link>
         </p>
       </Panel>

@@ -1,6 +1,10 @@
 import type { TenantOnboardingStatus, TenantProfile } from "@/lib/database/phase1-types";
 import { hasAcceptedRequiredOfferAgreements } from "@/lib/agreements/service";
 import { getActiveOfferForTenant } from "@/lib/offers/queries";
+import {
+  clientChurnedFromPaidSubscription,
+  clientHasOngoingSubscription,
+} from "@/lib/portal/billing-access";
 import type { OnboardingAction } from "@/lib/portal/onboarding-actions";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -62,8 +66,8 @@ export async function getOnboardingState(
   }
 
   const hasSubscription =
-    client.subscription_status === "active" ||
-    client.subscription_status === "trialing";
+    clientHasOngoingSubscription(client) ||
+    clientChurnedFromPaidSubscription(client);
 
   let nextAction: OnboardingAction = "none";
 

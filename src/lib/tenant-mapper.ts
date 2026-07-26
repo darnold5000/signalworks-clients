@@ -42,6 +42,7 @@ type SubscriptionRow = {
   stripe_price_id?: string | null;
   subscription_status?: SubscriptionStatus;
   current_period_end?: string | null;
+  cancel_at_period_end?: boolean;
 };
 
 type TenantRow = {
@@ -112,6 +113,7 @@ export function mapTenantToClient(row: TenantRow): Client {
     stripe_price_id: subscription?.stripe_price_id ?? null,
     subscription_status: subscription?.subscription_status ?? "none",
     current_period_end: subscription?.current_period_end ?? null,
+    cancel_at_period_end: subscription?.cancel_at_period_end ?? false,
     estimated_infra_cost_cents: settings?.estimated_infra_cost_cents ?? 0,
     support_email: settings?.support_email ?? null,
     support_phone: settings?.support_phone ?? null,
@@ -161,6 +163,7 @@ export const TENANT_PORTAL_SELECT = `
     stripe_subscription_id,
     stripe_price_id,
     subscription_status,
-    current_period_end
+    current_period_end,
+    cancel_at_period_end
   )
 `;

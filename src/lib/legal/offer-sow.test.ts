@@ -63,7 +63,7 @@ describe("renderOfferSowHtml", () => {
     expect(html).toContain("Website");
     expect(html).toContain("SMS Notifications");
     expect(html).toContain("One-time onboarding charge");
-    expect(html).toContain("Monthly discount");
+    expect(html).toContain("Introductory discount");
     expect(html).toContain("$129.00");
   });
 });

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Billing portal opens after your first checkout. Go to Proposal to continue setup, or use the checkout button on Billing.",
+          "Billing portal opens after your first checkout. Go to Billing to continue setup.",
       },
       { status: 400 },
     );

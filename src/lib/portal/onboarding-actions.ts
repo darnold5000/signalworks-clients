@@ -10,11 +10,11 @@ export function onboardingActionLabel(action: OnboardingAction): string {
     case "confirm_company":
       return "Confirm your company details";
     case "review_offer":
-      return "Review your proposal";
+      return "Review your service proposal and pricing";
     case "accept_terms":
       return "Review and accept your agreement";
     case "complete_checkout":
-      return "Set up billing in Stripe";
+      return "Complete secure payment setup in Stripe";
     default:
       return "";
   }
@@ -22,8 +22,12 @@ export function onboardingActionLabel(action: OnboardingAction): string {
 
 export function onboardingActionButtonLabel(action: OnboardingAction): string {
   switch (action) {
+    case "review_offer":
+      return "Review offer";
+    case "accept_terms":
+      return "Review agreement";
     case "complete_checkout":
-      return "Continue to checkout";
+      return "Complete payment setup";
     default:
       return "Continue";
   }

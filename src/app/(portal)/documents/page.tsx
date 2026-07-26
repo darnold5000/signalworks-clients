@@ -52,8 +52,16 @@ export default async function DocumentsPage() {
                   ) : null}
                   <a
                     href={doc.href}
-                    target={doc.kind === "file" ? "_blank" : undefined}
-                    rel={doc.kind === "file" ? "noreferrer" : undefined}
+                    target={
+                      doc.kind === "file" && doc.href.startsWith("http")
+                        ? "_blank"
+                        : undefined
+                    }
+                    rel={
+                      doc.kind === "file" && doc.href.startsWith("http")
+                        ? "noreferrer"
+                        : undefined
+                    }
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground underline-offset-2 hover:underline"
                   >
                     {doc.kind === "file" ? "Open" : "View"}
@@ -65,11 +73,11 @@ export default async function DocumentsPage() {
           </ul>
         )}
         <p className="mt-6 text-sm text-muted">
-          You can also review your current proposal on the{" "}
-          <Link href="/offer" className="underline underline-offset-2">
-            proposal page
-          </Link>
-          .
+          Agreements and proposals are listed above. Use{" "}
+          <Link href="/billing" className="underline underline-offset-2">
+            Billing
+          </Link>{" "}
+          for payment setup and billing history.
         </p>
       </Panel>
     </>
