@@ -5,6 +5,18 @@ import Link from "next/link";
 import type { AdminClientListItem } from "@/lib/admin/client-records";
 import { INTERNAL_STATUS_LABELS, internalStatusTone } from "@/lib/admin/labels";
 import type { TenantInternalStatus } from "@/lib/database/phase1-types";
+import {
+  DOMAIN_REGISTRARS,
+  DNS_PROVIDERS,
+  EMPTY_INFRASTRUCTURE_FILTERS,
+  HOSTING_PLATFORMS,
+  SUPABASE_PLANS,
+  buildInfrastructureHealthChips,
+  hasActiveInfrastructureFilters,
+  matchesInfrastructureFilters,
+  type InfrastructureListFilters,
+} from "@/lib/technical/operations-inventory";
+import { InfrastructureHealthChips } from "@/components/admin/infrastructure-health-chips";
 import { StatusPill } from "@/components/ui";
 import { formatDate, formatMoney, monthlyMarginCents } from "@/lib/utils";
 
@@ -42,15 +54,203 @@ function matchesFilter(client: AdminClientListItem, filter: FilterKey): boolean 
   return client.internal_status === filter;
 }
 
+function toggleInList<T extends string>(list: T[], value: T): T[] {
+  return list.includes(value)
+    ? list.filter((v) => v !== value)
+    : [...list, value];
+}
+
+function InfrastructureFilterPanel({
+  filters,
+  onChange,
+}: {
+  filters: InfrastructureListFilters;
+  onChange: (next: InfrastructureListFilters) => void;
+}) {
+  const active = hasActiveInfrastructureFilters(filters);
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">Infrastructure filters</p>
+        {active ? (
+          <button
+            type="button"
+            className="text-xs text-muted underline-offset-2 hover:underline"
+            onClick={() => onChange({ ...EMPTY_INFRASTRUCTURE_FILTERS })}
+          >
+            Clear infrastructure filters
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted uppercase">
+            Supabase plan
+          </p>
+          <div className="flex flex-col gap-1">
+            {SUPABASE_PLANS.filter((p) => p.value !== "none").map((plan) => (
+              <label key={plan.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.supabasePlans.includes(plan.value)}
+                  onChange={() =>
+                    onChange({
+                      ...filters,
+                      supabasePlans: toggleInList(
+                        filters.supabasePlans,
+                        plan.value,
+                      ),
+                    })
+                  }
+                />
+                {plan.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted uppercase">
+            Domain registrar
+          </p>
+          <div className="flex flex-col gap-1">
+            {DOMAIN_REGISTRARS.map((reg) => (
+              <label key={reg.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.domainRegistrars.includes(reg.value)}
+                  onChange={() =>
+                    onChange({
+                      ...filters,
+                      domainRegistrars: toggleInList(
+                        filters.domainRegistrars,
+                        reg.value,
+                      ),
+                    })
+                  }
+                />
+                {reg.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted uppercase">
+            Hosting
+          </p>
+          <div className="flex flex-col gap-1">
+            {HOSTING_PLATFORMS.filter((h) => h.value !== "other").map((host) => (
+              <label key={host.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.hostingPlatforms.includes(host.value)}
+                  onChange={() =>
+                    onChange({
+                      ...filters,
+                      hostingPlatforms: toggleInList(
+                        filters.hostingPlatforms,
+                        host.value,
+                      ),
+                    })
+                  }
+                />
+                {host.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted uppercase">
+            DNS provider
+          </p>
+          <div className="flex flex-col gap-1">
+            {DNS_PROVIDERS.filter((d) => d.value !== "other").map((dns) => (
+              <label key={dns.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.dnsProviders.includes(dns.value)}
+                  onChange={() =>
+                    onChange({
+                      ...filters,
+                      dnsProviders: toggleInList(filters.dnsProviders, dns.value),
+                    })
+                  }
+                />
+                {dns.label}
+              </label>
+            ))}
+          </div>
+          <p className="mb-2 mt-4 text-xs font-medium text-muted uppercase">
+            Integrations
+          </p>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={filters.stripeConnected}
+                onChange={() =>
+                  onChange({
+                    ...filters,
+                    stripeConnected: !filters.stripeConnected,
+                  })
+                }
+              />
+              Stripe connected
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={filters.googleWorkspace}
+                onChange={() =>
+                  onChange({
+                    ...filters,
+                    googleWorkspace: !filters.googleWorkspace,
+                  })
+                }
+              />
+              Google Workspace
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={filters.resendPro}
+                onChange={() =>
+                  onChange({
+                    ...filters,
+                    resendPro: !filters.resendPro,
+                  })
+                }
+              />
+              Resend Pro
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [infraFilters, setInfraFilters] = useState<InfrastructureListFilters>({
+    ...EMPTY_INFRASTRUCTURE_FILTERS,
+  });
+  const [showInfraFilters, setShowInfraFilters] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients.filter((client) => {
       if (!matchesFilter(client, filter)) return false;
+      if (!matchesInfrastructureFilters(client.infrastructure, infraFilters)) {
+        return false;
+      }
       if (!q) return true;
+      const chipText = buildInfrastructureHealthChips(
+        client.infrastructureProfile,
+      )
+        .map((c) => c.detail)
+        .join(" ");
       const haystack = [
         client.business_name,
         client.slug,
@@ -58,13 +258,14 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
         client.primary_contact_name,
         client.primary_contact_email,
         client.plan_name,
+        chipText,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [clients, filter, query]);
+  }, [clients, filter, infraFilters, query]);
 
   if (clients.length === 0) {
     return (
@@ -81,7 +282,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, email, domain, or plan…"
+          placeholder="Search by name, email, domain, plan, or infrastructure…"
           className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-foreground lg:flex-1"
         />
         <p className="text-xs text-muted">
@@ -104,19 +305,36 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
             {option.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setShowInfraFilters((v) => !v)}
+          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            showInfraFilters || hasActiveInfrastructureFilters(infraFilters)
+              ? "border-foreground bg-foreground text-background"
+              : "border-border text-muted hover:text-foreground"
+          }`}
+        >
+          Infrastructure
+        </button>
       </div>
+
+      {showInfraFilters ? (
+        <InfrastructureFilterPanel
+          filters={infraFilters}
+          onChange={setInfraFilters}
+        />
+      ) : null}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs tracking-wide text-muted uppercase">
               <th className="pb-3 font-medium">Client</th>
+              <th className="pb-3 font-medium">Infrastructure health</th>
               <th className="pb-3 font-medium">Contact</th>
               <th className="pb-3 font-medium">Status</th>
-              <th className="pb-3 font-medium">Onboarding</th>
               <th className="pb-3 font-medium">Plan / MRR</th>
               <th className="pb-3 font-medium">Billing</th>
-              <th className="pb-3 font-medium">Site</th>
               <th className="pb-3 font-medium">Last activity</th>
             </tr>
           </thead>
@@ -127,6 +345,9 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                 client.estimated_infra_cost_cents,
               );
               const internalStatus = client.internal_status;
+              const infraChips = buildInfrastructureHealthChips(
+                client.infrastructureProfile,
+              );
               return (
                 <tr
                   key={client.id}
@@ -140,6 +361,9 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                       {client.business_name}
                     </Link>
                     <p className="text-xs text-muted">{client.slug}</p>
+                  </td>
+                  <td className="max-w-[220px] py-3 pr-4">
+                    <InfrastructureHealthChips chips={infraChips} max={5} />
                   </td>
                   <td className="py-3 pr-4">
                     <p>{client.primary_contact_name ?? "—"}</p>
@@ -157,9 +381,6 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                       <StatusPill label={client.status} tone="warning" />
                     )}
                   </td>
-                  <td className="py-3 pr-4 text-xs text-muted">
-                    {client.onboarding_status?.replaceAll("_", " ") ?? "—"}
-                  </td>
                   <td className="py-3 pr-4">
                     <p>{client.plan_name}</p>
                     <p className="text-xs text-muted">
@@ -176,14 +397,6 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                           : client.subscription_status === "past_due"
                             ? "danger"
                             : "warning"
-                      }
-                    />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <StatusPill
-                      label={client.website_status}
-                      tone={
-                        client.website_status === "live" ? "success" : "warning"
                       }
                     />
                   </td>

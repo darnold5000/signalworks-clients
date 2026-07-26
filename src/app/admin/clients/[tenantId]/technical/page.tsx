@@ -11,5 +11,5 @@ export default async function AdminClientTechnicalPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  return <TechnicalProfileView bundle={bundle} />;
+  return <TechnicalProfileView bundle={bundle} tenantId={tenantId} />;
 }

@@ -1,7 +1,8 @@
 import { InviteClientPanel } from "@/components/admin/invite-client-panel";
 import { AdminClientsTable } from "@/components/admin/admin-clients-table";
+import { OperationsInventorySummaryPanel } from "@/components/admin/operations-inventory-summary-panel";
 import { PageHeader, Panel } from "@/components/ui";
-import { getAdminClientList } from "@/lib/admin/client-records";
+import { getAdminClientList, getOperationsInventorySummary } from "@/lib/admin/client-records";
 import {
   getActivePlanTemplates,
   getActivePlatformComponents,
@@ -11,11 +12,13 @@ import { computeMrrCents } from "@/lib/data";
 import { formatMoney } from "@/lib/utils";
 
 export default async function AdminClientsPage() {
-  const [clients, plans, platformComponents, serviceAddOns] = await Promise.all([
+  const [clients, plans, platformComponents, serviceAddOns, opsSummary] =
+    await Promise.all([
     getAdminClientList(),
     getActivePlanTemplates(),
     getActivePlatformComponents(),
     getActiveServiceAddOns(),
+    getOperationsInventorySummary(),
   ]);
   const mrr = computeMrrCents(clients);
   const active = clients.filter((c) => c.status === "active").length;
@@ -50,6 +53,8 @@ export default async function AdminClientsPage() {
           <p className="mt-2 font-display text-3xl">{pastDue}</p>
         </Panel>
       </div>
+
+      <OperationsInventorySummaryPanel summary={opsSummary} />
 
       <InviteClientPanel
         plans={plans}

@@ -19,6 +19,11 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import {
+  aggregateOperationsInventory,
+  infrastructureSnapshotFromProfile,
+  type TechnicalInfrastructureSnapshot,
+} from "@/lib/technical/operations-inventory";
 
 export type AdminClientListItem = Client & {
   primary_contact_name: string | null;
@@ -26,6 +31,8 @@ export type AdminClientListItem = Client & {
   internal_status: TenantInternalStatus | null;
   onboarding_status: TenantOnboardingStatus | null;
   last_activity_at: string | null;
+  infrastructure: TechnicalInfrastructureSnapshot | null;
+  infrastructureProfile: TenantTechnicalProfile | null;
 };
 
 export type AdminClientBundle = {
@@ -64,13 +71,15 @@ export const getAdminClientList = cache(
         onboarding_status:
           client.status === "active" ? "onboarding_complete" : "invited",
         last_activity_at: client.updated_at,
+        infrastructure: null,
+        infrastructureProfile: null,
       }));
     }
 
     const supabase = await createClient();
     const tenantIds = clients.map((c) => c.id);
 
-    const [{ data: profiles }, { data: contacts }, { data: activity }] =
+    const [{ data: profiles }, { data: contacts }, { data: activity }, { data: technicalRows }] =
       await Promise.all([
         supabase
           .from(TABLES.tenantProfiles)
@@ -86,6 +95,10 @@ export const getAdminClientList = cache(
           .select("tenant_id, created_at")
           .in("tenant_id", tenantIds)
           .order("created_at", { ascending: false }),
+        supabase
+          .from(TABLES.tenantTechnicalProfiles)
+          .select("*")
+          .in("tenant_id", tenantIds),
       ]);
 
     const profileByTenant = new Map(
@@ -101,10 +114,17 @@ export const getAdminClientList = cache(
         lastActivityByTenant.set(tenantId, row.created_at as string);
       }
     }
+    const technicalByTenant = new Map(
+      (technicalRows ?? []).map((row) => [
+        row.tenant_id as string,
+        row as TenantTechnicalProfile,
+      ]),
+    );
 
     return clients.map((client) => {
       const profile = profileByTenant.get(client.id);
       const contact = contactByTenant.get(client.id);
+      const technical = technicalByTenant.get(client.id) ?? null;
       return {
         ...client,
         primary_contact_name:
@@ -123,6 +143,8 @@ export const getAdminClientList = cache(
           null,
         last_activity_at:
           lastActivityByTenant.get(client.id) ?? client.updated_at,
+        infrastructure: infrastructureSnapshotFromProfile(technical),
+        infrastructureProfile: technical,
       };
     });
   },
@@ -204,3 +226,14 @@ export const getAdminClientBundle = cache(
     };
   },
 );
+
+export const getOperationsInventorySummary = cache(async () => {
+  const list = await getAdminClientList();
+  return aggregateOperationsInventory(
+    list.map((c) => ({
+      id: c.id,
+      business_name: c.business_name,
+      technical: c.infrastructureProfile,
+    })),
+  );
+});

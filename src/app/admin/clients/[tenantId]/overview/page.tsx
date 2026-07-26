@@ -3,6 +3,7 @@ import {
   BusinessProfilePanel,
   InternalNotesPanel,
 } from "@/components/admin/admin-client-header";
+import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
 import {
@@ -30,6 +31,8 @@ export default async function AdminClientOverviewPage({
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <BusinessProfilePanel bundle={bundle} />
+
+      <InfrastructureSummaryCard bundle={bundle} />
 
       <Panel title="Account summary">
         <dl>
