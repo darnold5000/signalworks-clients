@@ -40,6 +40,22 @@ export function normalizeAuthEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+async function userHasActiveServicesClientMembership(
+  supabase: ServiceClient,
+  userId: string,
+): Promise<boolean> {
+  const { data: memberships } = await supabase
+    .from(TABLES.tenantMemberships)
+    .select("tenant_id, tenants(platform_category)")
+    .eq("user_id", userId)
+    .eq("status", "active");
+
+  return (memberships ?? []).some((row) => {
+    const tenant = row.tenants as { platform_category?: string } | null;
+    return tenant?.platform_category === "services";
+  });
+}
+
 export function userHasSignedIn(user: User | null | undefined): boolean {
   if (!user) return false;
   return (
@@ -91,34 +107,55 @@ export async function findExistingPortalClientByEmail(
     .maybeSingle();
 
   if (profile?.tenant_id) {
-    return {
-      tenantId: profile.tenant_id as string,
-      businessName:
-        (profile.legal_business_name as string | null) ??
-        (profile.display_name as string | null) ??
-        "Existing client",
-      hasAuthAccount: true,
-    };
+    const { data: tenant } = await supabase
+      .from(TABLES.tenants)
+      .select("id, display_name, platform_category")
+      .eq("id", profile.tenant_id)
+      .maybeSingle();
+
+    if (tenant?.platform_category === "services") {
+      return {
+        tenantId: tenant.id,
+        businessName:
+          (profile.legal_business_name as string | null) ??
+          (profile.display_name as string | null) ??
+          tenant.display_name ??
+          "Existing client",
+        hasAuthAccount: true,
+      };
+    }
   }
 
   const userId = await findAuthUserIdByEmail(supabase, normalized);
   if (!userId) return null;
 
-  const { data: membership } = await supabase
+  const hasClientTenant = await userHasActiveServicesClientMembership(
+    supabase,
+    userId,
+  );
+  if (!hasClientTenant) return null;
+
+  const { data: memberships } = await supabase
     .from(TABLES.tenantMemberships)
-    .select("tenant_id, tenants(display_name)")
+    .select("tenant_id, tenants(display_name, platform_category)")
     .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
+    .eq("status", "active");
 
-  const tenant = membership?.tenants as { display_name?: string } | null;
+  for (const row of memberships ?? []) {
+    const tenant = row.tenants as {
+      display_name?: string;
+      platform_category?: string;
+    } | null;
+    if (tenant?.platform_category !== "services") continue;
 
-  return {
-    tenantId: (membership?.tenant_id as string | null) ?? null,
-    businessName: tenant?.display_name ?? "Existing client",
-    hasAuthAccount: true,
-  };
+    return {
+      tenantId: row.tenant_id as string,
+      businessName: tenant.display_name ?? "Existing client",
+      hasAuthAccount: true,
+    };
+  }
+
+  return null;
 }
 
 export async function getTenantOwnerInviteTarget(
@@ -255,7 +292,11 @@ export async function createClientPortalAccessLink(
   if (existingUserId) {
     const { data: authUser } =
       await supabase.auth.admin.getUserById(existingUserId);
-    if (userHasSignedIn(authUser.user)) {
+    const hasClientTenant = await userHasActiveServicesClientMembership(
+      supabase,
+      existingUserId,
+    );
+    if (userHasSignedIn(authUser.user) && hasClientTenant) {
       return {
         error:
           "This email already has an active portal account. Use Send proposal on the client's Offers page instead of a new invite.",
