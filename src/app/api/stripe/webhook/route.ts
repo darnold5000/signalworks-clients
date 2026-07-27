@@ -91,11 +91,22 @@ export async function POST(request: Request) {
       case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
         if (isSupabaseConfigured() && invoice.customer) {
-          await syncTenantBillingStatus(
-            customerId(invoice.customer),
-            "active",
-            "active",
-          );
+          const cid = customerId(invoice.customer);
+          await syncTenantBillingStatus(cid, "active", "active");
+          if (stripe) {
+            try {
+              const subs = await stripe.subscriptions.list({
+                customer: cid,
+                status: "active",
+                limit: 1,
+              });
+              if (subs.data[0]) {
+                await syncClientFromSubscription(subs.data[0]);
+              }
+            } catch (syncError) {
+              console.error("webhook.invoice.paid.subscriptionSync", syncError);
+            }
+          }
         }
         break;
       }

@@ -8,6 +8,7 @@ import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
+import { formatStripeSyncError } from "@/lib/stripe-error";
 
 async function createCouponForItem(
   stripe: Stripe,
@@ -88,7 +89,15 @@ export async function syncOfferItemToStripe(
 }> {
   const stripe = getStripe();
   if (!stripe) {
-    throw new Error("Stripe is not configured");
+    throw new Error(
+      "Stripe is not configured. Set STRIPE_SECRET_KEY on the server.",
+    );
+  }
+
+  if (!Number.isFinite(item.unit_amount_cents) || item.unit_amount_cents < 0) {
+    throw new Error(
+      `Invalid price for “${item.name}”. Check monthly amounts and add-on prices.`,
+    );
   }
 
   const product = await stripe.products.create({
@@ -124,7 +133,7 @@ export async function syncOfferItemToStripe(
   const couponId = await createCouponForItem(stripe, item, offer.currency);
 
   const supabase = createServiceClient();
-  await supabase
+  const { error: updateError } = await supabase
     .from(TABLES.clientOfferItems)
     .update({
       stripe_product_id: product.id,
@@ -132,6 +141,12 @@ export async function syncOfferItemToStripe(
       stripe_coupon_id: couponId,
     })
     .eq("id", item.id);
+
+  if (updateError) {
+    throw new Error(
+      `Stripe catalog created but could not save to database: ${updateError.message}`,
+    );
+  }
 
   return {
     stripe_product_id: product.id,
@@ -146,23 +161,32 @@ export async function syncDiscountOfferItemToStripe(
 ): Promise<string | null> {
   const stripe = getStripe();
   if (!stripe) {
-    throw new Error("Stripe is not configured");
+    throw new Error(
+      "Stripe is not configured. Set STRIPE_SECRET_KEY on the server.",
+    );
   }
 
   const couponId = await createCouponForDiscountLine(stripe, item, offer.currency);
   if (!couponId) return null;
 
   const supabase = createServiceClient();
-  await supabase
+  const { error: updateError } = await supabase
     .from(TABLES.clientOfferItems)
     .update({ stripe_coupon_id: couponId })
     .eq("id", item.id);
+
+  if (updateError) {
+    throw new Error(
+      `Stripe coupon created but could not save to database: ${updateError.message}`,
+    );
+  }
 
   return couponId;
 }
 
 export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: ClientOfferItem[]) {
-  const billable = items.filter(
+  try {
+    const billable = items.filter(
     (item) =>
       item.is_selected &&
       item.item_type !== "discount" &&
@@ -185,5 +209,8 @@ export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: Clien
     ) {
       await syncDiscountOfferItemToStripe(offer, item);
     }
+  }
+  } catch (error) {
+    throw new Error(formatStripeSyncError(error), { cause: error });
   }
 }

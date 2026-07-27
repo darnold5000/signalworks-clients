@@ -8,6 +8,7 @@ import {
 } from "@/lib/plans";
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import { getStripe } from "@/lib/stripe";
 import type { ClientStatus, SubscriptionStatus } from "@/lib/types";
 
 function mapSubStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
@@ -28,6 +29,24 @@ function customerId(
   customer: string | Stripe.Customer | Stripe.DeletedCustomer,
 ) {
   return typeof customer === "string" ? customer : customer.id;
+}
+
+/** Next renewal from subscription items (Stripe bills on period end). */
+export function resolveSubscriptionPeriodEnd(
+  sub: Stripe.Subscription,
+): number | null {
+  const ends =
+    sub.items?.data
+      ?.map((item) => item.current_period_end)
+      .filter((value): value is number => typeof value === "number" && value > 0) ??
+    [];
+  if (ends.length === 0) return null;
+  return Math.min(...ends);
+}
+
+function isoFromUnixSeconds(epoch: number | null | undefined): string | null {
+  if (!epoch || epoch <= 0) return null;
+  return new Date(epoch * 1000).toISOString();
 }
 
 function resolveTenantId(session: Stripe.Checkout.Session): string | null {
@@ -260,6 +279,21 @@ export async function syncClientFromCheckoutSession(
         .eq("id", subRow.tenant_id);
     }
   }
+
+  if (subscription) {
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        const fullSub = await stripe.subscriptions.retrieve(subscription);
+        await syncClientFromSubscription(fullSub);
+      } catch (error) {
+        console.error(
+          "syncClientFromCheckoutSession.subscriptionRetrieve",
+          error,
+        );
+      }
+    }
+  }
 }
 
 export async function syncClientFromSubscription(sub: Stripe.Subscription) {
@@ -267,7 +301,7 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
   const supabase = createServiceClient();
   const item = sub.items.data[0];
   const price = item?.price;
-  const periodEnd = item?.current_period_end;
+  const periodEnd = resolveSubscriptionPeriodEnd(sub);
   const priceId = typeof price === "string" ? price : price?.id;
   const planKey =
     (sub.metadata?.plan_key as string | undefined) ||
@@ -279,9 +313,8 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
     stripe_customer_id: customerId(sub.customer),
     stripe_price_id: priceId ?? null,
     subscription_status: mapSubStatus(sub.status),
-    current_period_end: periodEnd
-      ? new Date(periodEnd * 1000).toISOString()
-      : null,
+    current_period_start: isoFromUnixSeconds(item?.current_period_start),
+    current_period_end: isoFromUnixSeconds(periodEnd),
     cancel_at_period_end: sub.cancel_at_period_end ?? false,
   };
 

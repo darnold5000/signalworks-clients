@@ -54,7 +54,19 @@ export async function POST(
     termsDocumentId = terms.id;
   }
 
-  await syncAllOfferItemsToStripe(offer, offer.items);
+  try {
+    await syncAllOfferItemsToStripe(offer, offer.items);
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "Unknown Stripe sync error.";
+    console.error("publish.offer.stripe", error);
+    return NextResponse.json(
+      {
+        error: `Could not prepare Stripe catalog records for this offer. ${detail}`,
+      },
+      { status: 502 },
+    );
+  }
   const refreshed = await getOfferWithItems(offerId);
   if (!refreshed) {
     return NextResponse.json({ error: "Offer not found" }, { status: 404 });

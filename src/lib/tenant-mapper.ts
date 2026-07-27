@@ -136,14 +136,7 @@ export function mapTenantToClient(row: TenantRow): Client {
   };
 }
 
-export const TENANT_PORTAL_SELECT = `
-  id,
-  slug,
-  display_name,
-  status,
-  created_at,
-  updated_at,
-  tenant_portal_settings (
+const TENANT_PORTAL_SETTINGS_SELECT_BASE = `
     website_status,
     website_url,
     domain,
@@ -152,11 +145,6 @@ export const TENANT_PORTAL_SELECT = `
     hosting_platform,
     hosting_status,
     ssl_status,
-    website_security_status,
-    website_security_https_enabled,
-    website_security_cert_valid,
-    website_security_cert_expires_at,
-    website_last_updated_at,
     database_platform,
     plan_name,
     monthly_price_cents,
@@ -174,7 +162,44 @@ export const TENANT_PORTAL_SELECT = `
     support_phone,
     notes,
     created_at,
-    updated_at
+    updated_at`;
+
+/** Safe when migration 019 (website security columns) is not applied yet. */
+export const TENANT_PORTAL_SELECT_COMPAT = `
+  id,
+  slug,
+  display_name,
+  status,
+  created_at,
+  updated_at,
+  tenant_portal_settings (
+    ${TENANT_PORTAL_SETTINGS_SELECT_BASE}
+  ),
+  tenant_subscriptions (
+    stripe_customer_id,
+    stripe_subscription_id,
+    stripe_price_id,
+    subscription_status,
+    current_period_end,
+    cancel_at_period_end
+  )
+`;
+
+/** Full select after \`019_portal_website_security_catalog.sql\`. */
+export const TENANT_PORTAL_SELECT = `
+  id,
+  slug,
+  display_name,
+  status,
+  created_at,
+  updated_at,
+  tenant_portal_settings (
+    ${TENANT_PORTAL_SETTINGS_SELECT_BASE},
+    website_security_status,
+    website_security_https_enabled,
+    website_security_cert_valid,
+    website_security_cert_expires_at,
+    website_last_updated_at
   ),
   tenant_subscriptions (
     stripe_customer_id,

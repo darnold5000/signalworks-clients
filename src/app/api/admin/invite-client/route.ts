@@ -6,6 +6,7 @@ import {
   isServiceRoleConfigured,
   isSupabaseConfigured,
 } from "@/lib/supabase/server";
+import { isStripeConfigured } from "@/lib/stripe";
 
 function validationErrorMessage(error: import("zod").ZodError): string {
   const fieldErrors = error.flatten().fieldErrors;
@@ -34,6 +35,16 @@ export async function POST(request: Request) {
       {
         error:
           "Server configuration is incomplete. Contact your administrator.",
+      },
+      { status: 503 },
+    );
+  }
+
+  if (!isStripeConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Stripe is not configured. Add STRIPE_SECRET_KEY to the server environment (Vercel → Settings → Environment Variables).",
       },
       { status: 503 },
     );

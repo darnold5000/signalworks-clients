@@ -412,11 +412,15 @@ export async function inviteClientWithOffer(
         insertedItems as ClientOfferItem[],
       );
     } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "Unknown error while syncing Stripe products and prices.";
       console.error("inviteClientWithOffer.stripe", error);
       await rollbackInviteResources(supabase, created);
       return {
         ok: false,
-        error: "Could not prepare Stripe catalog records for this offer.",
+        error: `Could not prepare Stripe catalog records for this offer. ${detail}`,
       };
     }
 

@@ -5,7 +5,11 @@ import {
   DEMO_REQUESTS,
 } from "@/lib/demo-data";
 import { isPlatformAdmin } from "@/lib/auth";
-import { mapTenantToClient, TENANT_PORTAL_SELECT } from "@/lib/tenant-mapper";
+import { mapTenantToClient } from "@/lib/tenant-mapper";
+import {
+  fetchTenantRowsForAdmin,
+  fetchTenantRowsForMember,
+} from "@/lib/tenant-queries";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import type { Client, Document, ServiceRequest } from "@/lib/types";
@@ -20,13 +24,8 @@ export const getAccessibleClients = cache(async (): Promise<Client[]> => {
   if (!user) return [];
 
   if (await isPlatformAdmin()) {
-    const { data } = await supabase
-      .from(TABLES.tenants)
-      .select(TENANT_PORTAL_SELECT)
-      .neq("platform_category", "internal")
-      .order("display_name");
-
-    return (data ?? []).map((row) => mapTenantToClient(row));
+    const rows = await fetchTenantRowsForAdmin(supabase);
+    return rows.map((row) => mapTenantToClient(row as Parameters<typeof mapTenantToClient>[0]));
   }
 
   const { data: memberships } = await supabase
@@ -38,13 +37,8 @@ export const getAccessibleClients = cache(async (): Promise<Client[]> => {
   const tenantIds = (memberships ?? []).map((m) => m.tenant_id as string);
   if (tenantIds.length === 0) return [];
 
-  const { data } = await supabase
-    .from(TABLES.tenants)
-    .select(TENANT_PORTAL_SELECT)
-    .in("id", tenantIds)
-    .order("display_name");
-
-  return (data ?? []).map((row) => mapTenantToClient(row));
+  const rows = await fetchTenantRowsForMember(supabase, tenantIds);
+  return rows.map((row) => mapTenantToClient(row as Parameters<typeof mapTenantToClient>[0]));
 });
 
 export const getPrimaryClient = cache(async (): Promise<Client | null> => {
