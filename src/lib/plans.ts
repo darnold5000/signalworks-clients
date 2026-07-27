@@ -33,8 +33,8 @@ export const PLANS: PlanConfig[] = [
   {
     key: "growth-website",
     name: "Growth Website",
-    monthlyPriceCents: 9900,
-    description: "Growth site with priority support and ongoing improvements.",
+    monthlyPriceCents: 4999,
+    description: "Lead-focused website with SEO, content, and ongoing growth support.",
     envVar: "STRIPE_PRICE_GROWTH",
   },
   {
@@ -78,11 +78,12 @@ export function resolvePlanForClient(input: {
   if (!name) return null;
 
   const aliases: Record<string, PlanKey> = {
+    brand: "personal-brand",
     "personal brand": "personal-brand",
     "launch website": "launch-website",
     launch: "launch-website",
-    "growth website": "growth-website",
     growth: "growth-website",
+    "growth website": "growth-website",
     "founding client": "founding-client",
     founding: "founding-client",
   };

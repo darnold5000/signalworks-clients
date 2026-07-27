@@ -68,10 +68,18 @@ insert into public.platform_plan_templates (
   (
     'brand',
     'Brand',
-    'Marketing website only.',
-    4900,
+    'Professional brand presence — one-page website with hosting and support.',
+    2499,
     'month',
     10
+  ),
+  (
+    'growth',
+    'Growth',
+    'Lead-focused website with SEO, content, and ongoing growth support.',
+    4999,
+    'month',
+    15
   ),
   (
     'launch',

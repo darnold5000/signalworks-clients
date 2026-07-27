@@ -39,7 +39,7 @@ export const inviteClientRequestSchema = z
     phone: z.string().trim().max(50).optional().or(z.literal("")),
     websiteUrl: optionalUrl.optional().or(z.literal("")),
     domain: z.string().trim().max(200).optional().or(z.literal("")),
-    planKey: z.enum(["brand", "launch", "platform", "custom"]),
+    planKey: z.enum(["brand", "growth", "launch", "platform", "custom"]),
     monthlyPriceDollars: z.coerce.number().min(0),
     productKeys: z.array(z.string().trim().min(1)).max(50).default([]),
     /** @deprecated use serviceAddOns */
