@@ -11,6 +11,11 @@ export type WebsiteStatus = "live" | "building" | "staging" | "offline";
 export type HostingStatus = "active" | "pending" | "error" | "none";
 export type SslStatus = "active" | "pending" | "error" | "none";
 
+export type WebsiteSecurityStatus =
+  | "protected"
+  | "needs_attention"
+  | "issue_detected";
+
 export type SubscriptionStatus =
   | "active"
   | "trialing"
@@ -61,6 +66,11 @@ export type Client = {
   hosting_platform: string | null;
   hosting_status: HostingStatus;
   ssl_status: SslStatus;
+  website_security_status: WebsiteSecurityStatus | null;
+  website_security_https_enabled: boolean | null;
+  website_security_cert_valid: boolean | null;
+  website_security_cert_expires_at: string | null;
+  website_last_updated_at: string | null;
   database_platform: string | null;
   plan_name: string;
   monthly_price_cents: number;

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AdminPortalWebsiteForm } from "@/components/admin/admin-portal-website-form";
 import {
   BusinessProfilePanel,
   InternalNotesPanel,
@@ -31,6 +32,8 @@ export default async function AdminClientOverviewPage({
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <BusinessProfilePanel bundle={bundle} />
+
+      <AdminPortalWebsiteForm client={client} />
 
       <InfrastructureSummaryCard bundle={bundle} />
 

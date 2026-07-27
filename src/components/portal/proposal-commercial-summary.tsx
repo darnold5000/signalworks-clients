@@ -1,4 +1,8 @@
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
+import {
+  catalogProductDisplayName,
+  offerItemProductKey,
+} from "@/lib/catalog/display-names";
 import { groupIncludedPlatformItems } from "@/lib/offers/included-platform-summary";
 import {
   isBundledProductItem,
@@ -75,7 +79,12 @@ export function ProposalCommercialSummary({
                 key={item.id}
                 className="flex justify-between gap-4 py-2 text-sm"
               >
-                <span>{item.name}</span>
+                <span>
+                  {catalogProductDisplayName(
+                    offerItemProductKey(item.metadata),
+                    item.name,
+                  )}
+                </span>
                 <span className="font-medium">
                   {formatMoney(
                     item.unit_amount_cents * item.quantity,

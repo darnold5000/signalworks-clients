@@ -19,7 +19,11 @@ import {
 import { getOnboardingState } from "@/lib/portal/onboarding-state";
 import { resolveCommercialPricing } from "@/lib/portal/resolve-commercial-pricing";
 import { siteConfig } from "@/lib/site";
-import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
+import {
+  WebsiteLastUpdateMetaRow,
+  WebsiteSecurityMetaRow,
+} from "@/components/portal/website-information-rows";
 import { notFound } from "next/navigation";
 
 function websiteTone(status: string) {
@@ -158,27 +162,8 @@ export default async function OverviewPage() {
                 />
               }
             />
-            <MetaRow
-              label="SSL"
-              value={
-                <StatusPill
-                  label={client.ssl_status}
-                  tone={client.ssl_status === "active" ? "success" : "warning"}
-                />
-              }
-            />
-            <MetaRow
-              label="Last deployment"
-              value={formatDateTime(client.last_deployment_at)}
-            />
-            <MetaRow
-              label="Last backup"
-              value={formatDateTime(client.last_backup_at)}
-            />
-            <MetaRow
-              label="Analytics"
-              value={client.analytics_summary ?? "—"}
-            />
+            <WebsiteLastUpdateMetaRow client={client} />
+            <WebsiteSecurityMetaRow client={client} />
             <MetaRow
               label="Updates remaining this month"
               value={`${updatesLeft} of ${client.updates_included_per_month}`}

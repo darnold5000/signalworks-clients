@@ -4,6 +4,7 @@ import type {
   HostingStatus,
   SslStatus,
   SubscriptionStatus,
+  WebsiteSecurityStatus,
   WebsiteStatus,
 } from "@/lib/types";
 
@@ -16,6 +17,11 @@ type PortalSettingsRow = {
   hosting_platform?: string | null;
   hosting_status?: HostingStatus;
   ssl_status?: SslStatus;
+  website_security_status?: WebsiteSecurityStatus | null;
+  website_security_https_enabled?: boolean | null;
+  website_security_cert_valid?: boolean | null;
+  website_security_cert_expires_at?: string | null;
+  website_last_updated_at?: string | null;
   database_platform?: string | null;
   plan_name?: string;
   monthly_price_cents?: number;
@@ -96,6 +102,13 @@ export function mapTenantToClient(row: TenantRow): Client {
     hosting_platform: settings?.hosting_platform ?? null,
     hosting_status: settings?.hosting_status ?? "none",
     ssl_status: settings?.ssl_status ?? "none",
+    website_security_status: settings?.website_security_status ?? null,
+    website_security_https_enabled:
+      settings?.website_security_https_enabled ?? null,
+    website_security_cert_valid: settings?.website_security_cert_valid ?? null,
+    website_security_cert_expires_at:
+      settings?.website_security_cert_expires_at ?? null,
+    website_last_updated_at: settings?.website_last_updated_at ?? null,
     database_platform: settings?.database_platform ?? null,
     plan_name: settings?.plan_name ?? "Launch",
     monthly_price_cents: settings?.monthly_price_cents ?? 0,
@@ -139,6 +152,11 @@ export const TENANT_PORTAL_SELECT = `
     hosting_platform,
     hosting_status,
     ssl_status,
+    website_security_status,
+    website_security_https_enabled,
+    website_security_cert_valid,
+    website_security_cert_expires_at,
+    website_last_updated_at,
     database_platform,
     plan_name,
     monthly_price_cents,
