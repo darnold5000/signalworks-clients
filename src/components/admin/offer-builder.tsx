@@ -12,6 +12,7 @@ import { Button, Panel, StatusPill } from "@/components/ui";
 import { SendProposalButton } from "@/components/admin/send-proposal-button";
 import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
+import { formatOfferLineItemSubtitle } from "@/lib/offers/format-offer-line-item-meta";
 
 type OfferWithItems = ClientOffer & { items: ClientOfferItem[] };
 
@@ -305,10 +306,7 @@ export function OfferBuilder({
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <p className="text-xs text-muted">
-                              {item.item_type} · {item.billing_type}
-                              {item.billing_interval
-                                ? ` / ${item.billing_interval}`
-                                : ""}
+                              {formatOfferLineItemSubtitle(item)}
                             </p>
                           </div>
                           <p className="font-medium">
