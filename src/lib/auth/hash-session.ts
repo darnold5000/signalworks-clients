@@ -51,30 +51,53 @@ export async function establishSessionFromAuthLink(
   cleanPath: string,
 ): Promise<
   | { ok: true; email: string | null; fullName: string | null }
-  | { ok: false }
+  | { ok: false; reason?: string }
 > {
   const params = new URLSearchParams(window.location.search);
   const hashSession = readHashSession();
   const code = params.get("code");
+  const tokenHash = params.get("token_hash");
+  const otpType = params.get("type");
 
   if (hashSession) {
     await supabase.auth.signOut({ scope: "local" });
     const { error: hashError } = await supabase.auth.setSession(hashSession);
     window.history.replaceState({}, "", cleanPath);
-    if (hashError) return { ok: false };
+    if (hashError) {
+      return { ok: false, reason: hashError.message };
+    }
   } else if (code) {
     await supabase.auth.signOut({ scope: "local" });
     const { error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
     window.history.replaceState({}, "", cleanPath);
-    if (exchangeError) return { ok: false };
+    if (exchangeError) {
+      return { ok: false, reason: exchangeError.message };
+    }
+  } else if (tokenHash && otpType) {
+    await supabase.auth.signOut({ scope: "local" });
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: otpType as
+        | "invite"
+        | "recovery"
+        | "email"
+        | "signup"
+        | "magiclink",
+    });
+    window.history.replaceState({}, "", cleanPath);
+    if (otpError) {
+      return { ok: false, reason: otpError.message };
+    }
   }
 
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session?.user) return { ok: false };
+  if (!session?.user) {
+    return { ok: false, reason: "no_session" };
+  }
 
   const metaName = session.user.user_metadata?.full_name;
   return {

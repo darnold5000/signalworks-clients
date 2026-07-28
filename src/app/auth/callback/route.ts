@@ -2,9 +2,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
 
-function safeNextPath(nextRaw: string | null): string {
+function safeNextPath(nextRaw: string | null, type: string | null): string {
   if (nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")) {
     return nextRaw;
+  }
+  if (type === "magiclink" || type === "email") {
+    return "/offer";
   }
   return "/auth/set-password";
 }
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = safeNextPath(searchParams.get("next"));
+  const next = safeNextPath(searchParams.get("next"), type);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
