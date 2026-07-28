@@ -8,7 +8,7 @@ export const PLAN_STANDARD_INCLUSIONS: ReadonlyArray<{
 }> = [
   { product_key: "inclusion_website", name: "Website" },
   { product_key: "inclusion_hosting", name: "Hosting" },
-  { product_key: "inclusion_basic_database", name: "Basic Database" },
+  { product_key: "inclusion_basic_database", name: "Database" },
   { product_key: "inclusion_website_security", name: "Website Security" },
   { product_key: "inclusion_platform_updates", name: "Platform Updates" },
   { product_key: "inclusion_basic_seo", name: "Basic SEO" },

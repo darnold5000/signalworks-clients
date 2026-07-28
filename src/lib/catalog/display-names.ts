@@ -2,6 +2,7 @@
 const CATALOG_PRODUCT_DISPLAY_NAMES: Record<string, string> = {
   business_email_setup: "Business Email Setup",
   managed_email_delivery: "Managed Email Delivery",
+  inclusion_basic_database: "Database",
 };
 
 export function catalogProductDisplayName(

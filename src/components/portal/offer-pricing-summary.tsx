@@ -25,12 +25,9 @@ export function OfferPricingSummaryView({
   return (
     <dl className={`space-y-2 text-sm ${compact ? "" : "mt-2"}`}>
       <div className="flex justify-between gap-4">
-        <dt className="text-muted">Standard monthly price</dt>
+        <dt className="text-muted">{summary.planName}</dt>
         <dd className="font-medium text-right">
-          {formatMoney(
-            summary.standardMonthlyAmountAfterDiscountCents,
-            summary.currency,
-          )}
+          {formatMoney(summary.baseMonthlyAmountCents, summary.currency)}/mo
         </dd>
       </div>
       {summary.recurringAddOnAmountCents > 0 ? (
@@ -38,6 +35,19 @@ export function OfferPricingSummaryView({
           <dt className="text-muted">Recurring add-ons</dt>
           <dd className="font-medium text-right">
             {formatMoney(summary.recurringAddOnAmountCents, summary.currency)}
+            /mo
+          </dd>
+        </div>
+      ) : null}
+      {summary.recurringAddOnAmountCents > 0 ? (
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted">Monthly subtotal</dt>
+          <dd className="font-medium text-right">
+            {formatMoney(
+              summary.standardMonthlyAmountAfterDiscountCents,
+              summary.currency,
+            )}
+            /mo
           </dd>
         </div>
       ) : null}
@@ -67,13 +77,13 @@ export function OfferPricingSummaryView({
           </div>
           {!summary.discountIsPermanent && summary.discountDurationMonths ? (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted">Then</dt>
+              <dt className="text-muted">Then (plan + add-ons)</dt>
               <dd className="font-medium text-right">
                 {formatMoney(
                   summary.standardMonthlyAmountAfterDiscountCents,
                   summary.currency,
                 )}
-                /month
+                /mo
               </dd>
             </div>
           ) : null}

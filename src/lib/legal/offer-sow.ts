@@ -279,8 +279,9 @@ export function renderOfferSowHtml(args: {
     <h2>${pricingSectionNumber}. Pricing</h2>
     <table>
       <tbody>
-        <tr><td>Standard monthly subscription</td><td class="sw-money">$${formatDollars(p.standardMonthlyAmountAfterDiscountCents)}</td></tr>
+        <tr><td>${escapeHtml(p.planName)}</td><td class="sw-money">$${formatDollars(p.baseMonthlyAmountCents)}</td></tr>
         ${p.recurringAddOnAmountCents > 0 ? `<tr><td>Recurring add-ons</td><td class="sw-money">$${formatDollars(p.recurringAddOnAmountCents)}</td></tr>` : ""}
+        ${p.recurringAddOnAmountCents > 0 ? `<tr><td>Monthly subtotal</td><td class="sw-money">$${formatDollars(p.standardMonthlyAmountAfterDiscountCents)}</td></tr>` : ""}
         ${p.recurringDiscountAmountCents > 0 ? `<tr><td>Introductory discount</td><td class="sw-money">-$${formatDollars(p.recurringDiscountAmountCents)}</td></tr>` : ""}
         <tr><td><strong>Your monthly price</strong></td><td class="sw-money"><strong>$${formatDollars(p.discountedMonthlyAmountCents)}</strong></td></tr>
       </tbody>

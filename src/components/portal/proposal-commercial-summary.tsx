@@ -29,11 +29,7 @@ export function ProposalCommercialSummary({
         <div className="mt-2 flex items-baseline justify-between gap-4 text-sm">
           <span className="font-medium">{pricing.planName}</span>
           <span>
-            {formatMoney(
-              pricing.standardMonthlyAmountAfterDiscountCents,
-              offer.currency,
-            )}
-            /month
+            {formatMoney(pricing.baseMonthlyAmountCents, offer.currency)}/month
           </span>
         </div>
       </section>

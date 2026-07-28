@@ -9,6 +9,19 @@ import { calculateInviteOfferTotals } from "@/lib/catalog/build-invite-offer";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 import { formatMoney } from "@/lib/utils";
 
+function recurringAddOnCents(extras?: InviteCommercialExtras): number {
+  let total = 0;
+  for (const addOn of extras?.paid_add_ons ?? []) {
+    if (addOn.billing_type === "one_time") continue;
+    total += addOn.unit_amount_cents * Math.max(1, addOn.quantity ?? 1);
+  }
+  for (const custom of extras?.custom_service_add_ons ?? []) {
+    if (custom.billing_type === "one_time") continue;
+    total += custom.unit_amount_cents * Math.max(1, custom.quantity ?? 1);
+  }
+  return total;
+}
+
 export function InviteClientFinancialSummary({
   plan,
   products,
@@ -32,6 +45,8 @@ export function InviteClientFinancialSummary({
   }
 
   const totals = calculateInviteOfferTotals({ plan, products, extras });
+  const planMonthlyCents = plan.monthly_price_cents;
+  const addOnMonthlyCents = recurringAddOnCents(extras);
   const arr = totals.recurring_total_cents * 12;
   const dueFirstCycle = calculateAmountDueFirstCycle(totals);
   const monthlyDiscountCents = extras?.monthly_discount_cents ?? 0;
@@ -49,13 +64,23 @@ export function InviteClientFinancialSummary({
       <h3 className="font-medium">Financial summary</h3>
       <dl className="mt-4 space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4">
-          <dt className="text-muted">Selected plan</dt>
-          <dd className="text-right font-medium">{plan.name}</dd>
+          <dt className="text-muted">{plan.name}</dt>
+          <dd className="text-right font-medium">
+            {formatMoney(planMonthlyCents)}/mo
+          </dd>
         </div>
-        <div className="flex items-start justify-between gap-4">
-          <dt className="text-muted">Recurring subtotal</dt>
-          <dd>{formatMoney(totals.subtotal_cents)}</dd>
-        </div>
+        {addOnMonthlyCents > 0 ? (
+          <div className="flex items-start justify-between gap-4">
+            <dt className="text-muted">Recurring add-ons</dt>
+            <dd className="text-right">{formatMoney(addOnMonthlyCents)}/mo</dd>
+          </div>
+        ) : null}
+        {addOnMonthlyCents > 0 ? (
+          <div className="flex items-start justify-between gap-4">
+            <dt className="text-muted">Monthly subtotal</dt>
+            <dd>{formatMoney(planMonthlyCents + addOnMonthlyCents)}/mo</dd>
+          </div>
+        ) : null}
         {monthlyDiscountCents > 0 ? (
           <div className="flex items-start justify-between gap-4">
             <dt className="text-muted">Monthly discount</dt>
