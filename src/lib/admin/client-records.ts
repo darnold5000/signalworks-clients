@@ -44,6 +44,7 @@ export type AdminClientBundle = {
   activity: TenantActivityLogEntry[];
   requests: ServiceRequest[];
   owner: TenantOwnerInviteTarget | null;
+  platformCategory: string;
 };
 
 export const INTERNAL_STATUS_FILTERS: TenantInternalStatus[] = [
@@ -167,10 +168,20 @@ export const getAdminClientBundle = cache(
         activity: [],
         requests,
         owner: null,
+        platformCategory: "services",
       };
     }
 
     const supabase = await createClient();
+    const { data: tenantMeta } = await supabase
+      .from(TABLES.tenants)
+      .select("platform_category")
+      .eq("id", tenantId)
+      .maybeSingle();
+    const platformCategory = String(
+      tenantMeta?.platform_category ?? "services",
+    );
+
     const [
       { data: profile },
       { data: technical },
@@ -223,6 +234,7 @@ export const getAdminClientBundle = cache(
       activity: (activity as TenantActivityLogEntry[]) ?? [],
       requests,
       owner,
+      platformCategory,
     };
   },
 );

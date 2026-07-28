@@ -56,17 +56,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (owner.hasSignedIn) {
-    return NextResponse.json(
-      {
-        error:
-          "This client has already set a password and signed in. Use forgot password on the login page if they need a new one.",
-        alreadyActive: true,
-      },
-      { status: 400 },
-    );
-  }
-
   const linkResult = await createClientPortalAccessLink(supabase, {
     email: owner.email,
     fullName: owner.fullName,
@@ -82,7 +71,11 @@ export async function POST(request: Request) {
     fullName: owner.fullName,
     businessName: owner.businessName,
     inviteLink: linkResult.inviteLink,
+    linkType: linkResult.linkType,
   });
+
+  const returningUser =
+    linkResult.linkType === "magiclink" || linkResult.linkType === "login";
 
   return NextResponse.json({
     email: owner.email,
@@ -91,7 +84,9 @@ export async function POST(request: Request) {
       delivery.inviteMethod === "link" ? linkResult.inviteLink : null,
     message:
       delivery.inviteMethod === "email"
-        ? `Invite email resent to ${owner.email}. They should open it in a private browser window (or sign out of the admin portal first).`
+        ? returningUser
+          ? `Portal access email resent to ${owner.email} (existing Signal Works login — no new password).`
+          : `Invite email resent to ${owner.email}. They should open it in a private browser window (or sign out of the admin portal first).`
         : delivery.inviteEmailError
           ? `${delivery.inviteEmailError} Copy the new invite link below and send it to ${owner.email}.`
           : `New invite link created for ${owner.email}. Copy it below and send it privately.`,

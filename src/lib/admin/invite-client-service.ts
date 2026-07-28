@@ -445,6 +445,7 @@ export async function inviteClientWithOffer(
 
     created.authUserId = linkResult.userId;
     const inviteLink = linkResult.inviteLink;
+    const inviteLinkType = linkResult.linkType;
 
     let inviteMethod: "email" | "link" = "link";
     let inviteEmailError: string | null = null;
@@ -455,6 +456,7 @@ export async function inviteClientWithOffer(
         fullName: displayName,
         businessName: input.businessName,
         inviteLink,
+        linkType: inviteLinkType,
       });
       inviteMethod = delivery.inviteMethod;
       inviteEmailError = delivery.inviteEmailError;
@@ -524,9 +526,14 @@ export async function inviteClientWithOffer(
       },
     });
 
+    const returningUser =
+      inviteLinkType === "magiclink" || inviteLinkType === "login";
+
     const message =
       inviteMethod === "email"
-        ? `Invite email sent from ${siteConfig.name} to ${input.email}. They set their own password — you never see it.`
+        ? returningUser
+          ? `Portal email sent to ${input.email}. They can use their existing Signal Works login (same password as our other apps).`
+          : `Invite email sent from ${siteConfig.name} to ${input.email}. They will create a password to finish setup.`
         : inviteEmailError
           ? `${inviteEmailError} Copy the invite link below and send it to ${input.email}.`
           : isResendConfigured()

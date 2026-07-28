@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPlatformAppTenantSlug } from "@/lib/admin/platform-tenant-guards";
 import {
   TENANT_PORTAL_SELECT,
   TENANT_PORTAL_SELECT_COMPAT,
@@ -6,6 +7,13 @@ import {
 import { TABLES } from "@/lib/supabase/tables";
 
 type TenantListRow = Record<string, unknown>;
+
+function portalAdminClientRows(rows: TenantListRow[]): TenantListRow[] {
+  return rows.filter((row) => {
+    const slug = typeof row.slug === "string" ? row.slug : "";
+    return !isPlatformAppTenantSlug(slug);
+  });
+}
 
 export async function fetchTenantRowsForAdmin(
   supabase: SupabaseClient,
@@ -20,7 +28,7 @@ export async function fetchTenantRowsForAdmin(
   const { data, error } = await baseQuery();
 
   if (!error) {
-    return (data ?? []) as TenantListRow[];
+    return portalAdminClientRows((data ?? []) as TenantListRow[]);
   }
 
   console.error(
@@ -42,7 +50,7 @@ export async function fetchTenantRowsForAdmin(
     return [];
   }
 
-  return (compatData ?? []) as TenantListRow[];
+  return portalAdminClientRows((compatData ?? []) as TenantListRow[]);
 }
 
 export async function fetchTenantRowsForMember(

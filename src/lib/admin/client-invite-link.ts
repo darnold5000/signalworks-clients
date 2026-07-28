@@ -13,8 +13,8 @@ import {
   loginWithNextUrl,
   offerRedirectUrl,
   portalUrlForInvites,
-  recoveryRedirectUrl,
 } from "@/lib/site";
+import type { ClientInviteEmailLinkType } from "@/lib/email/client-invite-email";
 import { ROLE_SLUGS } from "@/lib/permissions";
 import type { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -219,11 +219,13 @@ type GenerateLinkResponse = Awaited<
   ReturnType<ServiceClient["auth"]["admin"]["generateLink"]>
 >;
 
+export type ClientPortalLinkType = ClientInviteEmailLinkType;
+
 export type ClientPortalAccessLinkResult =
   | {
       inviteLink: string;
       userId: string;
-      linkType: "invite" | "recovery" | "magiclink" | "login";
+      linkType: ClientPortalLinkType;
     }
   | {
       error: string;
@@ -275,6 +277,41 @@ function extractAccessLink(
   return { inviteLink, userId };
 }
 
+/** Existing Auth user (e.g. DAWG/MA5) — one-click or login, not password reset. */
+async function createReturningUserPortalLink(
+  supabase: ServiceClient,
+  args: {
+    email: string;
+    existingUserId: string;
+    portalUrl: string;
+  },
+): Promise<ClientPortalAccessLinkResult> {
+  const proposalRedirect = offerRedirectUrl(args.portalUrl);
+
+  const magicAttempt = await supabase.auth.admin.generateLink({
+    type: "magiclink",
+    email: args.email,
+    options: {
+      redirectTo: proposalRedirect,
+    },
+  });
+
+  const magicResult = extractAccessLink(magicAttempt, proposalRedirect);
+  if (magicResult) {
+    return {
+      inviteLink: magicResult.inviteLink,
+      userId: magicResult.userId,
+      linkType: "magiclink",
+    };
+  }
+
+  return {
+    inviteLink: loginWithNextUrl(args.portalUrl, "/offer"),
+    userId: args.existingUserId,
+    linkType: "login",
+  };
+}
+
 export async function createClientPortalAccessLink(
   supabase: ServiceClient,
   args: {
@@ -286,7 +323,6 @@ export async function createClientPortalAccessLink(
   const email = normalizeAuthEmail(args.email);
   const portalUrl = portalUrlForInvites();
   const inviteRedirect = inviteRedirectUrl(portalUrl);
-  const recoveryRedirect = recoveryRedirectUrl(portalUrl);
 
   const existingUserId = await findAuthUserIdByEmail(supabase, email);
   if (existingUserId) {
@@ -301,6 +337,14 @@ export async function createClientPortalAccessLink(
         error:
           "This email already has an active portal account. Use Send proposal on the client's Offers page instead of a new invite.",
       };
+    }
+
+    if (userHasSignedIn(authUser.user)) {
+      return createReturningUserPortalLink(supabase, {
+        email,
+        existingUserId,
+        portalUrl,
+      });
     }
   }
 
@@ -364,7 +408,6 @@ export async function createProposalPortalLink(
 ): Promise<ClientPortalAccessLinkResult> {
   const email = normalizeAuthEmail(args.email);
   const portalUrl = portalUrlForInvites();
-  const proposalRedirect = offerRedirectUrl(portalUrl);
   const existingUserId = await findAuthUserIdByEmail(supabase, email);
 
   if (existingUserId) {
@@ -372,28 +415,11 @@ export async function createProposalPortalLink(
       await supabase.auth.admin.getUserById(existingUserId);
 
     if (userHasSignedIn(authUser.user)) {
-      const magicAttempt = await supabase.auth.admin.generateLink({
-        type: "magiclink",
+      return createReturningUserPortalLink(supabase, {
         email,
-        options: {
-          redirectTo: proposalRedirect,
-        },
+        existingUserId,
+        portalUrl,
       });
-
-      const magicResult = extractAccessLink(magicAttempt, proposalRedirect);
-      if (magicResult) {
-        return {
-          inviteLink: magicResult.inviteLink,
-          userId: magicResult.userId,
-          linkType: "magiclink",
-        };
-      }
-
-      return {
-        inviteLink: loginWithNextUrl(portalUrl, "/offer"),
-        userId: existingUserId,
-        linkType: "login",
-      };
     }
   }
 
@@ -409,6 +435,7 @@ export async function deliverClientInviteLink(args: {
   fullName: string;
   businessName: string;
   inviteLink: string;
+  linkType: ClientPortalLinkType;
 }): Promise<{
   inviteMethod: "email" | "link";
   inviteEmailError: string | null;
@@ -422,6 +449,7 @@ export async function deliverClientInviteLink(args: {
     fullName: args.fullName,
     businessName: args.businessName,
     inviteLink: args.inviteLink,
+    linkType: args.linkType,
   });
 
   if (sent.ok) {
