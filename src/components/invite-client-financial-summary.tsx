@@ -13,14 +13,18 @@ export function InviteClientFinancialSummary({
   plan,
   products,
   extras,
+  className,
 }: {
   plan: InvitePlanSelection | null;
   products: InviteProductSelection[];
   extras?: InviteCommercialExtras;
+  className?: string;
 }) {
   if (!plan) {
     return (
-      <aside className="rounded-xl border border-border bg-surface p-4">
+      <aside
+        className={`rounded-xl border border-border bg-surface p-4 ${className ?? ""}`}
+      >
         <h3 className="font-medium">Financial summary</h3>
         <p className="mt-2 text-sm text-muted">Select a plan to preview totals.</p>
       </aside>
@@ -39,7 +43,9 @@ export function InviteClientFinancialSummary({
     products.length + (extras?.custom_platform_components?.length ?? 0);
 
   return (
-    <aside className="rounded-xl border border-border bg-surface p-4">
+    <aside
+      className={`rounded-xl border border-border bg-surface p-4 ${className ?? ""}`}
+    >
       <h3 className="font-medium">Financial summary</h3>
       <dl className="mt-4 space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4">

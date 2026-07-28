@@ -18,6 +18,7 @@ const serviceAddOnSchema = z.object({
   productKey: z.string().trim().min(1),
   monthlyPriceDollars: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
+  billingType: z.enum(["recurring", "one_time"]).optional(),
 });
 
 const customPlatformComponentSchema = z.object({
@@ -29,6 +30,7 @@ const customServiceAddOnSchema = z.object({
   description: z.string().trim().max(500).optional().or(z.literal("")),
   monthlyPriceDollars: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
+  billingType: z.enum(["recurring", "one_time"]).optional(),
 });
 
 export const inviteClientRequestSchema = z

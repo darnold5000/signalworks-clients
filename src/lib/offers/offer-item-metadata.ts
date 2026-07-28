@@ -4,6 +4,8 @@ import type { ClientOfferItem } from "@/lib/database/phase1-types";
 export const COMMERCIAL_ROLE = {
   BUNDLED_PRODUCT: "bundled_product",
   PAID_ADD_ON: "paid_add_on",
+  PLAN_INCLUSION: "plan_inclusion",
+  INCLUDED_SETUP: "included_setup",
 } as const;
 
 export type CommercialRole =
@@ -42,6 +44,24 @@ export function paidAddOnMetadata(productKey: string): PaidAddOnMetadata {
   };
 }
 
+export function planInclusionMetadata(productKey: string) {
+  return {
+    product_key: productKey,
+    catalog_version: CATALOG_VERSION,
+    commercial_role: COMMERCIAL_ROLE.PLAN_INCLUSION,
+    included_in_plan: true,
+  };
+}
+
+export function includedSetupMetadata(productKey: string) {
+  return {
+    product_key: productKey,
+    catalog_version: CATALOG_VERSION,
+    commercial_role: COMMERCIAL_ROLE.INCLUDED_SETUP,
+    included_in_plan: true,
+  };
+}
+
 export function customBundledProductMetadata(name: string) {
   return {
     product_key: "custom",
@@ -61,7 +81,24 @@ export function customPaidAddOnMetadata(name: string) {
   };
 }
 
+export function isPlanInclusionItem(item: ClientOfferItem): boolean {
+  return (
+    item.item_type === "product" &&
+    item.metadata?.commercial_role === COMMERCIAL_ROLE.PLAN_INCLUSION
+  );
+}
+
+export function isIncludedSetupItem(item: ClientOfferItem): boolean {
+  return (
+    item.item_type === "product" &&
+    item.metadata?.commercial_role === COMMERCIAL_ROLE.INCLUDED_SETUP
+  );
+}
+
 export function isBundledProductItem(item: ClientOfferItem): boolean {
+  if (isPlanInclusionItem(item) || isIncludedSetupItem(item)) {
+    return false;
+  }
   return (
     item.item_type === "product" ||
     (item.item_type === "add_on" &&
@@ -78,5 +115,9 @@ export function isPaidAddOnItem(item: ClientOfferItem): boolean {
 
 /** Entitlement lines included with the plan — excluded from billable totals and Stripe sync. */
 export function isEntitlementOfferItem(item: ClientOfferItem): boolean {
-  return isBundledProductItem(item);
+  return (
+    isBundledProductItem(item) ||
+    isPlanInclusionItem(item) ||
+    isIncludedSetupItem(item)
+  );
 }

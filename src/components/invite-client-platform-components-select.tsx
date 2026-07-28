@@ -1,11 +1,13 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   PLATFORM_COMPONENT_SECTIONS,
   groupCatalogBySection,
 } from "@/lib/catalog/catalog-sections";
 import type { PlatformProductCatalogItem } from "@/lib/catalog/types";
+import { cn } from "@/lib/utils";
 
 export type CustomPlatformComponentRow = {
   id: string;
@@ -15,6 +17,8 @@ export type CustomPlatformComponentRow = {
 function newRow(): CustomPlatformComponentRow {
   return { id: crypto.randomUUID(), name: "" };
 }
+
+const OPTIONAL_EXCLUDED_KEYS = new Set(["website"]);
 
 export function InviteClientPlatformComponentsSelect({
   components,
@@ -29,13 +33,27 @@ export function InviteClientPlatformComponentsSelect({
   customRows: CustomPlatformComponentRow[];
   onCustomRowsChange: (rows: CustomPlatformComponentRow[]) => void;
 }) {
-  const sections = useMemo(
-    () => groupCatalogBySection(components, PLATFORM_COMPONENT_SECTIONS),
+  const [open, setOpen] = useState(
+    () => selectedKeys.filter((k) => k !== "other").length > 0,
+  );
+
+  const optionalComponents = useMemo(
+    () =>
+      components.filter(
+        (item) => !OPTIONAL_EXCLUDED_KEYS.has(item.product_key),
+      ),
     [components],
   );
 
+  const sections = useMemo(
+    () => groupCatalogBySection(optionalComponents, PLATFORM_COMPONENT_SECTIONS),
+    [optionalComponents],
+  );
+
   const otherSelected = selectedKeys.includes("other");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const selectedCount =
+    selectedKeys.filter((key) => key !== "other").length +
+    customRows.filter((row) => row.name.trim()).length;
 
   function toggle(productKey: string) {
     if (productKey === "other") {
@@ -64,136 +82,98 @@ export function InviteClientPlatformComponentsSelect({
     );
   }
 
-  function addCustomRow() {
-    onCustomRowsChange([...customRows, newRow()]);
-  }
-
-  function removeCustomRow(id: string) {
-    const next = customRows.filter((row) => row.id !== id);
-    onCustomRowsChange(next.length > 0 ? next : [newRow()]);
-  }
-
   return (
-    <section className="space-y-6">
-      <header>
-        <h3 className="text-sm font-medium">Platform components</h3>
-        <p className="mt-1 text-sm text-muted">
-          What we are building — included with the plan at no extra charge.
-        </p>
-      </header>
+    <section className="overflow-hidden rounded-lg border border-border">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-background/60"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-muted transition-transform",
+            open ? "rotate-0" : "-rotate-90",
+          )}
+          aria-hidden
+        />
+        <span className="flex-1 font-medium">Additional platform scope (optional)</span>
+        {selectedCount > 0 ? (
+          <span className="rounded-full bg-foreground px-2 py-0.5 text-xs text-background">
+            {selectedCount}
+          </span>
+        ) : null}
+      </button>
 
-      {sections.map((section) => (
-        <CatalogSection key={section.key} label={section.label}>
-          {section.items.map((item) => {
-            const checked = selectedKeys.includes(item.product_key);
-            const isOther = item.product_key === "other";
-            const capabilities = item.capabilities ?? [];
-            const showCapabilities = capabilities.length > 0 && !isOther;
-            const isExpanded = expanded[item.product_key] ?? false;
+      {open ? (
+        <div className="space-y-4 border-t border-border p-3">
+          <p className="text-sm text-muted">
+            Standard plan inclusions are automatic. Select extra platform
+            capabilities only when this client needs more than the base package.
+          </p>
 
-            return (
-              <div
-                key={item.id}
-                className="rounded-md px-2 py-2 hover:bg-background/60"
-              >
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(item.product_key)}
-                    className="mt-1"
-                  />
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium">{item.name}</span>
-                    {item.description && !showCapabilities ? (
-                      <span className="text-xs text-muted">{item.description}</span>
-                    ) : null}
-                  </span>
-                </label>
+          {sections.map((section) => (
+            <div key={section.key} className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                {section.label}
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {section.items.map((item) => {
+                  const checked = selectedKeys.includes(item.product_key);
+                  const isOther = item.product_key === "other";
 
-                {showCapabilities && checked ? (
-                  <div className="mt-2 pl-7">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpanded((prev) => ({
-                          ...prev,
-                          [item.product_key]: !prev[item.product_key],
-                        }))
-                      }
-                      className="text-xs font-medium text-muted underline-offset-2 hover:underline"
-                    >
-                      {isExpanded
-                        ? "Hide included capabilities"
-                        : "Show included capabilities"}
-                    </button>
-                    {isExpanded ? (
-                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-muted">
-                        {capabilities.map((cap) => (
-                          <li key={cap}>{cap}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                ) : null}
+                  return (
+                    <div key={item.id}>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-background/60">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggle(item.product_key)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium">{item.name}</span>
+                          {item.description ? (
+                            <span className="mt-0.5 block text-xs text-muted">
+                              {item.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
 
-                {isOther && otherSelected ? (
-                  <div className="mt-3 space-y-3 pl-7">
-                    {customRows.map((row, index) => (
-                      <div key={row.id} className="flex gap-2">
-                        <label className="block flex-1 space-y-1">
-                          <span className="text-xs text-muted">
-                            {index === 0 ? "Other service" : "Additional service"}
-                          </span>
-                          <input
-                            value={row.name}
-                            onChange={(e) => updateCustomRow(row.id, e.target.value)}
-                            placeholder="Describe the component"
-                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                          />
-                        </label>
-                        {customRows.length > 1 ? (
+                      {isOther && otherSelected ? (
+                        <div className="mt-2 space-y-2 pl-6">
+                          {customRows.map((row) => (
+                            <div key={row.id} className="flex gap-2">
+                              <input
+                                value={row.name}
+                                onChange={(e) =>
+                                  updateCustomRow(row.id, e.target.value)
+                                }
+                                placeholder="Custom component"
+                                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                              />
+                            </div>
+                          ))}
                           <button
                             type="button"
-                            onClick={() => removeCustomRow(row.id)}
-                            className="mt-5 text-xs text-muted hover:text-danger"
+                            onClick={() =>
+                              onCustomRowsChange([...customRows, newRow()])
+                            }
+                            className="text-xs font-medium text-muted underline-offset-2 hover:underline"
                           >
-                            Remove
+                            + Add another
                           </button>
-                        ) : null}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={addCustomRow}
-                      className="text-sm font-medium text-muted underline-offset-2 hover:underline"
-                    >
-                      + Add another
-                    </button>
-                  </div>
-                ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </CatalogSection>
-      ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
-  );
-}
-
-function CatalogSection({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
-        {label}
-      </h4>
-      <div className="space-y-2 rounded-lg border border-border p-3">{children}</div>
-    </div>
   );
 }

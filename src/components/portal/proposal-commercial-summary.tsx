@@ -1,15 +1,12 @@
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
-import {
-  catalogProductDisplayName,
-  offerItemProductKey,
-} from "@/lib/catalog/display-names";
-import { groupIncludedPlatformItems } from "@/lib/offers/included-platform-summary";
-import {
-  isBundledProductItem,
-  isPaidAddOnItem,
-} from "@/lib/offers/offer-item-metadata";
 import { buildOfferPricingSummary } from "@/lib/offers/pricing-summary";
 import { OfferPricingSummaryView } from "@/components/portal/offer-pricing-summary";
+import {
+  resolveIncludedSetupLines,
+  resolveOneTimeServiceLines,
+  resolvePaidRecurringAddOnLines,
+  resolvePlanInclusionLines,
+} from "@/lib/offers/invoice-sections";
 import { formatMoney } from "@/lib/utils";
 
 export function ProposalCommercialSummary({
@@ -20,20 +17,10 @@ export function ProposalCommercialSummary({
   items: ClientOfferItem[];
 }) {
   const pricing = buildOfferPricingSummary(items, offer.currency);
-  const includedGroups = groupIncludedPlatformItems(items);
-  const paidAddOns = items.filter(
-    (item) =>
-      item.is_selected &&
-      isPaidAddOnItem(item) &&
-      item.item_type !== "discount",
-  );
-  const oneTimeLines = items.filter(
-    (item) =>
-      item.is_selected &&
-      item.billing_type === "one_time" &&
-      item.item_type !== "discount" &&
-      item.item_type !== "credit",
-  );
+  const planInclusions = resolvePlanInclusionLines(items);
+  const includedSetup = resolveIncludedSetupLines(items);
+  const paidAddOns = resolvePaidRecurringAddOnLines(items);
+  const oneTimeLines = resolveOneTimeServiceLines(items);
 
   return (
     <div className="space-y-6">
@@ -51,19 +38,28 @@ export function ProposalCommercialSummary({
         </div>
       </section>
 
-      {includedGroups.length > 0 ? (
+      {planInclusions.length > 0 ? (
         <section>
-          <h3 className="text-sm font-medium">Included platform</h3>
-          <p className="mt-2 text-sm text-muted">
-            Included with your plan at no additional charge.
-          </p>
-          <ul className="mt-3 space-y-3 text-sm">
-            {includedGroups.map((group) => (
-              <li key={group.sectionKey}>
-                <p className="font-medium text-foreground">{group.sectionLabel}</p>
-                <p className="mt-1 text-muted">
-                  {group.itemNames.join(", ")}
-                </p>
+          <h3 className="text-sm font-medium">Included with your plan</h3>
+          <ul className="mt-2 space-y-1 text-sm text-muted">
+            {planInclusions.map((line) => (
+              <li key={line.id} className="flex justify-between gap-4">
+                <span>{line.name}</span>
+                <span className="shrink-0 text-xs">Included</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {includedSetup.length > 0 ? (
+        <section>
+          <h3 className="text-sm font-medium">Included setup</h3>
+          <ul className="mt-2 space-y-1 text-sm text-muted">
+            {includedSetup.map((line) => (
+              <li key={line.id} className="flex justify-between gap-4">
+                <span>{line.name}</span>
+                <span className="shrink-0 text-xs">$0 — Included</span>
               </li>
             ))}
           </ul>
@@ -79,18 +75,9 @@ export function ProposalCommercialSummary({
                 key={item.id}
                 className="flex justify-between gap-4 py-2 text-sm"
               >
-                <span>
-                  {catalogProductDisplayName(
-                    offerItemProductKey(item.metadata),
-                    item.name,
-                  )}
-                </span>
+                <span>{item.name}</span>
                 <span className="font-medium">
-                  {formatMoney(
-                    item.unit_amount_cents * item.quantity,
-                    offer.currency,
-                  )}
-                  /mo
+                  {formatMoney(item.amountCents, offer.currency)}/mo
                 </span>
               </li>
             ))}
@@ -107,12 +94,9 @@ export function ProposalCommercialSummary({
                 key={item.id}
                 className="flex justify-between gap-4 py-2 text-sm"
               >
-                <span>{item.description || item.name}</span>
+                <span>{item.name}</span>
                 <span className="font-medium">
-                  {formatMoney(
-                    item.unit_amount_cents * item.quantity,
-                    offer.currency,
-                  )}
+                  {formatMoney(item.amountCents, offer.currency)}
                 </span>
               </li>
             ))}
@@ -128,7 +112,7 @@ export function ProposalCommercialSummary({
   );
 }
 
-/** @deprecated use groupIncludedPlatformItems — kept for tests */
+/** @deprecated use invoice section helpers */
 export function isProposalEntitlementLine(item: ClientOfferItem): boolean {
-  return isBundledProductItem(item);
+  return item.item_type === "product";
 }

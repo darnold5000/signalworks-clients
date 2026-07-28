@@ -30,35 +30,26 @@ describe("build-invite-offer", () => {
       products: [],
     });
 
-    expect(rows).toHaveLength(1);
     expect(rows[0].item_type).toBe("base_plan");
     expect(rows[0].unit_amount_cents).toBe(19900);
-    expect(rows[0].metadata).toEqual({
-      plan_key: "launch",
-      catalog_version: 2,
-    });
+    expect(rows.filter((row) => row.item_type === "product").length).toBe(9);
   });
 
-  it("creates separate offer items for selected products", () => {
+  it("creates separate offer items for optional platform products", () => {
     const rows = buildInviteOfferItemRows({
       tenantId: "tenant-1",
       offerId: "offer-1",
       plan,
-      products: [
-        { product_key: "website", name: "Website" },
-        { product_key: "online_booking", name: "Online Booking" },
-      ],
+      products: [{ product_key: "online_booking", name: "Online Booking" }],
     });
 
-    expect(rows).toHaveLength(3);
-    expect(rows[1].item_type).toBe("product");
-    expect(rows[1].metadata).toEqual({
-      product_key: "website",
-      catalog_version: 2,
-      commercial_role: "bundled_product",
-      included_in_plan: true,
-    });
-    expect(rows[2].metadata).toEqual({
+    const optional = rows.find(
+      (row) =>
+        row.item_type === "product" &&
+        row.metadata?.product_key === "online_booking",
+    );
+    expect(optional).toBeTruthy();
+    expect(optional?.metadata).toEqual({
       product_key: "online_booking",
       catalog_version: 2,
       commercial_role: "bundled_product",
@@ -69,7 +60,7 @@ describe("build-invite-offer", () => {
   it("keeps zero-dollar bundled products from increasing MRR", () => {
     const totals = calculateInviteOfferTotals({
       plan,
-      products: [{ product_key: "website", name: "Website" }],
+      products: [{ product_key: "client_portal", name: "Client Portal" }],
     });
 
     expect(totals.recurring_total_cents).toBe(19900);

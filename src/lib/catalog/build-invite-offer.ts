@@ -1,4 +1,8 @@
 import { CATALOG_VERSION } from "@/lib/catalog/types";
+import {
+  includedSetupProducts,
+  planStandardInclusionProducts,
+} from "@/lib/catalog/plan-inclusions";
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
 import {
   calculateAmountDueFirstCycle,
@@ -9,7 +13,9 @@ import {
   bundledProductMetadata,
   customBundledProductMetadata,
   customPaidAddOnMetadata,
+  includedSetupMetadata,
   paidAddOnMetadata,
+  planInclusionMetadata,
 } from "@/lib/offers/offer-item-metadata";
 
 export type InvitePlanSelection = {
@@ -29,10 +35,7 @@ export type InvitePaidAddOnSelection = {
   name: string;
   unit_amount_cents: number;
   quantity?: number;
-};
-
-export type InviteCustomPlatformComponent = {
-  name: string;
+  billing_type?: "recurring" | "one_time";
 };
 
 export type InviteCustomServiceAddOn = {
@@ -40,6 +43,11 @@ export type InviteCustomServiceAddOn = {
   description?: string;
   unit_amount_cents: number;
   quantity?: number;
+  billing_type?: "recurring" | "one_time";
+};
+
+export type InviteCustomPlatformComponent = {
+  name: string;
 };
 
 export type InviteCommercialExtras = {
@@ -139,6 +147,60 @@ export function buildInviteOfferItemRows(args: {
 
   let sortOrder = 1;
 
+  for (const product of planStandardInclusionProducts()) {
+    rows.push({
+      offer_id: args.offerId,
+      tenant_id: args.tenantId,
+      item_type: "product",
+      name: product.name,
+      description: "Included with your plan",
+      quantity: 1,
+      unit_amount_cents: 0,
+      billing_type: "recurring",
+      billing_interval: "month",
+      billing_interval_count: 1,
+      discount_type: null,
+      discount_amount_cents: null,
+      discount_percent: null,
+      discount_duration_type: null,
+      discount_duration_months: null,
+      stripe_product_id: null,
+      stripe_price_id: null,
+      stripe_coupon_id: null,
+      is_optional: false,
+      is_selected: true,
+      sort_order: sortOrder++,
+      metadata: planInclusionMetadata(product.product_key),
+    });
+  }
+
+  for (const product of includedSetupProducts()) {
+    rows.push({
+      offer_id: args.offerId,
+      tenant_id: args.tenantId,
+      item_type: "product",
+      name: product.name,
+      description: "Included setup",
+      quantity: 1,
+      unit_amount_cents: 0,
+      billing_type: "one_time",
+      billing_interval: null,
+      billing_interval_count: 1,
+      discount_type: null,
+      discount_amount_cents: null,
+      discount_percent: null,
+      discount_duration_type: null,
+      discount_duration_months: null,
+      stripe_product_id: null,
+      stripe_price_id: null,
+      stripe_coupon_id: null,
+      is_optional: false,
+      is_selected: true,
+      sort_order: sortOrder++,
+      metadata: includedSetupMetadata(product.product_key),
+    });
+  }
+
   for (const product of args.products) {
     rows.push({
       offer_id: args.offerId,
@@ -197,6 +259,7 @@ export function buildInviteOfferItemRows(args: {
 
   for (const addOn of extras.paid_add_ons ?? []) {
     const quantity = Math.max(1, addOn.quantity ?? 1);
+    const billingType = addOn.billing_type ?? "recurring";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
@@ -205,8 +268,8 @@ export function buildInviteOfferItemRows(args: {
       description: "Service add-on",
       quantity,
       unit_amount_cents: addOn.unit_amount_cents,
-      billing_type: "recurring",
-      billing_interval: "month",
+      billing_type: billingType,
+      billing_interval: billingType === "recurring" ? "month" : null,
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -227,6 +290,7 @@ export function buildInviteOfferItemRows(args: {
     const trimmed = custom.name.trim();
     if (!trimmed) continue;
     const quantity = Math.max(1, custom.quantity ?? 1);
+    const billingType = custom.billing_type ?? "recurring";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
@@ -235,8 +299,8 @@ export function buildInviteOfferItemRows(args: {
       description: custom.description?.trim() || "Custom service add-on",
       quantity,
       unit_amount_cents: custom.unit_amount_cents,
-      billing_type: "recurring",
-      billing_interval: "month",
+      billing_type: billingType,
+      billing_interval: billingType === "recurring" ? "month" : null,
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,

@@ -2,6 +2,7 @@ import { buildInviteOfferItemRows,
   dollarsToCents,
 } from "@/lib/catalog/build-invite-offer";
 import type { InviteClientRequest } from "@/lib/catalog/invite-validation";
+import { addOnDefaultBillingType } from "@/lib/catalog/plan-inclusions";
 import {
   getPaidAddOnsByKeys,
   getPlanTemplateByKey,
@@ -136,7 +137,8 @@ export async function inviteClientWithOffer(
   }
 
   const componentKeys = input.productKeys.filter((key) => key !== "other");
-  const products = await getProductsByKeys(componentKeys);
+  const products =
+    componentKeys.length > 0 ? await getProductsByKeys(componentKeys) : [];
   if (products.length !== componentKeys.length) {
     return { ok: false, error: "One or more selected platform components are invalid." };
   }
@@ -159,6 +161,9 @@ export async function inviteClientWithOffer(
       name: catalogItem.name,
       unit_amount_cents: dollarsToCents(selection.monthlyPriceDollars),
       quantity: selection.quantity,
+      billing_type:
+        selection.billingType ??
+        addOnDefaultBillingType(catalogItem.product_key),
     };
   });
 
@@ -171,6 +176,7 @@ export async function inviteClientWithOffer(
     description: row.description?.trim() || undefined,
     unit_amount_cents: dollarsToCents(row.monthlyPriceDollars),
     quantity: row.quantity,
+    billing_type: row.billingType ?? "recurring",
   })).filter((row) => row.name.length > 0);
 
   const setupFeeCents = dollarsToCents(input.setupFeeDollars);

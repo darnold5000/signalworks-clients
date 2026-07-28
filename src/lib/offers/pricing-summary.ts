@@ -42,7 +42,9 @@ export function buildOfferPricingSummary(
   const planName = basePlan?.name ?? "Subscription plan";
 
   const recurringAddOnAmountCents = selected
-    .filter((item) => isPaidAddOnItem(item))
+    .filter(
+      (item) => isPaidAddOnItem(item) && item.billing_type === "recurring",
+    )
     .reduce((sum, item) => sum + lineAmount(item), 0);
 
   const discountItem = selected.find(

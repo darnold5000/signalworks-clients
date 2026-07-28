@@ -9,6 +9,7 @@ import type {
   InviteProductSelection,
 } from "@/lib/catalog/build-invite-offer";
 import { dollarsToCents } from "@/lib/catalog/build-invite-offer";
+import { addOnDefaultBillingType } from "@/lib/catalog/plan-inclusions";
 import type {
   PlatformPlanTemplate,
   PlatformProductCatalogItem,
@@ -16,6 +17,7 @@ import type {
 import { Button } from "@/components/ui";
 import { InviteClientFinancialSummary } from "@/components/invite-client-financial-summary";
 import { InviteClientPlanSelect } from "@/components/invite-client-plan-select";
+import { InviteClientPlanInclusions } from "@/components/invite-client-plan-inclusions";
 import {
   InviteClientPlatformComponentsSelect,
   type CustomPlatformComponentRow,
@@ -63,7 +65,6 @@ export function InviteClientForm({
   const [customServiceAddOnRows, setCustomServiceAddOnRows] = useState<
     CustomServiceAddOnRow[]
   >([]);
-  const [customAddOnsSelected, setCustomAddOnsSelected] = useState(false);
   const [setupFeeDollars, setSetupFeeDollars] = useState("0");
   const [monthlyDiscountDollars, setMonthlyDiscountDollars] = useState("0");
   const [monthlyDiscountDurationMonths, setMonthlyDiscountDurationMonths] =
@@ -135,6 +136,9 @@ export function InviteClientForm({
             Number.parseFloat(selection.monthlyPriceDollars) || 0,
           ),
           quantity,
+          billing_type:
+            selection.billingType ??
+            addOnDefaultBillingType(catalogItem.product_key),
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -150,6 +154,7 @@ export function InviteClientForm({
         unit_amount_cents: dollarsToCents(
           Number.parseFloat(row.monthlyPriceDollars) || 0,
         ),
+        billing_type: row.billingType,
       }))
       .filter((row) => row.name.length > 0);
 
@@ -224,6 +229,7 @@ export function InviteClientForm({
             quantity: selection.quantity
               ? Number.parseInt(selection.quantity, 10) || 1
               : undefined,
+            billingType: selection.billingType,
           })),
           customPlatformComponents: customPlatformRows
             .map((row) => ({ name: row.name.trim() }))
@@ -234,6 +240,7 @@ export function InviteClientForm({
               description: row.description.trim() || undefined,
               monthlyPriceDollars:
                 Number.parseFloat(row.monthlyPriceDollars) || 0,
+              billingType: row.billingType,
             }))
             .filter((row) => row.name.length > 0),
           setupFeeDollars: Number.parseFloat(setupFeeDollars) || 0,
@@ -295,8 +302,8 @@ export function InviteClientForm({
     <form onSubmit={onSubmit} className="space-y-8">
       <p className="text-sm text-muted">
         Create a new client tenant, commercial offer, and first-time portal
-        invite. Platform components define what gets built; service add-ons define
-        ongoing services.
+        invite. Plan inclusions and setup are automatic; configure paid add-ons
+        below.
       </p>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -377,6 +384,8 @@ export function InviteClientForm({
             onMonthlyPriceChange={setMonthlyPriceDollars}
           />
 
+          <InviteClientPlanInclusions />
+
           <InviteClientPlatformComponentsSelect
             components={platformComponents}
             selectedKeys={selectedProductKeys}
@@ -391,8 +400,6 @@ export function InviteClientForm({
             onChange={setServiceAddOnSelections}
             customRows={customServiceAddOnRows}
             onCustomRowsChange={setCustomServiceAddOnRows}
-            otherSelected={customAddOnsSelected}
-            onOtherSelectedChange={setCustomAddOnsSelected}
           />
 
           <section className="space-y-4">
@@ -451,6 +458,7 @@ export function InviteClientForm({
           plan={selectedPlanSummary}
           products={selectedProducts}
           extras={inviteExtras}
+          className="xl:sticky xl:top-6 xl:self-start"
         />
       </div>
 

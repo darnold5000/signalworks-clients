@@ -27,6 +27,7 @@ export const SERVICE_ADD_ON_SECTIONS: Array<{
   { key: "operations", label: "Operations" },
   { key: "commerce", label: "Commerce" },
   { key: "infrastructure", label: "Infrastructure" },
+  { key: "one_time", label: "One-Time Services" },
   { key: "custom", label: "Custom" },
 ];
 
