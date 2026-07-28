@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ResendInviteButton } from "@/components/resend-invite-button";
 import { ButtonLink, MetaRow, Panel, StatusPill } from "@/components/ui";
 import type { AdminClientBundle } from "@/lib/admin/client-records";
@@ -68,6 +69,12 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
           <ButtonLink href="/admin/clients" variant="secondary">
             ← All clients
           </ButtonLink>
+          <Link
+            href={`/admin/clients/${client.id}/overview#delete-client`}
+            className="inline-flex items-center justify-center rounded-md border border-red-200 bg-surface px-4 py-2.5 text-sm font-medium text-danger hover:bg-red-50"
+          >
+            Delete client
+          </Link>
           {client.website_url ? (
             <ButtonLink href={client.website_url} variant="secondary">
               Open website
