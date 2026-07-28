@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, ButtonLink, MetaRow, PageHeader, Panel } from "@/components/ui";
+import { Pencil, Trash2 } from "lucide-react";
+import { ButtonLink, MetaRow, PageHeader, Panel } from "@/components/ui";
+import { IconActionButton } from "@/components/admin/icon-action-button";
 import {
   deletePipelineClient,
   updatePipelineClient,
@@ -66,19 +68,19 @@ export function ClientPipelineDetails({
         title={client.business_name}
         description="Pipeline client record"
         actions={
-          <>
-            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="text-danger"
+          <div className="flex items-center gap-1">
+            <IconActionButton
+              label="Edit"
+              icon={Pencil}
+              onClick={() => setEditing(true)}
+            />
+            <IconActionButton
+              label="Delete"
+              icon={Trash2}
+              variant="danger"
               onClick={() => setDeleteOpen(true)}
-            >
-              Delete
-            </Button>
-          </>
+            />
+          </div>
         }
       />
 

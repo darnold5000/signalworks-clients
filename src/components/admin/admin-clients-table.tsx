@@ -17,6 +17,7 @@ import {
   type InfrastructureListFilters,
 } from "@/lib/technical/operations-inventory";
 import { InfrastructureHealthChips } from "@/components/admin/infrastructure-health-chips";
+import { PortalClientRowActions } from "@/components/admin/portal-client-row-actions";
 import { StatusPill } from "@/components/ui";
 import { formatDate, formatMoney, monthlyMarginCents } from "@/lib/utils";
 
@@ -336,6 +337,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
               <th className="pb-3 font-medium">Plan / MRR</th>
               <th className="pb-3 font-medium">Billing</th>
               <th className="pb-3 font-medium">Last activity</th>
+              <th className="pb-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -402,6 +404,13 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                   </td>
                   <td className="py-3 text-xs text-muted">
                     {formatDate(client.last_activity_at)}
+                  </td>
+                  <td className="py-3">
+                    <PortalClientRowActions
+                      tenantId={client.id}
+                      slug={client.slug}
+                      displayName={client.business_name}
+                    />
                   </td>
                 </tr>
               );

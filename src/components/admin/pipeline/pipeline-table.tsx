@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Button, ButtonLink } from "@/components/ui";
 import type { ClientPipelineRecord, PipelineStatus } from "@/lib/pipeline/types";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusBadge } from "./pipeline-status-badge";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
@@ -27,6 +27,7 @@ export function PipelineTable({
   onStatusChange,
   statusUpdatingId,
   onEdit,
+  onDelete,
 }: {
   clients: ClientPipelineRecord[];
   sortKey: "business_name" | "status" | "updated_at" | "next_follow_up_date";
@@ -37,6 +38,7 @@ export function PipelineTable({
   onStatusChange: (id: string, status: PipelineStatus) => void;
   statusUpdatingId: string | null;
   onEdit: (client: ClientPipelineRecord) => void;
+  onDelete: (client: ClientPipelineRecord) => void;
 }) {
   function sortIndicator(key: typeof sortKey) {
     if (sortKey !== key) return null;
@@ -142,23 +144,11 @@ export function PipelineTable({
                 {formatDate(client.updated_at)}
               </td>
               <td className="py-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="px-2 py-1 text-xs"
-                    onClick={() => onEdit(client)}
-                  >
-                    Edit
-                  </Button>
-                  <ButtonLink
-                    href={`/admin/pipeline/${client.id}`}
-                    variant="ghost"
-                    className="px-2 py-1 text-xs"
-                  >
-                    View
-                  </ButtonLink>
-                </div>
+                <PipelineRowActions
+                  client={client}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
               </td>
             </tr>
           ))}

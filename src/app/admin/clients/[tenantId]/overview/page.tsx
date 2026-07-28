@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
+import { AdminBusinessProfileForm } from "@/components/admin/admin-business-profile-form";
 import { AdminPortalWebsiteForm } from "@/components/admin/admin-portal-website-form";
-import {
-  BusinessProfilePanel,
-  InternalNotesPanel,
-} from "@/components/admin/admin-client-header";
+import { InternalNotesPanel } from "@/components/admin/admin-client-header";
 import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
@@ -15,14 +13,17 @@ import { formatDate, formatDateTime, formatMoney, monthlyMarginCents } from "@/l
 
 export default async function AdminClientOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenantId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { tenantId } = await params;
+  const { edit } = await searchParams;
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const { client, requests } = bundle;
+  const { client, profile, requests } = bundle;
   const margin = monthlyMarginCents(
     client.monthly_price_cents,
     client.estimated_infra_cost_cents,
@@ -31,7 +32,12 @@ export default async function AdminClientOverviewPage({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <BusinessProfilePanel bundle={bundle} />
+      <AdminBusinessProfileForm
+        tenantId={tenantId}
+        client={client}
+        profile={profile}
+        startEditing={edit === "1"}
+      />
 
       <AdminPortalWebsiteForm client={client} />
 

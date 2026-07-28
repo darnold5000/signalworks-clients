@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import {
   createPipelineClient,
+  deletePipelineClient,
   updatePipelineClient,
   updatePipelineStatus,
 } from "@/lib/pipeline/clients";
@@ -19,6 +20,7 @@ import {
   type PipelineClientInput,
 } from "@/lib/pipeline/validation";
 import { ClientPipelineForm } from "./client-pipeline-form";
+import { DeleteClientDialog } from "./delete-client-dialog";
 import { PipelineCard } from "./pipeline-card";
 import { PipelineFilters } from "./pipeline-filters";
 import { PipelineSlideOver } from "./pipeline-slide-over";
@@ -71,6 +73,9 @@ export function PipelinePageClient({
   );
   const [saving, setSaving] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [deletingClient, setDeletingClient] =
+    useState<ClientPipelineRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -119,6 +124,10 @@ export function PipelinePageClient({
     setEditingClient(null);
   }
 
+  function openDelete(client: ClientPipelineRecord) {
+    setDeletingClient(client);
+  }
+
   async function handleCreate(data: PipelineClientInput) {
     setSaving(true);
     const result = await createPipelineClient(data);
@@ -149,6 +158,21 @@ export function PipelinePageClient({
     );
     closeSlideOver();
     showPipelineToast("Client updated");
+    router.refresh();
+  }
+
+  async function confirmDelete() {
+    if (!deletingClient) return;
+    setDeleting(true);
+    const result = await deletePipelineClient(deletingClient.id);
+    setDeleting(false);
+    if (!result.ok) {
+      showPipelineToast(result.error, "error");
+      return;
+    }
+    setClients((prev) => prev.filter((c) => c.id !== deletingClient.id));
+    setDeletingClient(null);
+    showPipelineToast("Client deleted");
     router.refresh();
   }
 
@@ -238,6 +262,7 @@ export function PipelinePageClient({
             onStatusChange={handleStatusChange}
             statusUpdatingId={statusUpdatingId}
             onEdit={openEdit}
+            onDelete={openDelete}
           />
 
           <div className="space-y-4">
@@ -246,6 +271,7 @@ export function PipelinePageClient({
                 key={client.id}
                 client={client}
                 onEdit={openEdit}
+                onDelete={openDelete}
                 onStatusChange={handleStatusChange}
                 statusUpdating={statusUpdatingId === client.id}
               />
@@ -288,6 +314,13 @@ export function PipelinePageClient({
           />
         ) : null}
       </PipelineSlideOver>
+
+      <DeleteClientDialog
+        open={Boolean(deletingClient)}
+        onCancel={() => setDeletingClient(null)}
+        onConfirm={() => void confirmDelete()}
+        loading={deleting}
+      />
     </>
   );
 }

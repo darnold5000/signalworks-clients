@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui";
 import type { ClientPipelineRecord, PipelineStatus } from "@/lib/pipeline/types";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusBadge } from "./pipeline-status-badge";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
@@ -16,11 +16,13 @@ function truncateText(value: string | null) {
 export function PipelineCard({
   client,
   onEdit,
+  onDelete,
   onStatusChange,
   statusUpdating,
 }: {
   client: ClientPipelineRecord;
   onEdit: (client: ClientPipelineRecord) => void;
+  onDelete: (client: ClientPipelineRecord) => void;
   onStatusChange: (id: string, status: PipelineStatus) => void;
   statusUpdating?: boolean;
 }) {
@@ -83,34 +85,13 @@ export function PipelineCard({
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <Button type="button" variant="secondary" className="flex-1" onClick={() => onEdit(client)}>
-          Edit
-        </Button>
-        <ButtonLink href={`/admin/pipeline/${client.id}`} variant="secondary" className="flex-1">
-          View
-        </ButtonLink>
+      <div className="mt-4 flex items-center justify-end">
+        <PipelineRowActions
+          client={client}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       </div>
     </article>
-  );
-}
-
-function ButtonLink({
-  href,
-  children,
-  className,
-}: {
-  href: string;
-  children: React.ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
-  className?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors hover:bg-background ${className ?? ""}`}
-    >
-      {children}
-    </Link>
   );
 }
