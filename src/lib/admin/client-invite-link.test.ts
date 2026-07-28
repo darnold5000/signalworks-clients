@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { formatAuthInviteError } from "@/lib/admin/client-invite-link";
+import {
+  formatAuthInviteError,
+  userHasSignedIn,
+} from "@/lib/admin/client-invite-link";
+
+describe("userHasSignedIn", () => {
+  it("treats DAWG-style users as signed in even with portal invited_at", () => {
+    expect(
+      userHasSignedIn({
+        id: "x",
+        app_metadata: {},
+        user_metadata: {},
+        aud: "authenticated",
+        created_at: "",
+        invited_at: "2026-01-01T00:00:00Z",
+        last_sign_in_at: "2026-02-01T00:00:00Z",
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("formatAuthInviteError", () => {
   const redirect =

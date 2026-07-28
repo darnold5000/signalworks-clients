@@ -84,9 +84,13 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
         </div>
       </div>
 
-      {owner && !owner.hasSignedIn ? (
+      {owner ? (
         <Panel title="Portal access">
-          <ResendInviteButton tenantId={client.id} ownerEmail={owner.email} />
+          <ResendInviteButton
+            tenantId={client.id}
+            ownerEmail={owner.email}
+            hasSignedIn={owner.hasSignedIn}
+          />
         </Panel>
       ) : null}
     </div>

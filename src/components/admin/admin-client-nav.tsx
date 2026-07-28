@@ -11,6 +11,7 @@ const TABS = [
   { href: "technical", label: "Operations" },
   { href: "contacts", label: "Contacts" },
   { href: "activity", label: "Activity" },
+  { href: "settings", label: "Settings" },
 ] as const;
 
 export function AdminClientNav({ tenantId }: { tenantId: string }) {

@@ -31,7 +31,7 @@ export function DeleteClientPanel({
 
   if (!eligibility.allowed) {
     return (
-      <Panel title="Delete client" className="lg:col-span-2">
+      <Panel title="Delete client">
         <p className="text-sm text-muted">{eligibility.reason}</p>
       </Panel>
     );
@@ -62,7 +62,7 @@ export function DeleteClientPanel({
   }
 
   return (
-    <Panel title="Delete client" className="lg:col-span-2">
+    <Panel title="Delete client">
       <p className="text-sm text-muted">
         Remove <strong className="font-medium text-foreground">{displayName}</strong>{" "}
         from the client portal. Offers, billing records, and portal access for this

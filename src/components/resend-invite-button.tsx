@@ -6,11 +6,13 @@ import { Button } from "@/components/ui";
 type ResendInviteButtonProps = {
   tenantId: string;
   ownerEmail?: string | null;
+  hasSignedIn?: boolean;
 };
 
 export function ResendInviteButton({
   tenantId,
   ownerEmail,
+  hasSignedIn = false,
 }: ResendInviteButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,11 @@ export function ResendInviteButton({
           disabled={loading}
           onClick={() => void onResend()}
         >
-          {loading ? "Sending…" : "Resend invite"}
+          {loading
+            ? "Sending…"
+            : hasSignedIn
+              ? "Send magic link"
+              : "Resend invite"}
         </Button>
         {ownerEmail ? (
           <p className="text-sm text-muted">Portal email: {ownerEmail}</p>
@@ -70,9 +76,9 @@ export function ResendInviteButton({
       </div>
 
       <p className="text-xs text-muted">
-        Generates a fresh single-use link. Ask the client to open it in a
-        private window, or sign out of your admin session before testing the
-        link yourself.
+        {hasSignedIn
+          ? "Sends a one-click sign-in link to open the portal (same Signal Works login as DAWG/MA5 — no new password)."
+          : "Generates a fresh single-use link. Ask the client to open it in a private window, or sign out of your admin session before testing the link yourself."}
       </p>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}

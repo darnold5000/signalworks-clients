@@ -58,10 +58,9 @@ async function userHasActiveServicesClientMembership(
 
 export function userHasSignedIn(user: User | null | undefined): boolean {
   if (!user) return false;
-  return (
-    user.user_metadata?.password_set === true ||
-    Boolean(user.last_sign_in_at && !user.invited_at)
-  );
+  if (user.user_metadata?.password_set === true) return true;
+  // Any real sign-in (e.g. DAWG/MA5) counts — portal invite may still set invited_at.
+  return Boolean(user.last_sign_in_at);
 }
 
 export async function findAuthUserIdByEmail(
@@ -328,16 +327,6 @@ export async function createClientPortalAccessLink(
   if (existingUserId) {
     const { data: authUser } =
       await supabase.auth.admin.getUserById(existingUserId);
-    const hasClientTenant = await userHasActiveServicesClientMembership(
-      supabase,
-      existingUserId,
-    );
-    if (userHasSignedIn(authUser.user) && hasClientTenant) {
-      return {
-        error:
-          "This email already has an active portal account. Use Send proposal on the client's Offers page instead of a new invite.",
-      };
-    }
 
     if (userHasSignedIn(authUser.user)) {
       return createReturningUserPortalLink(supabase, {
