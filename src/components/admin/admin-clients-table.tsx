@@ -406,11 +406,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                     {formatDate(client.last_activity_at)}
                   </td>
                   <td className="py-3">
-                    <PortalClientRowActions
-                      tenantId={client.id}
-                      slug={client.slug}
-                      displayName={client.business_name}
-                    />
+                    <PortalClientRowActions tenantId={client.id} />
                   </td>
                 </tr>
               );

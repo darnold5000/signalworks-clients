@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AdminBusinessProfileForm } from "@/components/admin/admin-business-profile-form";
 import { AdminPortalWebsiteForm } from "@/components/admin/admin-portal-website-form";
+import { DeleteClientPanel } from "@/components/admin/delete-client-panel";
 import { InternalNotesPanel } from "@/components/admin/admin-client-header";
 import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
@@ -23,7 +24,7 @@ export default async function AdminClientOverviewPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const { client, profile, requests } = bundle;
+  const { client, profile, requests, platformCategory } = bundle;
   const margin = monthlyMarginCents(
     client.monthly_price_cents,
     client.estimated_infra_cost_cents,
@@ -118,6 +119,18 @@ export default async function AdminClientOverviewPage({
           </ul>
         )}
       </Panel>
+
+      <div
+        id="delete-client"
+        className="scroll-mt-8 border-t border-border pt-8 lg:col-span-2"
+      >
+        <DeleteClientPanel
+          tenantId={tenantId}
+          slug={client.slug}
+          displayName={profile?.display_name ?? client.business_name}
+          platformCategory={platformCategory}
+        />
+      </div>
     </div>
   );
 }

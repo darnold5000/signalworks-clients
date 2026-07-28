@@ -35,9 +35,15 @@ export function getAuthTokensRedirectUrl(): string | null {
   if (!hash.includes("access_token")) return null;
 
   const type = readHashAuthType();
-  const path =
-    type === "recovery" ? "/auth/reset-password" : "/auth/set-password";
-  return `${path}${hash}`;
+  if (type === "recovery") {
+    return `/auth/reset-password${hash}`;
+  }
+  if (type === "magiclink" || type === "email") {
+    const next =
+      new URLSearchParams(window.location.search).get("next") ?? "/offer";
+    return `/auth/establish-session?next=${encodeURIComponent(next)}${hash}`;
+  }
+  return `/auth/set-password${hash}`;
 }
 
 export async function establishSessionFromAuthLink(
