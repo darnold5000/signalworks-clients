@@ -102,7 +102,6 @@ function inviteEmailCopy(args: {
       `<p>Your <strong>${business}</strong> client portal is ready.</p>`,
       `<p>Create your password to access billing, website requests, project updates, and important documents.</p>`,
       `<p><a href="{{LINK}}">${escapeHtml(cta)}</a></p>`,
-      `<p>This invitation link is intended only for you and may expire. If you were not expecting this email, you can ignore it or contact <a href="mailto:${siteConfig.supportEmail}">${siteConfig.supportEmail}</a>.</p>`,
     ].join(""),
     textBody: [
       `Hi ${args.firstName},`,
@@ -113,9 +112,6 @@ function inviteEmailCopy(args: {
       "",
       `${cta}:`,
       "{{LINK}}",
-      "",
-      "This invitation link is intended only for you and may expire.",
-      `If you were not expecting this email, contact ${siteConfig.supportEmail}.`,
     ].join("\n"),
   };
 }
@@ -162,12 +158,12 @@ export async function sendClientInviteEmail(args: {
       open_tracking: false,
       html: [
         html,
-        `<p>If you were not expecting this, you can ignore this email or contact us at <a href="mailto:${siteConfig.supportEmail}">${siteConfig.supportEmail}</a>.</p>`,
+        `<p>Any questions? Please contact us at <a href="mailto:${siteConfig.supportEmail}">${siteConfig.supportEmail}</a>.</p>`,
       ].join(""),
       text: [
         text,
         "",
-        `Questions? Email ${siteConfig.supportEmail}.`,
+        `Any questions? Please contact us at ${siteConfig.supportEmail}.`,
       ].join("\n"),
     }),
   });
