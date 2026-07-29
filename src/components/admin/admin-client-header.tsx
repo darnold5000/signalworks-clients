@@ -1,4 +1,5 @@
 import { ResendInviteButton } from "@/components/resend-invite-button";
+import { PortalInviteStatusBadge } from "@/components/admin/portal-invite-status-badge";
 import { ButtonLink, MetaRow, Panel, StatusPill } from "@/components/ui";
 import type { AdminClientBundle } from "@/lib/admin/client-records";
 import {
@@ -6,10 +7,16 @@ import {
   ONBOARDING_STATUS_LABELS,
   internalStatusTone,
 } from "@/lib/admin/labels";
+import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
 import { formatDate, formatMoney, monthlyMarginCents } from "@/lib/utils";
 
 export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
   const { client, profile, owner } = bundle;
+  const portalInvite = getPortalInviteDisplay({
+    profile,
+    owner,
+    activity: bundle.activity,
+  });
   const margin = monthlyMarginCents(
     client.monthly_price_cents,
     client.estimated_infra_cost_cents,
@@ -86,6 +93,11 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
 
       {owner ? (
         <Panel title="Portal access">
+          {portalInvite ? (
+            <div className="mb-4">
+              <PortalInviteStatusBadge display={portalInvite} />
+            </div>
+          ) : null}
           <ResendInviteButton
             tenantId={client.id}
             ownerEmail={owner.email}

@@ -1,7 +1,36 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import type { NextRequest, NextResponse } from "next/server";
 import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
+
+/** Route Handlers: read request cookies and write refreshed session onto the response. */
+export function createClientFromRequest(
+  request: NextRequest,
+  response: NextResponse,
+): SupabaseClient {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      ...supabaseServerAuthOptions,
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, {
+              ...options,
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+            });
+          });
+        },
+      },
+    },
+  );
+}
 
 export async function createClient() {
   const cookieStore = await cookies();

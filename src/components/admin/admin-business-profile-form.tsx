@@ -2,11 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Panel } from "@/components/ui";
+import { Button, Panel, StatusPill } from "@/components/ui";
+import { PortalInviteStatusBadge } from "@/components/admin/portal-invite-status-badge";
 import {
   INTERNAL_STATUS_LABELS,
   ONBOARDING_STATUS_LABELS,
+  internalStatusTone,
 } from "@/lib/admin/labels";
+import type { PortalInviteDisplay } from "@/lib/admin/portal-invite-status";
 import type {
   TenantInternalStatus,
   TenantProfile,
@@ -86,11 +89,13 @@ export function AdminBusinessProfileForm({
   tenantId,
   client,
   profile,
+  portalInvite = null,
   startEditing = false,
 }: {
   tenantId: string;
   client: Client;
   profile: TenantProfile | null;
+  portalInvite?: PortalInviteDisplay | null;
   startEditing?: boolean;
 }) {
   const router = useRouter();
@@ -131,14 +136,21 @@ export function AdminBusinessProfileForm({
   return (
     <div id="business-profile" className="scroll-mt-8">
       <Panel title="Business information">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {profile?.internal_status ? (
+              <StatusPill
+                label={INTERNAL_STATUS_LABELS[profile.internal_status]}
+                tone={internalStatusTone(profile.internal_status)}
+              />
+            ) : null}
+            <PortalInviteStatusBadge display={portalInvite} />
+          </div>
           {profile?.onboarding_status ? (
             <p className="text-xs text-muted">
               Onboarding: {ONBOARDING_STATUS_LABELS[profile.onboarding_status]}
             </p>
-          ) : (
-            <span />
-          )}
+          ) : null}
           {!editing ? (
             <Button
               type="button"
@@ -331,7 +343,12 @@ export function AdminBusinessProfileForm({
               </div>
               <div>
                 <dt className="text-muted">Status</dt>
-                <dd>{INTERNAL_STATUS_LABELS[form.internal_status]}</dd>
+                <dd className="mt-1 flex flex-wrap items-center gap-2">
+                  <StatusPill
+                    label={INTERNAL_STATUS_LABELS[form.internal_status]}
+                    tone={internalStatusTone(form.internal_status)}
+                  />
+                </dd>
               </div>
             </div>
           </dl>

@@ -1,16 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
-import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
+import {
+  jsonWithSessionCookies,
+  requireAdminApiAuth,
+  TECHNICAL_PROFILE_ADMIN_PERMISSIONS,
+} from "@/lib/admin/require-admin-api-auth";
 import { upsertTenantTechnicalProfile } from "@/lib/technical/technical-profile-service";
 import { technicalProfileUpdateSchema } from "@/lib/technical/technical-profile-schema";
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ tenantId: string }> },
 ) {
-  const profile = await getCurrentProfile();
-  if (!profile || !(await isPlatformAdmin())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdminApiAuth(request, [
+    ...TECHNICAL_PROFILE_ADMIN_PERMISSIONS,
+  ]);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const { tenantId } = await params;
@@ -18,31 +24,44 @@ export async function PATCH(
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return jsonWithSessionCookies(
+      auth.sessionCookies,
+      { error: "Invalid JSON body." },
+      { status: 400 },
+    );
   }
 
   const parsed = technicalProfileUpdateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
+    return jsonWithSessionCookies(
+      auth.sessionCookies,
       { error: "Validation failed.", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
 
   try {
-    const technical = await upsertTenantTechnicalProfile(tenantId, parsed.data);
+    const technical = await upsertTenantTechnicalProfile(
+      tenantId,
+      parsed.data,
+      auth.supabase,
+    );
     await logTenantActivity({
       tenantId,
-      actorUserId: profile.id,
+      actorUserId: auth.userId,
       actorType: "admin",
       action: "technical_profile.updated",
       entityType: "technical_profile",
       entityId: tenantId,
       summary: "Updated client technical profile and infrastructure inventory",
     });
-    return NextResponse.json({ technical });
+    return jsonWithSessionCookies(auth.sessionCookies, { technical });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Save failed.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return jsonWithSessionCookies(
+      auth.sessionCookies,
+      { error: message },
+      { status: 400 },
+    );
   }
 }

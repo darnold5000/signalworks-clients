@@ -6,6 +6,7 @@ import { InternalNotesPanel } from "@/components/admin/admin-client-header";
 import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
+import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_TYPE_LABELS,
@@ -24,7 +25,13 @@ export default async function AdminClientOverviewPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const { client, profile, requests, platformCategory } = bundle;
+  const { client, profile, requests, platformCategory, owner, activity } =
+    bundle;
+  const portalInvite = getPortalInviteDisplay({
+    profile,
+    owner,
+    activity,
+  });
   const margin = monthlyMarginCents(
     client.monthly_price_cents,
     client.estimated_infra_cost_cents,
@@ -37,6 +44,7 @@ export default async function AdminClientOverviewPage({
         tenantId={tenantId}
         client={client}
         profile={profile}
+        portalInvite={portalInvite}
         startEditing={edit === "1"}
       />
 

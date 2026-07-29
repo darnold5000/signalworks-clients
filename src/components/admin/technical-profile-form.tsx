@@ -332,6 +332,7 @@ export function TechnicalProfileForm({
 
     const res = await fetch(`/api/admin/clients/${tenantId}/technical`, {
       method: "PATCH",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
