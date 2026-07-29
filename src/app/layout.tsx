@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Instrument_Serif } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { AuthTokenHandler } from "@/components/auth-token-handler";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AuthTokenHandler />
         {children}
+        <Analytics />
       </body>
     </html>
   );
