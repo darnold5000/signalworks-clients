@@ -8,6 +8,10 @@ import {
   sendClientProposalEmail,
 } from "@/lib/email/client-proposal-email";
 import {
+  buildBrandedConfirmInviteUrl,
+  isBrandedInviteFlowEnabled,
+} from "@/lib/auth/branded-invite-flow";
+import {
   ensureInviteActionLink,
   inviteRedirectUrl,
   loginWithNextUrl,
@@ -259,8 +263,34 @@ export function formatAuthInviteError(
 function extractAccessLink(
   attempt: GenerateLinkResponse,
   redirectTo: string,
+  options?: { linkType?: "invite" | "recovery" | "magiclink" },
 ): { inviteLink: string; userId: string } | null {
-  if (attempt.error || !attempt.data?.properties?.action_link) {
+  if (attempt.error || !attempt.data?.properties) {
+    return null;
+  }
+
+  const userId = attempt.data.user?.id;
+  if (!userId) return null;
+
+  const portalUrl = portalUrlForInvites();
+  const hashedToken = attempt.data.properties.hashed_token?.trim();
+
+  if (
+    isBrandedInviteFlowEnabled() &&
+    options?.linkType === "invite" &&
+    hashedToken
+  ) {
+    return {
+      inviteLink: buildBrandedConfirmInviteUrl(
+        portalUrl,
+        hashedToken,
+        "/auth/set-password",
+      ),
+      userId,
+    };
+  }
+
+  if (!attempt.data.properties.action_link) {
     return null;
   }
 
@@ -269,9 +299,6 @@ function extractAccessLink(
     redirectTo,
   );
   if (!inviteLink) return null;
-
-  const userId = attempt.data.user?.id;
-  if (!userId) return null;
 
   return { inviteLink, userId };
 }
@@ -321,7 +348,9 @@ export async function createClientPortalAccessLink(
 ): Promise<ClientPortalAccessLinkResult> {
   const email = normalizeAuthEmail(args.email);
   const portalUrl = portalUrlForInvites();
-  const inviteRedirect = inviteRedirectUrl(portalUrl);
+  const inviteRedirect = isBrandedInviteFlowEnabled()
+    ? `${portalUrl.replace(/\/$/, "")}/auth/set-password`
+    : inviteRedirectUrl(portalUrl);
 
   const existingUserId = await findAuthUserIdByEmail(supabase, email);
   if (existingUserId) {
@@ -349,7 +378,9 @@ export async function createClientPortalAccessLink(
     },
   });
 
-  const inviteResult = extractAccessLink(inviteAttempt, inviteRedirect);
+  const inviteResult = extractAccessLink(inviteAttempt, inviteRedirect, {
+    linkType: "invite",
+  });
   if (inviteResult) {
     return {
       inviteLink: inviteResult.inviteLink,
@@ -367,7 +398,9 @@ export async function createClientPortalAccessLink(
       },
     });
 
-    const recoveryResult = extractAccessLink(recoveryAttempt, inviteRedirect);
+    const recoveryResult = extractAccessLink(recoveryAttempt, inviteRedirect, {
+      linkType: "recovery",
+    });
     if (recoveryResult) {
       return {
         inviteLink: recoveryResult.inviteLink,

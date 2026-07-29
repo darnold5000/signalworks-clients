@@ -5,6 +5,8 @@ import {
   deliverClientInviteLink,
   getTenantOwnerInviteTarget,
 } from "@/lib/admin/client-invite-link";
+import { getResendInviteCooldownMessage } from "@/lib/admin/invite-resend-cooldown";
+import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import {
   createServiceClient,
@@ -56,6 +58,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const cooldown = await getResendInviteCooldownMessage(
+    supabase,
+    parsed.data.tenantId,
+  );
+  if (cooldown) {
+    return NextResponse.json({ error: cooldown }, { status: 429 });
+  }
+
   const linkResult = await createClientPortalAccessLink(supabase, {
     email: owner.email,
     fullName: owner.fullName,
@@ -73,6 +83,19 @@ export async function POST(request: Request) {
     inviteLink: linkResult.inviteLink,
     linkType: linkResult.linkType,
   });
+
+  if (delivery.inviteMethod === "email") {
+    await logTenantActivity({
+      tenantId: parsed.data.tenantId,
+      actorUserId: profile.id,
+      actorType: "admin",
+      action: "invite.resent",
+      entityType: "tenant",
+      entityId: parsed.data.tenantId,
+      summary: `Invite email resent to ${owner.email}`,
+      metadata: { link_type: linkResult.linkType },
+    });
+  }
 
   const returningUser =
     linkResult.linkType === "magiclink" || linkResult.linkType === "login";

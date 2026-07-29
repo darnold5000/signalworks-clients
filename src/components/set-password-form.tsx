@@ -46,6 +46,20 @@ export function SetPasswordForm({
       }
 
       const supabase = createClient();
+      const {
+        data: { user: existingUser },
+      } = await supabase.auth.getUser();
+
+      if (existingUser?.email) {
+        const metaName = existingUser.user_metadata?.full_name;
+        setEmail(existingUser.email);
+        if (typeof metaName === "string" && metaName.trim()) {
+          setFullName(metaName.trim());
+        }
+        setReady(true);
+        return;
+      }
+
       const result = await establishSessionFromAuthLink(supabase, cleanPath);
 
       if (cancelled) return;

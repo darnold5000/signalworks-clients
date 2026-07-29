@@ -15,7 +15,7 @@ export async function logTenantActivity(args: {
   if (!isServiceRoleConfigured()) return;
 
   const supabase = createServiceClient();
-  await supabase.from(TABLES.tenantActivityLog).insert({
+  const { error } = await supabase.from(TABLES.tenantActivityLog).insert({
     tenant_id: args.tenantId,
     actor_user_id: args.actorUserId ?? null,
     actor_type: args.actorType,
@@ -25,4 +25,8 @@ export async function logTenantActivity(args: {
     summary: args.summary,
     metadata: args.metadata ?? {},
   });
+
+  if (error) {
+    console.error("[logTenantActivity]", args.action, error.message);
+  }
 }

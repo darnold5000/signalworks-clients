@@ -34,12 +34,7 @@ import {
 import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
 import { syncAllOfferItemsToStripe } from "@/lib/offers/stripe-catalog";
 import { ROLE_SLUGS } from "@/lib/permissions";
-import {
-  ensureInviteActionLink,
-  inviteRedirectUrl,
-  portalUrlForInvites,
-  siteConfig,
-} from "@/lib/site";
+import { siteConfig } from "@/lib/site";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -430,7 +425,6 @@ export async function inviteClientWithOffer(
       };
     }
 
-    const redirectTo = inviteRedirectUrl(portalUrlForInvites());
     const linkResult = await createClientPortalAccessLink(supabase, {
       email: input.email,
       fullName: displayName,
@@ -466,6 +460,19 @@ export async function inviteClientWithOffer(
       });
       inviteMethod = delivery.inviteMethod;
       inviteEmailError = delivery.inviteEmailError;
+
+      if (inviteMethod === "email") {
+        await logTenantActivity({
+          tenantId,
+          actorUserId,
+          actorType: "admin",
+          action: "invite.email_sent",
+          entityType: "tenant",
+          entityId: tenantId,
+          summary: `Invite email sent to ${input.email}`,
+          metadata: { link_type: inviteLinkType },
+        });
+      }
     }
 
     await supabase.from(TABLES.profiles).upsert(

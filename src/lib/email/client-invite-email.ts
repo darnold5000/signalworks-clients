@@ -93,24 +93,29 @@ function inviteEmailCopy(args: {
     };
   }
 
-  const cta = `Set up your ${portal}`;
+  const cta = "Create your password";
   return {
-    subject: `You're invited to ${args.portalName}`,
+    subject: "Your Signal Works client portal is ready",
     cta,
     htmlBody: [
       `<p>Hi ${escapeHtml(args.firstName)},</p>`,
-      `<p>${escapeHtml(siteConfig.name)} has set up your client portal for <strong>${business}</strong>.</p>`,
-      `<p>Use the secure link below to create your password and access billing, website requests, and documents.</p>`,
+      `<p>Your <strong>${business}</strong> client portal is ready.</p>`,
+      `<p>Create your password to access billing, website requests, project updates, and important documents.</p>`,
       `<p><a href="{{LINK}}">${escapeHtml(cta)}</a></p>`,
+      `<p>This invitation link is intended only for you and may expire. If you were not expecting this email, you can ignore it or contact <a href="mailto:${siteConfig.supportEmail}">${siteConfig.supportEmail}</a>.</p>`,
     ].join(""),
     textBody: [
       `Hi ${args.firstName},`,
       "",
-      `${siteConfig.name} has set up your client portal for ${args.businessName}.`,
+      `Your ${args.businessName} client portal is ready.`,
       "",
-      "Use the secure link below to create your password:",
+      "Create your password to access billing, website requests, project updates, and important documents.",
       "",
+      `${cta}:`,
       "{{LINK}}",
+      "",
+      "This invitation link is intended only for you and may expire.",
+      `If you were not expecting this email, contact ${siteConfig.supportEmail}.`,
     ].join("\n"),
   };
 }
@@ -153,6 +158,8 @@ export async function sendClientInviteEmail(args: {
       to: [emailNorm],
       reply_to: siteConfig.supportEmail,
       subject: copy.subject,
+      click_tracking: false,
+      open_tracking: false,
       html: [
         html,
         `<p>If you were not expecting this, you can ignore this email or contact us at <a href="mailto:${siteConfig.supportEmail}">${siteConfig.supportEmail}</a>.</p>`,

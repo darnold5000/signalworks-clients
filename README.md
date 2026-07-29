@@ -90,6 +90,8 @@ Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env.local`. Verify `hiresignal
 
 **Invite links always use `https://clients.hiresignalworks.com`** (or a non-localhost `NEXT_PUBLIC_APP_URL`), even when you invite from local dev — so clients never receive `localhost` redirects.
 
+Set `SIGNALWORKS_BRANDED_INVITE_FLOW=true` in production when ready to send invites through `/auth/confirm-invite` (Signal Works domain only in the email CTA). Leave unset or `false` to keep legacy Supabase verify URLs via `/auth/callback` for in-flight invites.
+
 Optional later: Stripe Payment Link for the Price, then attach `cus_` / `sub_` to the tenant subscription row.
 
 ## Docs

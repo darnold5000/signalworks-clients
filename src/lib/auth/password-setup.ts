@@ -42,6 +42,8 @@ export const AUTH_SETUP_PATH_PREFIXES = [
   "/auth/reset-password",
   "/auth/callback",
   "/auth/confirm",
+  "/auth/confirm-invite",
+  "/auth/invite-error",
   "/auth/establish-session",
   "/api/auth/",
 ] as const;
