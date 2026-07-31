@@ -58,6 +58,17 @@ describe("adminRunAuditSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("accepts null optional fields from the admin form", () => {
+    const parsed = adminRunAuditSchema.safeParse({
+      rawUrl: "https://example.com",
+      scopeChoice: "website",
+      tenantId: null,
+      businessName: null,
+      internalNotes: null,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
   it("maps scope choice to audit type", () => {
     expect(toAuditType("website")).toBe("public");
     expect(toAuditType("client_health")).toBe("client_health");

@@ -5,8 +5,8 @@ export const adminRunAuditSchema = z
     rawUrl: z.string().trim().min(1, "Website URL is required."),
     scopeChoice: z.enum(["website", "client_health"]),
     tenantId: z.string().uuid().nullable().optional(),
-    businessName: z.string().trim().max(200).optional(),
-    internalNotes: z.string().trim().max(4000).optional(),
+    businessName: z.string().trim().max(200).nullish(),
+    internalNotes: z.string().trim().max(4000).nullish(),
   })
   .superRefine((value, ctx) => {
     if (value.scopeChoice === "client_health" && !value.tenantId) {
