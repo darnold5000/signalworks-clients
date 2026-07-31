@@ -12,6 +12,11 @@ export const PERMISSIONS = {
   manageClientTechnicalDetails: "manage_client_technical_details",
   manageClientOffers: "manage_client_offers",
   manageClientAgreements: "manage_client_agreements",
+  viewAudits: "view_audits",
+  runAudits: "run_audits",
+  manageAudits: "manage_audits",
+  viewAuditIntegrations: "view_audit_integrations",
+  manageAuditIntegrations: "manage_audit_integrations",
 } as const;
 
 export const ROLE_SLUGS = {

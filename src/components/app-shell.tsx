@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ClipboardList,
   CreditCard,
   FileText,
   GitBranch,
@@ -26,6 +27,7 @@ const CLIENT_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin/clients", label: "Clients", icon: Shield },
+  { href: "/admin/audits", label: "Audits", icon: ClipboardList },
   { href: "/admin/pipeline", label: "Pipeline", icon: GitBranch },
 ];
 

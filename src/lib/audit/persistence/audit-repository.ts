@@ -1,0 +1,207 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { AUDIT_ENGINE_VERSION } from "@/lib/audit/constants";
+import { TABLES } from "@/lib/supabase/tables";
+import type {
+  AuditCollectorResult,
+  AuditRunPersistence,
+  AuditRunProgress,
+  AuditScope,
+  NormalizedAuditUrl,
+} from "@/lib/audit/types";
+import type { GeneratedRecommendation } from "@/lib/audit/recommendations/generate";
+import type { CategoryScoreResult } from "@/lib/audit/scoring/score-audit";
+
+export type CreateAuditRunInput = {
+  auditType: AuditScope["auditType"];
+  scopeVersion: string;
+  tenantId: string | null;
+  url: NormalizedAuditUrl;
+  businessName?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  city?: string | null;
+  source?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  requestedByUserId?: string | null;
+  internalNotes?: string | null;
+};
+
+export type CreatedAuditExecution = {
+  requestId: string;
+  runId: string;
+  publicAccessToken: string;
+};
+
+export async function createAuditExecution(
+  supabase: SupabaseClient,
+  input: CreateAuditRunInput,
+): Promise<CreatedAuditExecution> {
+  const { data: request, error: requestError } = await supabase
+    .from(TABLES.auditRequests)
+    .insert({
+      tenant_id: input.tenantId,
+      audit_type: input.auditType,
+      requested_url: input.url.input,
+      normalized_url: input.url.normalizedUrl,
+      normalized_domain: input.url.normalizedDomain,
+      business_name: input.businessName ?? null,
+      contact_name: input.contactName ?? null,
+      contact_email: input.contactEmail ?? null,
+      city: input.city ?? null,
+      source: input.source ?? null,
+      utm_source: input.utmSource ?? null,
+      utm_medium: input.utmMedium ?? null,
+      utm_campaign: input.utmCampaign ?? null,
+      requested_by_user_id: input.requestedByUserId ?? null,
+      internal_notes: input.internalNotes ?? null,
+      status: "pending",
+    })
+    .select("id, public_access_token")
+    .single();
+
+  if (requestError || !request) {
+    throw new Error(requestError?.message ?? "Failed to create audit request.");
+  }
+
+  const { data: run, error: runError } = await supabase
+    .from(TABLES.auditRuns)
+    .insert({
+      audit_request_id: request.id,
+      tenant_id: input.tenantId,
+      status: "queued",
+      engine_version: AUDIT_ENGINE_VERSION,
+      scope_version: input.scopeVersion,
+      progress_json: {},
+    })
+    .select("id")
+    .single();
+
+  if (runError || !run) {
+    throw new Error(runError?.message ?? "Failed to create audit run.");
+  }
+
+  return {
+    requestId: request.id,
+    runId: run.id,
+    publicAccessToken: request.public_access_token,
+  };
+}
+
+export function createSupabaseAuditPersistence(
+  supabase: SupabaseClient,
+): AuditRunPersistence {
+  return {
+    async markRunning(runId) {
+      const { error } = await supabase
+        .from(TABLES.auditRuns)
+        .update({
+          status: "running",
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", runId);
+
+      if (error) throw new Error(error.message);
+    },
+
+    async saveProgress(runId, progress: AuditRunProgress) {
+      const { error } = await supabase
+        .from(TABLES.auditRuns)
+        .update({ progress_json: progress })
+        .eq("id", runId);
+
+      if (error) throw new Error(error.message);
+    },
+
+    async saveCollectorFindings(runId, tenantId, result: AuditCollectorResult) {
+      if (result.findings.length === 0) return;
+
+      const rows = result.findings.map((finding) => ({
+        audit_run_id: runId,
+        tenant_id: tenantId,
+        category: finding.category,
+        check_key: finding.checkKey,
+        severity: finding.severity,
+        status: finding.status,
+        score: finding.score ?? null,
+        title: finding.title,
+        summary: finding.summary,
+        evidence_json: finding.evidenceJson ?? {},
+        source_type: finding.sourceType,
+        source_label: finding.sourceLabel,
+        is_public: finding.isPublic ?? false,
+        is_client_visible: finding.isClientVisible ?? true,
+      }));
+
+      const { error } = await supabase.from(TABLES.auditFindings).insert(rows);
+      if (error) throw new Error(error.message);
+    },
+
+    async saveCategoryScores(runId, scores: CategoryScoreResult[]) {
+      if (scores.length === 0) return;
+
+      const rows = scores.map((row) => ({
+        audit_run_id: runId,
+        category: row.category,
+        score: row.score,
+        weight: row.weight,
+        finding_count: row.scorableFindingCount,
+      }));
+
+      const { error } = await supabase.from(TABLES.auditScores).insert(rows);
+      if (error) throw new Error(error.message);
+    },
+
+    async saveRecommendations(
+      runId,
+      recommendations: GeneratedRecommendation[],
+    ) {
+      if (recommendations.length === 0) return;
+
+      const rows = recommendations.map((recommendation) => ({
+        audit_run_id: runId,
+        recommendation_key: recommendation.recommendationKey,
+        priority: recommendation.priority,
+        title: recommendation.title,
+        description: recommendation.description,
+        impact: recommendation.impact,
+        effort: recommendation.effort,
+        signalworks_service_key: recommendation.signalworksServiceKey,
+        supporting_finding_keys: recommendation.supportingFindingKeys,
+        is_public: recommendation.isPublic,
+        is_client_visible: recommendation.isClientVisible,
+        status: "recommended",
+      }));
+
+      const { error } = await supabase.from(TABLES.auditRecommendations).insert(rows);
+      if (error) throw new Error(error.message);
+    },
+
+    async completeRun(runId, input) {
+      const { error } = await supabase
+        .from(TABLES.auditRuns)
+        .update({
+          status: input.status,
+          overall_score: input.overallScore,
+          summary: input.summary,
+          progress_json: input.progress,
+          completed_at: new Date().toISOString(),
+          error_code: input.errorCode ?? null,
+          error_message_internal: input.errorMessageInternal ?? null,
+        })
+        .eq("id", runId);
+
+      if (error) throw new Error(error.message);
+    },
+
+    async markRequestStatus(requestId, status) {
+      const { error } = await supabase
+        .from(TABLES.auditRequests)
+        .update({ status })
+        .eq("id", requestId);
+
+      if (error) throw new Error(error.message);
+    },
+  };
+}

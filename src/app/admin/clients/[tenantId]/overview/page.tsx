@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AdminBusinessProfileForm } from "@/components/admin/admin-business-profile-form";
 import { AdminPortalWebsiteForm } from "@/components/admin/admin-portal-website-form";
+import { ClientAuditSummaryCard } from "@/components/admin/audits/client-audit-summary-card";
 import { DeleteClientPanel } from "@/components/admin/delete-client-panel";
 import { InternalNotesPanel } from "@/components/admin/admin-client-header";
 import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
@@ -11,6 +12,7 @@ import {
   REQUEST_STATUS_LABELS,
   REQUEST_TYPE_LABELS,
 } from "@/lib/types";
+import { getClientAuditSummary } from "@/lib/audit/admin/queries";
 import { formatDate, formatDateTime, formatMoney, monthlyMarginCents } from "@/lib/utils";
 
 export default async function AdminClientOverviewPage({
@@ -37,6 +39,8 @@ export default async function AdminClientOverviewPage({
     client.estimated_infra_cost_cents,
   );
   const lastRequest = requests[0];
+  const auditSummary = await getClientAuditSummary(tenantId);
+  const websiteUrl = client.website_url ?? profile?.website_url ?? null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -51,6 +55,12 @@ export default async function AdminClientOverviewPage({
       <AdminPortalWebsiteForm client={client} />
 
       <InfrastructureSummaryCard bundle={bundle} />
+
+      <ClientAuditSummaryCard
+        tenantId={tenantId}
+        websiteUrl={websiteUrl}
+        summary={auditSummary}
+      />
 
       <Panel title="Account summary">
         <dl>

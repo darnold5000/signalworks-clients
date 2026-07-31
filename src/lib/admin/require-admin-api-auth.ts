@@ -91,3 +91,15 @@ export const TECHNICAL_PROFILE_ADMIN_PERMISSIONS = [
   PERMISSIONS.manageTenants,
   PERMISSIONS.manageClientTechnicalDetails,
 ] as const;
+
+export const AUDIT_VIEW_PERMISSIONS = [
+  PERMISSIONS.viewAudits,
+  PERMISSIONS.manageAudits,
+  PERMISSIONS.manageTenants,
+] as const;
+
+export const AUDIT_RUN_PERMISSIONS = [
+  PERMISSIONS.runAudits,
+  PERMISSIONS.manageAudits,
+  PERMISSIONS.manageTenants,
+] as const;

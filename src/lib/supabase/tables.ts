@@ -24,6 +24,13 @@ export const TABLES = {
   clientPipeline: "client_pipeline",
   platformPlanTemplates: "platform_plan_templates",
   platformProductCatalog: "platform_product_catalog",
+  auditRequests: "audit_requests",
+  auditRuns: "audit_runs",
+  auditFindings: "audit_findings",
+  auditScores: "audit_scores",
+  auditRecommendations: "audit_recommendations",
+  auditArtifacts: "audit_artifacts",
+  auditIntegrations: "audit_integrations",
 } as const;
 
 /** @deprecated Use TABLES */
