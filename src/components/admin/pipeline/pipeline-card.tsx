@@ -27,18 +27,18 @@ export function PipelineCard({
   statusUpdating?: boolean;
 }) {
   return (
-    <article className="rounded-xl border border-border bg-surface p-4 lg:hidden">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface p-4 lg:hidden">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <Link
             href={`/admin/pipeline/${client.id}`}
-            className="font-medium underline-offset-2 hover:underline"
+            className="font-medium break-words underline-offset-2 hover:underline"
           >
             {client.business_name}
           </Link>
-          <p className="mt-1 text-sm text-muted">{client.contact_name}</p>
+          <p className="mt-1 text-sm break-words text-muted">{client.contact_name}</p>
           {client.contact_email ? (
-            <p className="text-xs text-muted">{client.contact_email}</p>
+            <p className="text-xs break-all text-muted">{client.contact_email}</p>
           ) : null}
         </div>
         <PipelineStatusBadge status={client.status} />
@@ -72,7 +72,7 @@ export function PipelineCard({
         </div>
         <div>
           <p className="text-xs tracking-wide text-muted uppercase">Last Conversation</p>
-          <p className="mt-1 line-clamp-2 text-muted">
+          <p className="mt-1 line-clamp-3 break-words text-muted">
             {truncateText(client.last_conversation)}
           </p>
           <p className="mt-1 text-xs text-muted">

@@ -145,7 +145,7 @@ export function ClientPipelineDetails({
           <MetaRow
             label="Last Conversation"
             value={
-              <span className="block max-w-md whitespace-pre-wrap text-left">
+              <span className="block whitespace-pre-wrap text-left">
                 {client.last_conversation || "—"}
               </span>
             }
@@ -153,7 +153,7 @@ export function ClientPipelineDetails({
           <MetaRow
             label="Plan / Next Step"
             value={
-              <span className="block max-w-md whitespace-pre-wrap text-left">
+              <span className="block whitespace-pre-wrap text-left">
                 {client.plan || "—"}
               </span>
             }

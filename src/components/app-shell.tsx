@@ -53,10 +53,17 @@ export function AppShell({
     window.location.assign("/login");
   }
 
+  const contentMaxWidth = isAdmin ? "max-w-screen-2xl" : "max-w-6xl";
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div
+          className={cn(
+            "mx-auto flex items-center justify-between gap-4 px-4 py-4 sm:px-6",
+            contentMaxWidth,
+          )}
+        >
           <div>
             <Link href={isAdmin ? "/admin/clients" : "/overview"} className="block">
               <p className="font-display text-xl text-foreground">
@@ -84,7 +91,12 @@ export function AppShell({
             </button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
+        <nav
+          className={cn(
+            "mx-auto flex gap-1 overflow-x-auto px-4 pb-3 sm:px-6",
+            contentMaxWidth,
+          )}
+        >
           {nav.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -107,7 +119,9 @@ export function AppShell({
           })}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <main className={cn("mx-auto px-4 py-8 sm:px-6", contentMaxWidth)}>
+        {children}
+      </main>
     </div>
   );
 }

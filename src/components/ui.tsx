@@ -134,7 +134,9 @@ export function MetaRow({
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border py-3 last:border-0">
       <dt className="text-sm text-muted">{label}</dt>
-      <dd className="text-right text-sm font-medium text-foreground">{value}</dd>
+      <dd className="min-w-0 max-w-[65%] text-right text-sm font-medium break-words text-foreground">
+        {value}
+      </dd>
     </div>
   );
 }
