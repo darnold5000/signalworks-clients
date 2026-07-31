@@ -90,7 +90,7 @@ export function AuditListClient({
               disabled={pending}
             >
               <option value="">All types</option>
-              <option value="public">Website audit</option>
+              <option value="public">Website health check</option>
               <option value="client_health">Client Health</option>
             </select>
           </label>

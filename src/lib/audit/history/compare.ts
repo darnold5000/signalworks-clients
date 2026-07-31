@@ -71,3 +71,10 @@ export function formatScoreCoverageLabel(
 ): string {
   return `Score based on ${scoredCount} of ${eligibleCount} available categories`;
 }
+
+export {
+  formatConfidenceLabel,
+  formatCoverageShort,
+  getScoreConfidence,
+  type ScoreConfidence,
+} from "@/lib/audit/presentation/health-score";

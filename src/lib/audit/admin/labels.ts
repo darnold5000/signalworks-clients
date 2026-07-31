@@ -1,5 +1,5 @@
 export const AUDIT_TYPE_LABELS: Record<string, string> = {
-  public: "Website audit",
+  public: "Website health check",
   client_health: "Client Health",
 };
 

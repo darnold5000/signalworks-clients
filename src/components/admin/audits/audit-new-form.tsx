@@ -119,7 +119,7 @@ export function AuditNewForm({
               onChange={() => setScopeChoice("website")}
               disabled={submitting}
             />
-            Public-style website audit
+            Website health check (standard scope)
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input

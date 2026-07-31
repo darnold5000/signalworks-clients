@@ -1,0 +1,116 @@
+import type { AuditRunProgress } from "@/lib/audit/types";
+import {
+  filterFindingsForPublicAudience,
+} from "@/lib/audit/public/visibility";
+import { recommendationCategoryForKey } from "@/lib/audit/presentation/recommendation-catalog";
+import type { PublicAuditDetail } from "@/lib/audit/public/types";
+import { createServiceClient } from "@/lib/supabase/server";
+import { TABLES } from "@/lib/supabase/tables";
+
+function isValidToken(token: string): boolean {
+  return /^[a-f0-9]{64}$/i.test(token);
+}
+
+export async function getPublicAuditByToken(
+  token: string,
+): Promise<PublicAuditDetail | null> {
+  if (!isValidToken(token)) return null;
+
+  const supabase = createServiceClient();
+  const { data: request, error: requestError } = await supabase
+    .from(TABLES.auditRequests)
+    .select(
+      "id, audit_type, business_name, normalized_domain, normalized_url, tenant_id, created_at",
+    )
+    .eq("public_access_token", token)
+    .eq("audit_type", "public")
+    .is("tenant_id", null)
+    .maybeSingle();
+
+  if (requestError) throw new Error(requestError.message);
+  if (!request) return null;
+
+  const { data: run, error: runError } = await supabase
+    .from(TABLES.auditRuns)
+    .select(
+      "id, status, overall_score, summary, progress_json, created_at, completed_at",
+    )
+    .eq("audit_request_id", request.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (runError) throw new Error(runError.message);
+  if (!run) return null;
+
+  const [{ data: findings }, { data: scores }, { data: recommendations }] =
+    await Promise.all([
+      supabase.from(TABLES.auditFindings).select("*").eq("audit_run_id", run.id),
+      supabase.from(TABLES.auditScores).select("*").eq("audit_run_id", run.id),
+      supabase
+        .from(TABLES.auditRecommendations)
+        .select("*")
+        .eq("audit_run_id", run.id)
+        .order("priority", { ascending: true }),
+    ]);
+
+  const mappedFindings = (findings ?? []).map((row) => ({
+    category: row.category,
+    checkKey: row.check_key,
+    severity: row.severity,
+    status: row.status,
+    title: row.title,
+    summary: row.summary,
+    sourceLabel: row.source_label,
+    isPublic: row.is_public,
+    sourceType: row.source_type,
+  }));
+
+  const publicFindings = filterFindingsForPublicAudience(mappedFindings);
+
+  const publicRecommendations = (recommendations ?? [])
+    .filter((row) => row.is_public)
+    .map((row) => ({
+      recommendationKey: row.recommendation_key,
+      category: recommendationCategoryForKey(row.recommendation_key),
+      priority: row.priority,
+      title: row.title,
+      description: row.description,
+      impact: row.impact,
+      effort: row.effort,
+      signalworksServiceKey: row.signalworks_service_key,
+    }));
+
+  return {
+    token,
+    runId: run.id,
+    status: run.status,
+    businessName: request.business_name,
+    normalizedDomain: request.normalized_domain,
+    normalizedUrl: request.normalized_url,
+    overallScore: run.overall_score,
+    summary: run.summary,
+    completedAt: run.completed_at,
+    createdAt: run.created_at,
+    progress: (run.progress_json ?? {
+      phase: "complete",
+      collectors: {},
+      updatedAt: run.created_at,
+    }) as AuditRunProgress,
+    scores: (scores ?? []).map((row) => ({
+      category: row.category,
+      score: Number(row.score),
+      weight: Number(row.weight),
+    })),
+    findings: publicFindings.map((finding) => ({
+      category: finding.category,
+      checkKey: finding.checkKey,
+      severity: finding.severity,
+      status: finding.status,
+      title: finding.title,
+      summary: finding.summary,
+      sourceLabel: finding.sourceLabel,
+    })),
+    recommendations: publicRecommendations,
+  };
+}

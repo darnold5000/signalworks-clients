@@ -12,7 +12,11 @@ import {
   formatScoreChange,
 } from "@/lib/audit/admin/labels";
 import type { AuditRunDetail } from "@/lib/audit/admin/types";
-import { formatScoreCoverageLabel } from "@/lib/audit/history/compare";
+import {
+  formatConfidenceLabel,
+  formatScoreCoverageLabel,
+  getScoreConfidence,
+} from "@/lib/audit/history/compare";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +37,7 @@ function visibilityBadges(finding: {
   isClientVisible: boolean;
 }) {
   const badges = [];
-  if (finding.isPublic) badges.push("Public");
+  if (finding.isPublic) badges.push("Marketing");
   if (finding.isClientVisible) badges.push("Client");
   if (!finding.isPublic && !finding.isClientVisible) badges.push("Internal");
   return badges;
@@ -55,6 +59,10 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
           scoring.scoredCategoryCount,
           scoring.eligibleCategoryCount,
         )
+      : null;
+  const confidenceLabel =
+    scoring?.scoredCategoryCount != null
+      ? formatConfidenceLabel(getScoreConfidence(scoring.scoredCategoryCount))
       : null;
 
   const collectorLabels = useMemo(
@@ -156,6 +164,9 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
             <p className="font-display text-5xl">{detail.overallScore ?? "—"}</p>
             {coverageLabel ? (
               <p className="mt-2 text-sm font-medium text-warning">{coverageLabel}</p>
+            ) : null}
+            {confidenceLabel ? (
+              <p className="mt-1 text-sm text-muted">Confidence: {confidenceLabel}</p>
             ) : null}
             {scoring?.unavailableCategories?.length ? (
               <p className="mt-2 text-sm text-muted">
@@ -351,7 +362,7 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {rec.isPublic ? <StatusPill label="Public" tone="neutral" /> : null}
+                    {rec.isPublic ? <StatusPill label="Marketing" tone="neutral" /> : null}
                     {rec.isClientVisible ? (
                       <StatusPill label="Client" tone="neutral" />
                     ) : null}
