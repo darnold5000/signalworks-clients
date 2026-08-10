@@ -135,6 +135,7 @@ export async function executeAuditSynchronously(
   if (input.auditType === "public" && outcome.status !== "failed") {
     try {
       const snapshot = await runSearchVisibility({
+        auditId: created.runId,
         normalizedUrl: url.normalizedUrl,
         businessName: input.businessName ?? null,
         city: input.city ?? null,
@@ -143,9 +144,12 @@ export async function executeAuditSynchronously(
           return response ? { bodyText: response.bodyText } : null;
         },
       });
+      console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId });
       await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
+      console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId });
     } catch (error) {
       console.error("[audit/search-visibility] measurement failed", error);
+      console.error("[audit/search-visibility] database persistence attempted", { auditId: created.runId, status: "failed" });
       await saveSearchVisibilitySnapshot(supabase, created.runId, {
         status: "failed",
         score: null,
@@ -157,7 +161,10 @@ export async function executeAuditSynchronously(
         summary: null,
         errorMessage: error instanceof Error ? error.message : "Search visibility failed.",
         checkedAt: null,
-      }).catch((saveError) => console.error("[audit/search-visibility] snapshot save failed", saveError));
+      }).then(
+        () => console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId, status: "failed" }),
+        (saveError) => console.error("[audit/search-visibility] database persistence failed", { auditId: created.runId, error: saveError instanceof Error ? saveError.message : saveError }),
+      );
     }
   }
 

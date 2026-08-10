@@ -2,11 +2,21 @@ import { extractHeadings, extractLinks } from "@/lib/audit/collectors/shared/htm
 import { normalizeAuditUrl } from "@/lib/audit/url/normalize";
 import { fetchGoogleOrganicResults } from "./client";
 import { generateSearchQueries } from "./query-generation";
-import { scoreSearchVisibility } from "./scoring";
+import { scoreSearchVisibility, scoreSearchVisibilityTypes } from "./scoring";
 import type { SearchVisibilityResult, SearchVisibilitySnapshot } from "./types";
 
 function normalizeHostname(value: string) {
   return normalizeAuditUrl(value).normalizedDomain;
+}
+
+function hostnameForLog(value: string | undefined, stripWww = false) {
+  if (!value) return null;
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return stripWww ? hostname.replace(/^www\./, "") : hostname;
+  } catch {
+    return null;
+  }
 }
 
 export function domainMatches(rankingUrl: string, targetDomain: string) {
@@ -30,6 +40,7 @@ function detectServices(html: string): string[] {
 }
 
 export async function runSearchVisibility(input: {
+  auditId: string;
   normalizedUrl: string;
   businessName: string | null;
   city: string | null;
@@ -41,19 +52,28 @@ export async function runSearchVisibility(input: {
   const [city, state] = (input.city ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   const locationName = city ? `${city}${state ? `, ${state}` : ""}, United States` : "United States";
   const queries = generateSearchQueries({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
+  console.info("[audit/search-visibility] started", {
+    auditId: input.auditId,
+    normalizedDomain: normalizeHostname(input.normalizedUrl),
+    businessName: input.businessName,
+    city: city ?? null,
+    state: state ?? null,
+    generatedQueries: queries.length,
+  });
   if (queries.length === 0) {
     return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null };
   }
 
   const targetDomain = normalizeHostname(input.normalizedUrl);
   const results = await Promise.all(queries.map(async (query): Promise<SearchVisibilityResult> => {
-    let items;
+    console.info("[audit/search-visibility] query", { auditId: input.auditId, query: query.query, type: query.type, location: locationName });
+    let response;
     try {
-      items = await fetchGoogleOrganicResults({ keyword: query.query, locationName });
+      response = await fetchGoogleOrganicResults({ keyword: query.query, locationName });
     } catch (error) {
       if (locationName !== "United States") {
         try {
-          items = await fetchGoogleOrganicResults({ keyword: query.query, locationName: "United States" });
+          response = await fetchGoogleOrganicResults({ keyword: query.query, locationName: "United States" });
         } catch {
           throw error;
         }
@@ -61,8 +81,27 @@ export async function runSearchVisibility(input: {
         throw error;
       }
     }
-    const match = items.find((item) => item.url && domainMatches(item.url, targetDomain));
-    return { query: query.query, type: query.type, service: query.service, position: match?.rank_absolute && match.rank_absolute <= 30 ? match.rank_absolute : null, found: Boolean(match?.rank_absolute && match.rank_absolute <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google", location: locationName };
+    const organicItems = response.items.filter((item) => item.type === "organic");
+    const usableItems = organicItems.length > 0 ? organicItems : response.items.filter((item) => item.url && (item.rank_absolute != null || item.rank_group != null));
+    const match = usableItems.find((item) => item.url && domainMatches(item.url, targetDomain));
+    const matchedPosition = match?.rank_absolute ?? match?.rank_group ?? null;
+    console.info("[audit/search-visibility] results", {
+      auditId: input.auditId,
+      query: query.query,
+      resultObjects: response.resultCount,
+      serpItems: response.items.length,
+      organicItems: organicItems.length,
+      itemTypes: response.itemTypes,
+      matchedDomainResults: match ? 1 : 0,
+      matchedResultHostname: hostnameForLog(match?.url),
+      matchedResultNormalizedHostname: hostnameForLog(match?.url, true),
+      matched: Boolean(match),
+      matchedPosition,
+    });
+    return { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google", location: locationName };
   }));
-  return { status: "completed", score: scoreSearchVisibility(results).score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName, results, summary: scoreSearchVisibility(results), checkedAt };
+  const summary = scoreSearchVisibility(results);
+  const typeScores = scoreSearchVisibilityTypes(results);
+  console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
+  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName, results, summary, checkedAt };
 }

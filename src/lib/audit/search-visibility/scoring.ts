@@ -12,12 +12,19 @@ function visibilityValue(position: number | null) {
   return 20;
 }
 
+export function scoreSearchVisibilityTypes(results: SearchVisibilityResult[]) {
+  const average = (items: SearchVisibilityResult[]) => items.length
+    ? items.reduce((sum, item) => sum + visibilityValue(item.position), 0) / items.length
+    : null;
+  return {
+    branded: average(results.filter((result) => result.type === "branded")),
+    discovery: average(results.filter((result) => result.type === "discovery")),
+  };
+}
+
 export function scoreSearchVisibility(results: SearchVisibilityResult[]): SearchVisibilitySummary {
   const discovery = results.filter((result) => result.type === "discovery");
-  const branded = results.filter((result) => result.type === "branded");
-  const average = (items: SearchVisibilityResult[]) => items.length ? items.reduce((sum, item) => sum + visibilityValue(item.position), 0) / items.length : null;
-  const discoveryScore = average(discovery);
-  const brandedScore = average(branded);
+  const { discovery: discoveryScore, branded: brandedScore } = scoreSearchVisibilityTypes(results);
   const score = Math.round((discoveryScore == null ? brandedScore ?? 0 : brandedScore == null ? discoveryScore : discoveryScore * 0.85 + brandedScore * 0.15));
   const found = results.filter((result) => result.position != null && result.position <= 30);
   const bestDiscovery = discovery.filter((result) => result.position != null).sort((a, b) => (a.position! - b.position!))[0] ?? null;

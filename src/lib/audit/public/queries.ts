@@ -54,11 +54,21 @@ export async function getPublicAuditByToken(
         .eq("audit_run_id", run.id)
         .order("priority", { ascending: true }),
     ]);
-  const { data: searchVisibility } = await supabase
+  const { data: searchVisibility, error: searchVisibilityError } = await supabase
     .from("audit_search_visibility")
     .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position")
     .eq("audit_run_id", run.id)
     .maybeSingle();
+  if (searchVisibilityError) {
+    console.error("[audit/search-visibility] public read failed", {
+      auditId: run.id,
+      message: searchVisibilityError.message,
+      code: searchVisibilityError.code,
+      hint: searchVisibilityError.hint,
+    });
+  } else {
+    console.info("[audit/search-visibility] public read", { auditId: run.id, populated: Boolean(searchVisibility), status: searchVisibility?.status ?? null, score: searchVisibility?.score ?? null });
+  }
 
   const mappedFindings = (findings ?? []).map((row) => ({
     category: row.category,
