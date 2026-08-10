@@ -6,6 +6,8 @@ import { recommendationCategoryForKey } from "@/lib/audit/presentation/recommend
 import type { PublicAuditDetail } from "@/lib/audit/public/types";
 import type { SearchVisibilityResult } from "@/lib/audit/search-visibility/types";
 import { scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
+import type { LocalSearchResult } from "@/lib/audit/local-search/types";
+import { scoreLocalSearch } from "@/lib/audit/local-search/scoring";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -72,6 +74,14 @@ export async function getPublicAuditByToken(
   }
   const searchResults = (searchVisibility?.results_json ?? []) as SearchVisibilityResult[];
   const calculatedSearchSummary = scoreSearchVisibility(searchResults);
+  const { data: localSearch, error: localSearchError } = await supabase
+    .from("audit_local_search_visibility")
+    .select("status, score, profile_key, entered_market, normalized_market, location_name, location_code, results_json, queries_analyzed, found_count, top_three_count, top_ten_count, not_found_count, best_position, average_position, checked_at")
+    .eq("audit_run_id", run.id)
+    .maybeSingle();
+  if (localSearchError) console.error("[audit/local-search] public read failed", { auditId: run.id, message: localSearchError.message, code: localSearchError.code });
+  const localResults = (localSearch?.results_json ?? []) as LocalSearchResult[];
+  const calculatedLocalSummary = scoreLocalSearch(localResults);
 
   const mappedFindings = (findings ?? []).map((row) => ({
     category: row.category,
@@ -152,6 +162,19 @@ export async function getPublicAuditByToken(
             bestDiscoveryQuery: searchVisibility.best_discovery_query,
             bestDiscoveryPosition: searchVisibility.best_discovery_position,
           },
+        }
+      : null,
+    localSearch: localSearch
+      ? {
+          status: localSearch.status,
+          score: localSearch.score == null ? null : Number(localSearch.score),
+          profileKey: localSearch.profile_key,
+          enteredMarket: localSearch.entered_market,
+          normalizedMarket: localSearch.normalized_market,
+          locationName: localSearch.location_name,
+          locationCode: localSearch.location_code,
+          results: localResults,
+          summary: localSearch.status === "completed" ? calculatedLocalSummary : null,
         }
       : null,
   };

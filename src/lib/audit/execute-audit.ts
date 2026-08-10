@@ -9,6 +9,7 @@ import {
   createAuditExecution,
   createSupabaseAuditPersistence,
   saveSearchVisibilitySnapshot,
+  saveLocalSearchSnapshot,
 } from "@/lib/audit/persistence/audit-repository";
 import { runAudit } from "@/lib/audit/runner/run-audit";
 import { createSafeFetch } from "@/lib/audit/url/safe-fetch";
@@ -21,6 +22,8 @@ import type {
   AuditType,
 } from "@/lib/audit/types";
 import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
+import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
+import { runLocalSearch } from "@/lib/audit/local-search/run";
 
 export type ExecuteAuditInput = {
   rawUrl: string;
@@ -133,6 +136,7 @@ export async function executeAuditSynchronously(
   );
 
   if (input.auditType === "public" && outcome.status !== "failed") {
+    let organicSnapshot: Awaited<ReturnType<typeof runSearchVisibility>> | null = null;
     try {
       const snapshot = await runSearchVisibility({
         auditId: created.runId,
@@ -144,6 +148,7 @@ export async function executeAuditSynchronously(
           return response ? { bodyText: response.bodyText } : null;
         },
       });
+      organicSnapshot = snapshot;
       console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId });
       await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
       console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId });
@@ -165,6 +170,30 @@ export async function executeAuditSynchronously(
         () => console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId, status: "failed" }),
         (saveError) => console.error("[audit/search-visibility] database persistence failed", { auditId: created.runId, error: saveError instanceof Error ? saveError.message : saveError }),
       );
+    }
+
+    try {
+      const homepage = await collectorServices.getHomepage();
+      const [city, state] = (input.city ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+      const location = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
+      const localSnapshot = await runLocalSearch({
+        auditId: created.runId,
+        normalizedUrl: url.normalizedUrl,
+        businessName: input.businessName ?? null,
+        enteredMarket: input.city ?? null,
+        city: city ?? null,
+        state: state ?? null,
+        locationCode: location.locationCode,
+        locationName: location.locationName,
+        homepageText: homepage?.bodyText ?? "",
+        discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery").map((result) => result.query) ?? [],
+      });
+      console.info("[audit/local-search] database persistence attempted", { auditId: created.runId });
+      await saveLocalSearchSnapshot(supabase, created.runId, localSnapshot);
+      console.info("[audit/local-search] database persistence succeeded", { auditId: created.runId });
+    } catch (error) {
+      console.error("[audit/local-search] measurement failed", { auditId: created.runId, error: error instanceof Error ? error.message : error });
+      await saveLocalSearchSnapshot(supabase, created.runId, { status: "failed", score: null, profileKey: null, enteredMarket: input.city ?? null, normalizedMarket: null, locationName: null, locationCode: null, results: [], summary: null, errorMessage: error instanceof Error ? error.message : "Local search failed.", checkedAt: null }).catch((saveError) => console.error("[audit/local-search] persistence failed", saveError));
     }
   }
 

@@ -8,6 +8,7 @@ import type {
   AuditScope,
   NormalizedAuditUrl,
 } from "@/lib/audit/types";
+import type { LocalSearchSnapshot } from "@/lib/audit/local-search/types";
 import type { GeneratedRecommendation } from "@/lib/audit/recommendations/generate";
 import type { CategoryScoreResult } from "@/lib/audit/scoring/score-audit";
 import type { SearchVisibilitySnapshot } from "@/lib/audit/search-visibility/types";
@@ -229,6 +230,35 @@ export async function saveSearchVisibilitySnapshot(
     not_found_count: summary?.notFoundCount ?? 0,
     best_discovery_query: summary?.bestDiscoveryQuery ?? null,
     best_discovery_position: summary?.bestDiscoveryPosition ?? null,
+    results_json: snapshot.results,
+    error_message: snapshot.errorMessage ?? null,
+    checked_at: snapshot.checkedAt,
+  }, { onConflict: "audit_run_id" });
+  if (error) throw new Error(error.message);
+}
+
+export async function saveLocalSearchSnapshot(
+  supabase: SupabaseClient,
+  auditRunId: string,
+  snapshot: LocalSearchSnapshot,
+): Promise<void> {
+  const summary = snapshot.summary;
+  const { error } = await supabase.from("audit_local_search_visibility").upsert({
+    audit_run_id: auditRunId,
+    status: snapshot.status,
+    score: snapshot.score,
+    profile_key: snapshot.profileKey,
+    entered_market: snapshot.enteredMarket,
+    normalized_market: snapshot.normalizedMarket,
+    location_name: snapshot.locationName,
+    location_code: snapshot.locationCode,
+    queries_analyzed: summary?.queriesAnalyzed ?? 0,
+    found_count: summary?.foundCount ?? 0,
+    top_three_count: summary?.topThreeCount ?? 0,
+    top_ten_count: summary?.topTenCount ?? 0,
+    not_found_count: summary?.notFoundCount ?? 0,
+    best_position: summary?.bestPosition ?? null,
+    average_position: summary?.averagePosition ?? null,
     results_json: snapshot.results,
     error_message: snapshot.errorMessage ?? null,
     checked_at: snapshot.checkedAt,

@@ -1,5 +1,6 @@
 import type { AuditRunProgress } from "@/lib/audit/types";
 import type { SearchVisibilityResult, SearchVisibilitySummary } from "@/lib/audit/search-visibility/types";
+import type { LocalSearchResult, LocalSearchSummary } from "@/lib/audit/local-search/types";
 
 export type PublicAuditFinding = {
   category: string;
@@ -49,6 +50,17 @@ export type PublicAuditDetail = {
     locationName: string | null;
     results: SearchVisibilityResult[];
     summary: SearchVisibilitySummary | null;
+  } | null;
+  localSearch?: {
+    status: "completed" | "not_applicable" | "failed";
+    score: number | null;
+    profileKey: string | null;
+    enteredMarket: string | null;
+    normalizedMarket: string | null;
+    locationName: string | null;
+    locationCode: number | null;
+    results: LocalSearchResult[];
+    summary: LocalSearchSummary | null;
   } | null;
 };
 
