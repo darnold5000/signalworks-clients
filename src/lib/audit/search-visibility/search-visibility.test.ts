@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateSearchQueries } from "@/lib/audit/search-visibility/query-generation";
 import { scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
 import { domainMatches } from "@/lib/audit/search-visibility/run";
+import { matchUsLocation } from "@/lib/audit/search-visibility/client";
 
 describe("search visibility phase 1", () => {
   it("generates distinct branded and discovery queries", () => {
@@ -23,5 +24,15 @@ describe("search visibility phase 1", () => {
     ]);
     expect(summary.score).toBe(15);
     expect(summary.notFoundCount).toBe(1);
+  });
+
+  it("resolves a state abbreviation to DataForSEO's canonical city location", () => {
+    expect(matchUsLocation([
+      { location_code: 1001, location_name: "Indianapolis,Indiana,United States", location_type: "City", country_iso_code: "US" },
+    ], { city: "Indianapolis", state: "IN" })).toEqual({
+      locationCode: 1001,
+      locationName: "Indianapolis,Indiana,United States",
+      locationType: "City",
+    });
   });
 });
