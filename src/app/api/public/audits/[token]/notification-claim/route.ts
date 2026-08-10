@@ -18,7 +18,11 @@ export async function POST(
 
   const { token } = await context.params;
   const detail = await getPublicAuditByToken(token);
-  if (!detail || detail.status !== "succeeded") {
+  if (!detail || !["succeeded", "partially_succeeded"].includes(detail.status)) {
+    console.info("[audit/notification-claim] audit is not complete", {
+      token: token.slice(0, 8),
+      status: detail?.status ?? "not_found",
+    });
     return withPublicAuditCors(
       request,
       NextResponse.json({ claimed: false, error: "Completed audit not found." }, { status: 404 }),
