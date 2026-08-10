@@ -4,6 +4,7 @@ import {
   getScoreConfidence,
 } from "@/lib/audit/presentation/health-score";
 import { formatScoreCoverageLabel } from "@/lib/audit/history/compare";
+import { presentCustomerRecommendation } from "@/lib/audit/presentation/customer";
 import type { PublicAuditDetail } from "@/lib/audit/public/types";
 import { wrapSowForPrintDocument } from "@/lib/legal/sow-print";
 
@@ -86,7 +87,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
       <section style="margin-bottom: 3rem;">
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Your biggest opportunities</p>
         <h2 style="font-size: 28px; font-weight: 500;">Improvements worth prioritizing</h2>
-        ${detail.recommendations.slice(0, 5).map((rec, index) => `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(rec.title)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(rec.description)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(categoryLabel(rec.category))}</p></div></div></div>`).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
+        ${detail.recommendations.slice(0, 5).map((rec, index) => { const presentation = presentCustomerRecommendation(rec); return `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(presentation.customerTitle)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(presentation.customerDescription)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(presentation.customerCategory)}</p><p style="font-size: 12px; color: #666;">Technical details: ${escapeHtml(presentation.technicalTitle)}${presentation.technicalValue ? ` · ${escapeHtml(presentation.technicalValue)}` : ""}</p></div></div></div>`; }).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
       </section>
 
       <section style="margin-bottom: 3rem; border: 1px solid #e2e0da; border-radius: 12px; padding: 1.5rem;">
