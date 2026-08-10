@@ -8,6 +8,7 @@ import { createPageSpeedClient } from "@/lib/audit/collectors/pagespeed/client";
 import {
   createAuditExecution,
   createSupabaseAuditPersistence,
+  saveSearchVisibilitySnapshot,
 } from "@/lib/audit/persistence/audit-repository";
 import { runAudit } from "@/lib/audit/runner/run-audit";
 import { createSafeFetch } from "@/lib/audit/url/safe-fetch";
@@ -19,6 +20,7 @@ import type {
   AuditScope,
   AuditType,
 } from "@/lib/audit/types";
+import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
 
 export type ExecuteAuditInput = {
   rawUrl: string;
@@ -129,6 +131,35 @@ export async function executeAuditSynchronously(
       collectorServices,
     },
   );
+
+  if (input.auditType === "public" && outcome.status !== "failed") {
+    try {
+      const snapshot = await runSearchVisibility({
+        normalizedUrl: url.normalizedUrl,
+        businessName: input.businessName ?? null,
+        city: input.city ?? null,
+        fetchHomepage: async () => {
+          const response = await collectorServices.getHomepage();
+          return response ? { bodyText: response.bodyText } : null;
+        },
+      });
+      await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
+    } catch (error) {
+      console.error("[audit/search-visibility] measurement failed", error);
+      await saveSearchVisibilitySnapshot(supabase, created.runId, {
+        status: "failed",
+        score: null,
+        businessName: input.businessName ?? null,
+        city: input.city ?? null,
+        state: null,
+        locationName: input.city ?? null,
+        results: [],
+        summary: null,
+        errorMessage: error instanceof Error ? error.message : "Search visibility failed.",
+        checkedAt: null,
+      }).catch((saveError) => console.error("[audit/search-visibility] snapshot save failed", saveError));
+    }
+  }
 
   return {
     ...outcome,

@@ -4,6 +4,7 @@ import {
 } from "@/lib/audit/public/visibility";
 import { recommendationCategoryForKey } from "@/lib/audit/presentation/recommendation-catalog";
 import type { PublicAuditDetail } from "@/lib/audit/public/types";
+import type { SearchVisibilityResult } from "@/lib/audit/search-visibility/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -53,6 +54,11 @@ export async function getPublicAuditByToken(
         .eq("audit_run_id", run.id)
         .order("priority", { ascending: true }),
     ]);
+  const { data: searchVisibility } = await supabase
+    .from("audit_search_visibility")
+    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position")
+    .eq("audit_run_id", run.id)
+    .maybeSingle();
 
   const mappedFindings = (findings ?? []).map((row) => ({
     category: row.category,
@@ -112,5 +118,24 @@ export async function getPublicAuditByToken(
       sourceLabel: finding.sourceLabel,
     })),
     recommendations: publicRecommendations,
+    searchVisibility: searchVisibility
+      ? {
+          status: searchVisibility.status,
+          score: searchVisibility.score == null ? null : Number(searchVisibility.score),
+          locationName: searchVisibility.location_name,
+          results: (searchVisibility.results_json ?? []) as SearchVisibilityResult[],
+          summary: {
+            score: searchVisibility.score == null ? 0 : Number(searchVisibility.score),
+            queriesAnalyzed: searchVisibility.queries_analyzed,
+            topThreeCount: searchVisibility.top_three_count,
+            firstPageCount: searchVisibility.first_page_count,
+            positions11To20Count: searchVisibility.positions_11_20_count,
+            positions21To30Count: searchVisibility.positions_21_30_count,
+            notFoundCount: searchVisibility.not_found_count,
+            bestDiscoveryQuery: searchVisibility.best_discovery_query,
+            bestDiscoveryPosition: searchVisibility.best_discovery_position,
+          },
+        }
+      : null,
   };
 }

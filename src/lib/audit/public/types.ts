@@ -1,4 +1,5 @@
 import type { AuditRunProgress } from "@/lib/audit/types";
+import type { SearchVisibilityResult, SearchVisibilitySummary } from "@/lib/audit/search-visibility/types";
 
 export type PublicAuditFinding = {
   category: string;
@@ -42,6 +43,13 @@ export type PublicAuditDetail = {
   scores: PublicAuditScore[];
   findings: PublicAuditFinding[];
   recommendations: PublicAuditRecommendation[];
+  searchVisibility?: {
+    status: "completed" | "unavailable" | "failed";
+    score: number | null;
+    locationName: string | null;
+    results: SearchVisibilityResult[];
+    summary: SearchVisibilitySummary | null;
+  } | null;
 };
 
 export type PublicAuditRunResponse = {
