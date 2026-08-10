@@ -6,7 +6,6 @@ import { useMemo, useState } from "react";
 import { Button, ButtonLink, MetaRow, Panel, StatusPill } from "@/components/ui";
 import {
   AUDIT_STATUS_LABELS,
-  AUDIT_TYPE_LABELS,
   RECOMMENDATION_STATUS_OPTIONS,
   auditStatusTone,
   formatScoreChange,
@@ -31,6 +30,63 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number];
+
+const CATEGORY_PRESENTATION: Record<string, { label: string; description: string }> = {
+  accessibility: {
+    label: "Accessibility",
+    description: "How easily people with different needs can use your website.",
+  },
+  aeo: {
+    label: "AI Search Readiness",
+    description: "How clearly search engines and AI systems can understand your business.",
+  },
+  conversion: {
+    label: "Customer Conversion",
+    description: "How well your website helps visitors take the next step.",
+  },
+  performance: {
+    label: "Speed & Performance",
+    description: "How quickly and smoothly your website loads for visitors.",
+  },
+  security: { label: "Security", description: "The safeguards that help keep your website and visitors protected." },
+  seo: { label: "SEO Setup", description: "Whether your website is technically prepared for search engines." },
+  technical: { label: "Website Technology", description: "The underlying technology and reliability of your website." },
+};
+
+function scoreStatus(score: number | null) {
+  if (score == null) return { label: "Not measured yet", tone: "neutral" as const };
+  if (score >= 90) return { label: "Excellent", tone: "success" as const };
+  if (score >= 75) return { label: "Good", tone: "success" as const };
+  if (score >= 60) return { label: "Needs improvement", tone: "warning" as const };
+  return { label: "Poor", tone: "danger" as const };
+}
+
+function categoryPresentation(category: string) {
+  return CATEGORY_PRESENTATION[category.toLowerCase()] ?? {
+    label: category,
+    description: "A measured part of your website health.",
+  };
+}
+
+function friendlyStrength(title: string) {
+  const normalized = title.toLowerCase();
+  if (normalized.includes("canonical")) return { title: "Search engines can identify your primary page", description: "Your website correctly tells search engines which page version should be indexed." };
+  if (normalized.includes("h1") || normalized.includes("heading")) return { title: "Your page has a clear primary heading", description: "Your page structure makes it easier for visitors and search engines to understand the main topic." };
+  if (normalized.includes("lang")) return { title: "Your website identifies its language correctly", description: "This helps browsers, search engines, and accessibility tools interpret your content." };
+  if (normalized.includes("cls") || normalized.includes("stability")) return { title: "Excellent page stability", description: "Your website stays visually stable while loading, creating a smoother experience for visitors." };
+  return { title, description: "This is a strong foundation for your website experience." };
+}
+
+function plainEnglishSummary(detail: AuditRunDetail) {
+  const scored = [...detail.scores].sort((a, b) => a.score - b.score);
+  const weakest = scored[0] ? categoryPresentation(scored[0].category).label.toLowerCase() : "your website";
+  const strongest = scored.at(-1) ? categoryPresentation(scored.at(-1)!.category).label.toLowerCase() : "your website";
+  return `Your website has a strong foundation, especially in ${strongest}. The biggest opportunity is improving ${weakest} so visitors and search engines can understand and use your business more easily.`;
+}
+
+function formatRecommendationDescription(description: string) {
+  return description.replace(/(\d+(?:\.\d+)?)\s*ms\b/gi, (_, value: string) => `${(Number(value) / 1000).toFixed(1)} seconds`);
+}
 
 function visibilityBadges(finding: {
   isPublic: boolean;
@@ -110,16 +166,16 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-8 flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm text-muted">
-            {AUDIT_TYPE_LABELS[detail.auditType] ?? detail.auditType}
-            {detail.tenantName ? ` · ${detail.tenantName}` : ""}
-          </p>
-          <h1 className="font-display text-3xl tracking-tight">
+          <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Website visibility report</p>
+          <h1 className="mt-2 font-display text-4xl tracking-tight sm:text-5xl">
             {detail.businessName ?? detail.normalizedDomain}
           </h1>
-          <p className="mt-1 text-sm text-muted">{detail.normalizedUrl}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+            We analyzed your website, search readiness, performance, and customer experience to identify what&apos;s working and where you have opportunities to improve.
+          </p>
+          <p className="mt-3 text-sm text-muted">{detail.normalizedUrl}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
@@ -159,71 +215,82 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
       </nav>
 
       {tab === "summary" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Panel title="Overall score">
-            <p className="font-display text-5xl">{detail.overallScore ?? "—"}</p>
-            {coverageLabel ? (
-              <p className="mt-2 text-sm font-medium text-warning">{coverageLabel}</p>
-            ) : null}
-            {confidenceLabel ? (
-              <p className="mt-1 text-sm text-muted">Confidence: {confidenceLabel}</p>
-            ) : null}
-            {scoring?.unavailableCategories?.length ? (
-              <p className="mt-2 text-sm text-muted">
-                Unavailable: {scoring.unavailableCategories.join(", ")}
-              </p>
-            ) : null}
-            <dl className="mt-4">
-              <MetaRow label="Audit date" value={formatDateTime(detail.completedAt ?? detail.createdAt)} />
-              <MetaRow label="Scoring version" value={scoring?.scoringVersion ?? detail.engineVersion} />
-              <MetaRow label="Scope version" value={detail.scopeVersion} />
-            </dl>
-          </Panel>
+        <div className="space-y-10">
+          <section>
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Executive summary</p>
+                <h2 className="mt-2 font-display text-3xl">Is your website healthy?</h2>
+              </div>
+              <details className="text-sm text-muted">
+                <summary className="cursor-pointer font-medium text-foreground">Report details</summary>
+                <p className="mt-2 rounded-lg border border-border bg-surface px-3 py-2">Last checked {formatDateTime(detail.completedAt ?? detail.createdAt)} · {coverageLabel ?? `${scoring?.scoredCategoryCount ?? detail.scores.length} categories analyzed`} · {confidenceLabel ?? "Not available"} confidence</p>
+              </details>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
+              <div className="rounded-xl border border-foreground bg-foreground p-6 text-white sm:p-8">
+                <p className="text-xs font-semibold tracking-[0.18em] text-white/60 uppercase">Website health</p>
+                <div className="mt-5 flex items-end gap-3">
+                  <span className="font-display text-7xl leading-none">{detail.overallScore == null ? "—" : Math.round(detail.overallScore)}</span>
+                  <span className="pb-1 text-sm text-white/60">/ 100</span>
+                </div>
+                <p className="mt-4 text-sm font-medium text-white">{scoreStatus(detail.overallScore).label}</p>
+                <p className="mt-2 max-w-lg text-sm leading-6 text-white/70">{detail.summary ?? "Your website has a strong foundation, with several opportunities to improve performance and search visibility."}</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SummaryMetric label="Search visibility" value={null} />
+                <SummaryMetric label="Local search" value={null} />
+                <SummaryMetric label="AI readiness" value={detail.scores.find((row) => row.category === "aeo")?.score ?? null} />
+                <SummaryMetric label="Conversion" value={detail.scores.find((row) => row.category === "conversion")?.score ?? null} />
+              </div>
+            </div>
+          </section>
 
-          <Panel title="Category scores">
-            <ul className="space-y-2">
-              {detail.scores.map((row) => (
-                <li
-                  key={row.category}
-                  className="flex items-center justify-between border-b border-border pb-2 text-sm last:border-0"
-                >
-                  <span className="capitalize">{row.category}</span>
-                  <span className="font-medium">{row.score}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
+          <section className="max-w-3xl">
+            <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">What this means</p>
+            <p className="mt-3 text-lg leading-8">{plainEnglishSummary(detail)}</p>
+          </section>
 
-          <Panel title="Top strengths">
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {(scoring?.strengths ?? []).slice(0, 5).map((item) => (
-                <li key={item.checkKey}>{item.title}</li>
-              ))}
-              {(scoring?.strengths ?? []).length === 0 ? (
-                <li className="list-none pl-0 text-muted">None listed.</li>
-              ) : null}
-            </ul>
-          </Panel>
+          <section>
+            <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Your website health</p>
+            <h2 className="mt-2 font-display text-3xl">Built for visitors, search engines, and AI</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted">These scores measure how well your website is built and prepared for visitors, search engines, and AI systems.</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {detail.scores.map((row) => <CategoryCard key={row.category} row={row} />)}
+            </div>
+          </section>
 
-          <Panel title="Top opportunities">
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {(scoring?.opportunities ?? []).slice(0, 5).map((item) => (
-                <li key={item.checkKey}>{item.title}</li>
-              ))}
-              {(scoring?.opportunities ?? []).length === 0 ? (
-                <li className="list-none pl-0 text-muted">None listed.</li>
-              ) : null}
-            </ul>
-          </Panel>
+          <div className="grid gap-10 lg:grid-cols-2">
+            <InsightSection title="What&apos;s working well" description="Your website already has several strong foundations.">
+              {(scoring?.strengths ?? []).slice(0, 4).map((item) => {
+                const friendly = friendlyStrength(item.title);
+                return <div key={item.checkKey} className="border-b border-border py-4 first:pt-0 last:border-0"><p className="font-medium">✓ {friendly.title}</p><p className="mt-1 text-sm leading-6 text-muted">{friendly.description}</p><details className="mt-2 text-xs text-muted"><summary className="cursor-pointer">View technical details</summary><p className="mt-1 font-mono">{item.checkKey}</p></details></div>;
+              })}
+              {(scoring?.strengths ?? []).length === 0 ? <p className="text-sm text-muted">No strengths were recorded for this report.</p> : null}
+            </InsightSection>
 
-          <Panel title="Data sources" className="lg:col-span-2">
-            <p className="text-sm text-muted">
-              Collectors: {collectorLabels.join(", ") || "—"}
-            </p>
-            {detail.summary ? (
-              <p className="mt-3 text-sm">{detail.summary}</p>
-            ) : null}
-          </Panel>
+            <InsightSection title="Your biggest opportunities" description="These improvements are most likely to strengthen your website and online visibility.">
+              {(detail.recommendations.length ? detail.recommendations : scoring?.opportunities ?? []).slice(0, 5).map((item, index) => {
+                const recommendation = "description" in item ? item : { title: item.title, description: "This is an opportunity to improve your website experience.", priority: "medium", impact: null, effort: null, category: item.category };
+                const category = "category" in recommendation && typeof recommendation.category === "string" ? recommendation.category : "technical";
+                return <div key={"checkKey" in item ? item.checkKey : item.id} className="border-b border-border py-4 first:pt-0 last:border-0"><div className="flex gap-3"><span className="font-display text-2xl text-muted">{index + 1}</span><div><p className="font-medium">{recommendation.title}</p><p className="mt-1 text-xs font-semibold tracking-wide text-muted uppercase">{recommendation.priority} priority · {recommendation.impact ?? "Impact varies"} · {recommendation.effort ?? "Review effort"}</p><p className="mt-2 text-sm leading-6 text-muted">{formatRecommendationDescription(recommendation.description)}</p><p className="mt-2 text-xs text-muted">Category: {categoryPresentation(category).label}</p></div></div></div>;
+              })}
+              {detail.recommendations.length > 5 ? <button type="button" onClick={() => setTab("recommendations")} className="mt-4 text-sm font-medium text-accent hover:underline">View all recommendations →</button> : null}
+              {detail.recommendations.length === 0 && !(scoring?.opportunities ?? []).length ? <p className="text-sm text-muted">No recommendations were recorded for this report.</p> : null}
+            </InsightSection>
+          </div>
+
+          <section className="rounded-xl border border-border bg-surface p-6 sm:p-8">
+            <p className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">Search visibility</p>
+            <div className="mt-3 flex flex-wrap items-baseline justify-between gap-4"><h2 className="font-display text-3xl">Can customers find your business?</h2><StatusPill label="Not measured yet" /></div>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Search visibility measures whether your website appears when customers search for the services you offer. This report includes SEO Setup checks, but does not yet include live ranking data.</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2"><UnavailableMetric title="Branded visibility" text="Searches containing your business name" /><UnavailableMetric title="Discovery visibility" text="Searches for your services and location" /></div>
+          </section>
+
+          <details className="rounded-xl border border-border bg-surface p-5">
+            <summary className="cursor-pointer font-medium">Technical details and data sources</summary>
+            <div className="mt-4 grid gap-3 text-sm text-muted sm:grid-cols-2"><MetaRow label="Collectors" value={collectorLabels.join(", ") || "—"} /><MetaRow label="Scoring version" value={scoring?.scoringVersion ?? detail.engineVersion} /><MetaRow label="Scope version" value={detail.scopeVersion} /><MetaRow label="Unavailable categories" value={scoring?.unavailableCategories?.join(", ") || "None"} /></div>
+          </details>
         </div>
       ) : null}
 
@@ -495,6 +562,25 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
       ) : null}
     </div>
   );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number | null }) {
+  const status = scoreStatus(value);
+  return <div className="rounded-xl border border-border bg-surface p-5"><p className="text-xs font-semibold tracking-wide text-muted uppercase">{label}</p><p className="mt-3 font-display text-4xl">{value == null ? "—" : Math.round(value)}</p><StatusPill label={status.label} tone={status.tone} /></div>;
+}
+
+function UnavailableMetric({ title, text }: { title: string; text: string }) {
+  return <div className="rounded-lg border border-dashed border-border p-4"><div className="flex items-center justify-between gap-3"><p className="font-medium">{title}</p><span className="font-display text-2xl text-muted">—</span></div><p className="mt-1 text-sm text-muted">{text}</p><p className="mt-3 text-xs font-medium text-muted">Ranking data will appear here when connected.</p></div>;
+}
+
+function CategoryCard({ row }: { row: AuditRunDetail["scores"][number] }) {
+  const presentation = categoryPresentation(row.category);
+  const status = scoreStatus(row.score);
+  return <details className="group rounded-xl border border-border bg-surface p-5"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{presentation.label}</p><p className="mt-1 text-sm leading-6 text-muted">{presentation.description}</p></div><div className="text-right"><p className="font-display text-3xl">{Math.round(row.score)}</p><StatusPill label={status.label} tone={status.tone} /></div></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-foreground" style={{ width: `${Math.max(0, Math.min(100, row.score))}%` }} /></div></summary><div className="mt-4 border-t border-border pt-4 text-sm text-muted"><p>{row.findingCount} checks analyzed · {row.weight}% weight</p><p className="mt-2 text-xs">Select the Findings tab below for evidence and technical check details.</p></div></details>;
+}
+
+function InsightSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return <section className="rounded-xl border border-border bg-surface p-6"><h2 className="font-display text-3xl">{title}</h2><p className="mt-2 text-sm text-muted">{description}</p><div className="mt-5">{children}</div></section>;
 }
 
 function HistoryList({ title, items }: { title: string; items: string[] }) {
