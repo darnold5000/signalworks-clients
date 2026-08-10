@@ -24,12 +24,19 @@ export function scoreSearchVisibilityTypes(results: SearchVisibilityResult[]) {
 
 export function scoreSearchVisibility(results: SearchVisibilityResult[]): SearchVisibilitySummary {
   const discovery = results.filter((result) => result.type === "discovery");
+  const branded = results.filter((result) => result.type === "branded");
   const { discovery: discoveryScore, branded: brandedScore } = scoreSearchVisibilityTypes(results);
-  const score = Math.round((discoveryScore == null ? brandedScore ?? 0 : brandedScore == null ? discoveryScore : discoveryScore * 0.85 + brandedScore * 0.15));
-  const found = results.filter((result) => result.position != null && result.position <= 30);
+  // Search visibility measures acquisition/search intent. Branded rankings are
+  // reported separately and must not rescue weak discovery visibility.
+  const score = Math.round(discoveryScore ?? 0);
+  const found = discovery.filter((result) => result.position != null && result.position <= 30);
   const bestDiscovery = discovery.filter((result) => result.position != null).sort((a, b) => (a.position! - b.position!))[0] ?? null;
   return {
     score,
+    discoveryScore,
+    brandedScore,
+    discoveryQueriesAnalyzed: discovery.length,
+    brandedQueriesAnalyzed: branded.length,
     queriesAnalyzed: results.length,
     topThreeCount: found.filter((result) => result.position! <= 3).length,
     firstPageCount: found.filter((result) => result.position! <= 10).length,

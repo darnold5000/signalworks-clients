@@ -5,6 +5,7 @@ import {
 import { recommendationCategoryForKey } from "@/lib/audit/presentation/recommendation-catalog";
 import type { PublicAuditDetail } from "@/lib/audit/public/types";
 import type { SearchVisibilityResult } from "@/lib/audit/search-visibility/types";
+import { scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -69,6 +70,8 @@ export async function getPublicAuditByToken(
   } else {
     console.info("[audit/search-visibility] public read", { auditId: run.id, populated: Boolean(searchVisibility), status: searchVisibility?.status ?? null, score: searchVisibility?.score ?? null });
   }
+  const searchResults = (searchVisibility?.results_json ?? []) as SearchVisibilityResult[];
+  const calculatedSearchSummary = scoreSearchVisibility(searchResults);
 
   const mappedFindings = (findings ?? []).map((row) => ({
     category: row.category,
@@ -133,9 +136,13 @@ export async function getPublicAuditByToken(
           status: searchVisibility.status,
           score: searchVisibility.score == null ? null : Number(searchVisibility.score),
           locationName: searchVisibility.location_name,
-          results: (searchVisibility.results_json ?? []) as SearchVisibilityResult[],
+          results: searchResults,
           summary: {
             score: searchVisibility.score == null ? 0 : Number(searchVisibility.score),
+            discoveryScore: calculatedSearchSummary.discoveryScore,
+            brandedScore: calculatedSearchSummary.brandedScore,
+            discoveryQueriesAnalyzed: calculatedSearchSummary.discoveryQueriesAnalyzed,
+            brandedQueriesAnalyzed: calculatedSearchSummary.brandedQueriesAnalyzed,
             queriesAnalyzed: searchVisibility.queries_analyzed,
             topThreeCount: searchVisibility.top_three_count,
             firstPageCount: searchVisibility.first_page_count,

@@ -22,8 +22,42 @@ describe("search visibility phase 1", () => {
       { query: "Refined Indiana", type: "branded", service: null, position: 1, found: true, rankingUrl: "https://refined-indiana.org", checkedAt: "now", searchEngine: "google", location: "Plainfield, IN" },
       { query: "personal training Plainfield IN", type: "discovery", service: "Personal Training", position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google", location: "Plainfield, IN" },
     ]);
-    expect(summary.score).toBe(15);
+    expect(summary.score).toBe(0);
+    expect(summary.discoveryScore).toBe(0);
+    expect(summary.brandedScore).toBe(100);
     expect(summary.notFoundCount).toBe(1);
+  });
+
+  it("rejects navigation, legal, and generic page names from discovery queries", () => {
+    const queries = generateSearchQueries({
+      businessName: "Market Street Wealth",
+      city: "Indianapolis",
+      state: "IN",
+      services: [
+        "Important Disclosure Information",
+        "Foundations",
+        "Our Fees",
+        "Meet Our People",
+        "Complimentary Initial Meetings",
+        "Careers",
+        "Wealth Management",
+        "Business Retirement Plans",
+      ],
+    });
+    expect(queries).toHaveLength(10);
+    expect(queries.filter((query) => query.type === "branded")).toHaveLength(2);
+    expect(queries.filter((query) => query.type === "discovery")).toHaveLength(8);
+    expect(queries.filter((query) => query.type === "discovery").map((query) => query.query)).toEqual([
+      "wealth management Indianapolis IN",
+      "financial advisor Indianapolis IN",
+      "financial planner Indianapolis IN",
+      "retirement planning Indianapolis IN",
+      "retirement advisor Indianapolis IN",
+      "investment management Indianapolis IN",
+      "business retirement plans Indianapolis IN",
+      "wealth advisor Indianapolis IN",
+    ]);
+    expect(queries.some((query) => /disclosure|foundations|fees|people|meet|careers/i.test(query.query))).toBe(false);
   });
 
   it("resolves a state abbreviation to DataForSEO's canonical city location", () => {

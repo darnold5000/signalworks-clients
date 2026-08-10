@@ -17,6 +17,10 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
 
 export type SearchVisibilitySummary = {
   score: number;
+  discoveryScore: number | null;
+  brandedScore: number | null;
+  discoveryQueriesAnalyzed: number;
+  brandedQueriesAnalyzed: number;
   queriesAnalyzed: number;
   topThreeCount: number;
   firstPageCount: number;
