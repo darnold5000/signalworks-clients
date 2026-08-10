@@ -95,7 +95,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
         <p style="color: #555; line-height: 1.6;">Ranking data is not measured in this report yet. SEO Setup checks show whether your website is prepared for search, but we do not claim Google rankings without verified search data.</p>
       </section>
 
-      <section style="font-size: 13px; color: #666;"><p><strong>Report details:</strong> Last checked ${escapeHtml(detail.completedAt ?? detail.createdAt)}${coverage ? ` · ${escapeHtml(formatCoverageShort(scoredCount!, eligibleCount!))}` : ""}${confidence ? ` · ${escapeHtml(confidence)} confidence` : ""}</p><p>This is not a penetration test or accessibility certification. Unavailable categories are excluded from the overall score.</p></section>
+      <section style="font-size: 13px; color: #666;"><p><strong>Report details:</strong> Last checked ${escapeHtml(detail.completedAt ?? detail.createdAt)}${coverage ? ` · ${escapeHtml(formatCoverageShort(scoredCount!, eligibleCount!))}` : ""}${confidence ? ` · Confidence: ${escapeHtml(confidence)}` : ""}</p><p>This is not a penetration test or accessibility certification. Unavailable categories are excluded from the overall score.</p></section>
     </article>
   `;
 
