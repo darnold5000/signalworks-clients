@@ -11,6 +11,7 @@ import { scoreLocalSearch } from "@/lib/audit/local-search/scoring";
 import type { AeoSnapshot } from "@/lib/audit/aeo/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import { SEARCH_EVIDENCE_BUCKET } from "@/lib/audit/search-visibility/screenshots";
 
 function isValidToken(token: string): boolean {
   return /^[a-f0-9]{64}$/i.test(token);
@@ -73,7 +74,16 @@ export async function getPublicAuditByToken(
   } else {
     console.info("[audit/search-visibility] public read", { auditId: run.id, populated: Boolean(searchVisibility), status: searchVisibility?.status ?? null, score: searchVisibility?.score ?? null });
   }
-  const searchResults = (searchVisibility?.results_json ?? []) as SearchVisibilityResult[];
+  const storedSearchResults = (searchVisibility?.results_json ?? []) as SearchVisibilityResult[];
+  const searchResults = await Promise.all(storedSearchResults.map(async (result) => {
+    if (result.screenshotStatus !== "available" || !result.screenshotStoragePath) return result;
+    const { data, error } = await supabase.storage.from(SEARCH_EVIDENCE_BUCKET).createSignedUrl(result.screenshotStoragePath, 3600);
+    if (error || !data?.signedUrl) {
+      console.error("[audit/search-screenshot] signed URL failed", { auditId: run.id, query: result.query, message: error?.message });
+      return { ...result, screenshotUrl: null };
+    }
+    return { ...result, screenshotUrl: data.signedUrl };
+  }));
   const calculatedSearchSummary = scoreSearchVisibility(searchResults);
   const { data: localSearch, error: localSearchError } = await supabase
     .from("audit_local_search_visibility")

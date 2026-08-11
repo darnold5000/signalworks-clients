@@ -16,6 +16,7 @@ export type LocalSearchResult = {
   auditedBusinessName?: string | null;
   resultDepth?: number;
   taskId?: string | null;
+  screenshotUrl?: string | null;
 };
 
 export type LocalSearchSummary = {

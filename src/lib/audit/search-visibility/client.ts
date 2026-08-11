@@ -158,3 +158,25 @@ export async function fetchGoogleOrganicResults(input: { keyword: string; locati
   }, {});
   return { items, resultCount: task.result?.length ?? 0, itemTypes, taskId: task.id ?? task.task_id ?? null, resultDepth: 30 };
 }
+
+type DataForSeoScreenshotResponse = { status_code?: number; status_message?: string; tasks?: Array<{ status_code?: number; status_message?: string; result?: Array<{ url?: string; image_url?: string; screenshot_url?: string }> }> };
+
+export async function fetchGoogleSerpScreenshot(taskId: string): Promise<Buffer> {
+  const login = process.env.DATAFORSEO_LOGIN?.trim();
+  const password = process.env.DATAFORSEO_PASSWORD?.trim();
+  if (!login || !password) throw new Error("DataForSEO credentials are not configured.");
+  const response = await fetch("https://api.dataforseo.com/v3/serp/screenshot", {
+    method: "POST",
+    headers: { Authorization: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`, "Content-Type": "application/json" },
+    body: JSON.stringify([{ task_id: taskId, browser_screen_scale_factor: 1 }]),
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!response.ok) throw new Error(`DataForSEO screenshot HTTP ${response.status}`);
+  const payload = (await response.json()) as DataForSeoScreenshotResponse;
+  const task = payload.tasks?.[0];
+  const imageUrl = task?.result?.[0]?.image_url ?? task?.result?.[0]?.screenshot_url ?? task?.result?.[0]?.url;
+  if (payload.status_code !== 20000 || !task || task.status_code !== 20000 || !imageUrl) throw new Error(task?.status_message ?? payload.status_message ?? "DataForSEO screenshot was unavailable.");
+  const image = await fetch(imageUrl, { signal: AbortSignal.timeout(45_000) });
+  if (!image.ok) throw new Error(`Screenshot download HTTP ${image.status}`);
+  return Buffer.from(await image.arrayBuffer());
+}

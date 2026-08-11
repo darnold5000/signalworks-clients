@@ -20,6 +20,11 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   auditedBusinessName?: string | null;
   resultDepth?: number;
   taskId?: string | null;
+  screenshotStatus?: "not_requested" | "pending" | "available" | "unavailable" | "failed";
+  screenshotStoragePath?: string | null;
+  screenshotCreatedAt?: string | null;
+  screenshotSourceTaskId?: string | null;
+  screenshotUrl?: string | null;
   monthlySearchVolume?: number | null;
   competition?: number | null;
   cpc?: number | null;

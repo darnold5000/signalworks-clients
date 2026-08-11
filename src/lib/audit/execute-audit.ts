@@ -26,6 +26,7 @@ import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
 import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
 import { runLocalSearch } from "@/lib/audit/local-search/run";
 import { analyzeAeoReadiness } from "@/lib/audit/aeo/analyze";
+import { captureSearchScreenshots } from "@/lib/audit/search-visibility/screenshots";
 
 export type ExecuteAuditInput = {
   rawUrl: string;
@@ -167,6 +168,7 @@ export async function executeAuditSynchronously(
       console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId });
       await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
       console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId });
+      await captureSearchScreenshots(supabase, created.runId, snapshot).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     } catch (error) {
       console.error("[audit/search-visibility] measurement failed", error);
       console.error("[audit/search-visibility] database persistence attempted", { auditId: created.runId, status: "failed" });
