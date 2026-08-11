@@ -30,6 +30,9 @@ function recommendationIdentity(recommendation: CustomerRecommendationLike) {
     return "seo.localbusiness_schema";
   }
   const title = presentCustomerRecommendation(recommendation).customerTitle;
+  if (title === "Help Google understand your business") {
+    return "seo.localbusiness_schema";
+  }
   // Generic fallback copy is intentionally not an identity: several unrelated
   // categories can legitimately use that copy.
   if (title.startsWith("Your website ")) return recommendation.recommendationKey;
@@ -54,10 +57,13 @@ export function dedupeCustomerRecommendations<T extends CustomerRecommendationLi
     const nextPriority = PRIORITY_ORDER[recommendation.priority] ?? Number.MAX_SAFE_INTEGER;
     const currentEvidence = current.supportingFindingKeys?.length ?? 0;
     const nextEvidence = recommendation.supportingFindingKeys?.length ?? 0;
+    const currentSpecificity = current.recommendationKey.startsWith("seo.") ? 0 : 1;
+    const nextSpecificity = recommendation.recommendationKey.startsWith("seo.") ? 0 : 1;
     if (
       nextPriority < currentPriority ||
       (nextPriority === currentPriority && nextEvidence > currentEvidence) ||
-      (nextPriority === currentPriority && nextEvidence === currentEvidence && recommendation.recommendationKey < current.recommendationKey)
+      (nextPriority === currentPriority && nextEvidence === currentEvidence && nextSpecificity < currentSpecificity) ||
+      (nextPriority === currentPriority && nextEvidence === currentEvidence && nextSpecificity === currentSpecificity && recommendation.recommendationKey < current.recommendationKey)
     ) {
       selected.set(identity, recommendation);
     }

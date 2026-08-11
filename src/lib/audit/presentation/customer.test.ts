@@ -55,6 +55,14 @@ describe("customer audit presentation", () => {
         supportingFindingKeys: ["seo.localbusiness_schema.missing"],
       },
       {
+        recommendationKey: "aeo.strengthen_entity_information",
+        category: "aeo",
+        title: "Strengthen structured business and service information",
+        description: "Clarify structured data so systems can understand the business.",
+        priority: "high",
+        supportingFindingKeys: ["aeo.structured_data"],
+      },
+      {
         recommendationKey: "seo.complete_localbusiness_schema",
         category: "local_seo",
         title: "Complete LocalBusiness structured data fields",
