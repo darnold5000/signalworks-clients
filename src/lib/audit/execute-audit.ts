@@ -23,6 +23,7 @@ import type {
   AuditType,
 } from "@/lib/audit/types";
 import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
+import type { SearchVisibilitySnapshot } from "@/lib/audit/search-visibility/types";
 import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
 import { parseMarketInput } from "@/lib/audit/location-input";
 import { runLocalSearch } from "@/lib/audit/local-search/run";
@@ -172,7 +173,8 @@ export async function executeAuditSynchronously(
     } catch (error) {
       const failureMessage = error instanceof Error ? error.message : "Search visibility execution failed.";
       console.error("[audit/search-visibility] execution failed", { auditId: created.runId, phase: "search_visibility_execution", failureCode: "search_visibility_execution_failed", error: failureMessage });
-      const failureSnapshot = {
+      const failureDiagnostics = { failurePhase: "search_visibility_execution", failureCode: "search_visibility_execution_failed", failureMessage, successfulQueryCount: 0, failedQueryCount: 0 };
+      const failureSnapshot: SearchVisibilitySnapshot = {
         status: "failed",
         score: null,
         businessName: input.businessName ?? null,
@@ -188,10 +190,10 @@ export async function executeAuditSynchronously(
         auditedDomain: url.normalizedDomain,
         resultDepth: 30,
         searchEngine: "google",
-        diagnostics: { failurePhase: "search_visibility_execution", failureCode: "search_visibility_execution_failed", failureMessage, successfulQueryCount: 0, failedQueryCount: 0 },
-      } as const;
+        diagnostics: failureDiagnostics,
+      };
       await saveSearchVisibilitySnapshot(supabase, created.runId, failureSnapshot).then(
-        () => console.info("[audit/search-visibility] failure diagnostic persisted", { auditId: created.runId, phase: failureSnapshot.diagnostics.failurePhase, failureCode: failureSnapshot.diagnostics.failureCode }),
+        () => console.info("[audit/search-visibility] failure diagnostic persisted", { auditId: created.runId, phase: failureDiagnostics.failurePhase, failureCode: failureDiagnostics.failureCode }),
         (saveError) => console.error("[audit/search-visibility] failure diagnostic persistence failed", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed", error: saveError instanceof Error ? saveError.message : saveError }),
       );
     }
