@@ -18,7 +18,7 @@ function escapeHtml(value: string): string {
 
 const CATEGORY_LABELS: Record<string, string> = {
   accessibility: "Accessibility",
-  aeo: "AI Search Readiness",
+  aeo: "AI & Answer Readiness",
   conversion: "Customer Conversion",
   performance: "Speed & Performance",
   security: "Security",
@@ -46,6 +46,7 @@ function plainSummary(detail: PublicAuditDetail) {
     const brandedStrong = (detail.searchVisibility?.summary?.brandedScore ?? 0) >= 75;
     return `Your website has a solid technical foundation, but that isn't translating into strong search visibility. ${brandedStrong ? "People searching specifically for your business can find you easily, but " : ""}the site has limited visibility when new customers search for the services you provide${localWeak ? ", and the business was rarely found in the local results we checked" : ""}.`;
   }
+  if ((detail.aeoReadiness?.score ?? 100) < 40) return "Your website has a workable foundation, but important business information and customer answers could be structured more clearly for search engines and answer-oriented systems. Strong technical SEO alone does not guarantee visibility or useful answers.";
   const sorted = [...detail.scores].sort((a, b) => a.score - b.score);
   const weakest = sorted[0] ? categoryLabel(sorted[0].category).toLowerCase() : "your website";
   const strongest = sorted.at(-1) ? categoryLabel(sorted.at(-1)!.category).toLowerCase() : "your website";
@@ -108,6 +109,8 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
         <h2 style="font-size: 24px; font-weight: 500;">Can nearby customers find your business?</h2>
         ${detail.localSearch?.status === "not_applicable" ? `<p style="color: #555;">Local Search: Not applicable.</p>` : detail.localSearch?.status === "completed" && detail.localSearch.summary ? `<p style="font-size: 32px; margin: 1rem 0 0;"><strong>${Math.round(detail.localSearch.score ?? 0)}/100</strong></p><p style="color: #555; line-height: 1.6;">We found the business in ${detail.localSearch.summary.foundCount} of ${detail.localSearch.summary.queriesAnalyzed} local searches. ${detail.localSearch.summary.topThreeCount} ranked in the top three.</p><table style="width: 100%; border-collapse: collapse; margin-top: 1rem;"><thead><tr><th style="text-align: left; border-bottom: 1px solid #ddd; padding: 8px 0;">Local customer search</th><th style="text-align: left; border-bottom: 1px solid #ddd; padding: 8px 0;">Local position</th></tr></thead><tbody>${detail.localSearch.results.map((result) => `<tr><td style="padding: 8px 0; border-bottom: 1px solid #eee;">${escapeHtml(result.query)}</td><td style="padding: 8px 0; border-bottom: 1px solid #eee;">${result.position ? `#${result.position}` : "Not found"}</td></tr>`).join("")}</tbody></table>` : `<p style="color: #555;">Local search could not be measured for this report.</p>`}
       </section>
+
+      ${detail.aeoReadiness ? `<section style="margin-bottom: 3rem; border: 1px solid #e2e0da; border-radius: 12px; padding: 1.5rem;"><p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">AI &amp; answer readiness</p><h2 style="font-size: 24px; font-weight: 500;">Can search engines and AI systems understand your business?</h2><p style="font-size: 32px; margin: 1rem 0 0;"><strong>${Math.round(detail.aeoReadiness.score)}/100</strong></p><p style="color: #555; line-height: 1.6;">Answered clearly: ${detail.aeoReadiness.questionCoverage.answered} of ${detail.aeoReadiness.questionCoverage.total} common customer questions. This measures website readiness, not AI recommendations or rankings.</p><h3 style="font-size: 18px;">Readiness categories</h3><ul>${detail.aeoReadiness.categories.slice(0, 6).map((category) => `<li>${escapeHtml(category.label)}: ${category.score}/100</li>`).join("")}</ul><h3 style="font-size: 18px;">Top opportunities</h3><ul>${detail.aeoReadiness.recommendations.slice(0, 3).map((item) => `<li>${escapeHtml(item.title)} — ${escapeHtml(item.description)}</li>`).join("")}</ul></section>` : ""}
 
       <section style="font-size: 13px; color: #666;"><p><strong>Report details:</strong> Last checked ${escapeHtml(detail.completedAt ?? detail.createdAt)}${coverage ? ` · ${escapeHtml(formatCoverageShort(scoredCount!, eligibleCount!))}` : ""}${confidence ? ` · Confidence: ${escapeHtml(confidence)}` : ""}</p><p>This is not a penetration test or accessibility certification. Unavailable categories are excluded from the overall score.</p></section>
     </article>

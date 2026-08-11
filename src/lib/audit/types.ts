@@ -75,6 +75,8 @@ export type AuditContext = {
   auditRequestId: string;
   auditRunId: string;
   services: AuditCollectorServices;
+  businessName?: string | null;
+  market?: string | null;
 };
 
 export type AuditCollector = {
@@ -157,6 +159,8 @@ export type RunAuditInput = {
   tenantId: string | null;
   scope: AuditScope;
   url: NormalizedAuditUrl;
+  businessName?: string | null;
+  market?: string | null;
 };
 
 /** Persistence port — HTTP handlers and future queue workers implement this. */

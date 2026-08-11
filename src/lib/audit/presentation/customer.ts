@@ -20,7 +20,7 @@ function categoryLabel(category: string) {
   return ({
     performance: "Speed & Performance",
     seo: "SEO Setup",
-    aeo: "AI Search Readiness",
+    aeo: "AI & Answer Readiness",
     conversion: "Customer Conversion",
     technical: "Website Technology",
     local_seo: "Local Search",

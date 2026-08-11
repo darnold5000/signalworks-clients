@@ -10,6 +10,7 @@ import {
   createSupabaseAuditPersistence,
   saveSearchVisibilitySnapshot,
   saveLocalSearchSnapshot,
+  saveAeoSnapshot,
 } from "@/lib/audit/persistence/audit-repository";
 import { runAudit } from "@/lib/audit/runner/run-audit";
 import { createSafeFetch } from "@/lib/audit/url/safe-fetch";
@@ -24,6 +25,7 @@ import type {
 import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
 import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
 import { runLocalSearch } from "@/lib/audit/local-search/run";
+import { analyzeAeoReadiness } from "@/lib/audit/aeo/analyze";
 
 export type ExecuteAuditInput = {
   rawUrl: string;
@@ -127,6 +129,8 @@ export async function executeAuditSynchronously(
       tenantId,
       scope,
       url,
+      businessName: input.businessName ?? null,
+      market: input.city ?? null,
     },
     {
       persistence: createSupabaseAuditPersistence(supabase),
@@ -136,6 +140,17 @@ export async function executeAuditSynchronously(
   );
 
   if (input.auditType === "public" && outcome.status !== "failed") {
+    try {
+      const homepage = await collectorServices.getHomepage();
+      if (homepage) {
+        const aeoSnapshot = analyzeAeoReadiness({ html: homepage.bodyText, businessName: input.businessName ?? null, market: input.city ?? null });
+        console.info("[audit/aeo] completed", { auditId: created.runId, score: aeoSnapshot.score, questionCoverage: aeoSnapshot.questionCoverage.answered, profile: aeoSnapshot.evidence.profile });
+        await saveAeoSnapshot(supabase, created.runId, aeoSnapshot);
+        console.info("[audit/aeo] persistence succeeded", { auditId: created.runId });
+      }
+    } catch (error) {
+      console.error("[audit/aeo] persistence failed", { auditId: created.runId, error: error instanceof Error ? error.message : error });
+    }
     let organicSnapshot: Awaited<ReturnType<typeof runSearchVisibility>> | null = null;
     try {
       const snapshot = await runSearchVisibility({

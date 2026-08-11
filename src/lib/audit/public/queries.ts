@@ -8,6 +8,7 @@ import type { SearchVisibilityResult } from "@/lib/audit/search-visibility/types
 import { scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
 import type { LocalSearchResult } from "@/lib/audit/local-search/types";
 import { scoreLocalSearch } from "@/lib/audit/local-search/scoring";
+import type { AeoSnapshot } from "@/lib/audit/aeo/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -82,6 +83,8 @@ export async function getPublicAuditByToken(
   if (localSearchError) console.error("[audit/local-search] public read failed", { auditId: run.id, message: localSearchError.message, code: localSearchError.code });
   const localResults = (localSearch?.results_json ?? []) as LocalSearchResult[];
   const calculatedLocalSummary = scoreLocalSearch(localResults);
+  const { data: aeoReadiness, error: aeoError } = await supabase.from("audit_aeo_readiness").select("score, categories_json, question_coverage_json, findings_json, recommendations_json, evidence_json, checked_at").eq("audit_run_id", run.id).maybeSingle();
+  if (aeoError) console.error("[audit/aeo] public read failed", { auditId: run.id, message: aeoError.message, code: aeoError.code });
 
   const mappedFindings = (findings ?? []).map((row) => ({
     category: row.category,
@@ -177,5 +180,14 @@ export async function getPublicAuditByToken(
           summary: localSearch.status === "completed" ? calculatedLocalSummary : null,
         }
       : null,
+    aeoReadiness: aeoReadiness ? {
+      score: Number(aeoReadiness.score),
+      categories: (aeoReadiness.categories_json ?? []) as AeoSnapshot["categories"],
+      questionCoverage: aeoReadiness.question_coverage_json as AeoSnapshot["questionCoverage"],
+      findings: (aeoReadiness.findings_json ?? []) as AeoSnapshot["findings"],
+      recommendations: (aeoReadiness.recommendations_json ?? []) as AeoSnapshot["recommendations"],
+      evidence: (aeoReadiness.evidence_json ?? {}) as Record<string, unknown>,
+      checkedAt: aeoReadiness.checked_at,
+    } : null,
   };
 }

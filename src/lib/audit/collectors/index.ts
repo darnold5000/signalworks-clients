@@ -6,6 +6,7 @@ import { operationsInventoryCollector } from "@/lib/audit/collectors/operations-
 import { pagespeedCollector } from "@/lib/audit/collectors/pagespeed/collector";
 import { robotsSitemapCollector } from "@/lib/audit/collectors/robots-sitemap";
 import { structuredDataCollector } from "@/lib/audit/collectors/structured-data";
+import { aeoReadinessCollector } from "@/lib/audit/aeo/collector";
 import { wrapCollector } from "@/lib/audit/collectors/wrap-collector";
 import type { AuditCollector } from "@/lib/audit/types";
 
@@ -14,6 +15,7 @@ const RAW_COLLECTORS: AuditCollector[] = [
   metadataCollector,
   robotsSitemapCollector,
   structuredDataCollector,
+  aeoReadinessCollector,
   homepageContentCollector,
   pagespeedCollector,
   operationsInventoryCollector,

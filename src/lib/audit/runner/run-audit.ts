@@ -65,6 +65,8 @@ export async function runAudit(
     auditRequestId: input.requestId,
     auditRunId: input.runId,
     services,
+    businessName: input.businessName ?? null,
+    market: input.market ?? null,
   };
 
   await runCollectorsWithConcurrency(applicableCollectors, {

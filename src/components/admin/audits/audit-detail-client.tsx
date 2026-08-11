@@ -37,7 +37,7 @@ const CATEGORY_PRESENTATION: Record<string, { label: string; description: string
     description: "How easily people with different needs can use your website.",
   },
   aeo: {
-    label: "AI Search Readiness",
+    label: "AI & Answer Readiness",
     description: "How clearly search engines and AI systems can understand your business.",
   },
   conversion: {

@@ -1,6 +1,7 @@
 import type { AuditRunProgress } from "@/lib/audit/types";
 import type { SearchVisibilityResult, SearchVisibilitySummary } from "@/lib/audit/search-visibility/types";
 import type { LocalSearchResult, LocalSearchSummary } from "@/lib/audit/local-search/types";
+import type { AeoSnapshot } from "@/lib/audit/aeo/types";
 
 export type PublicAuditFinding = {
   category: string;
@@ -62,6 +63,7 @@ export type PublicAuditDetail = {
     results: LocalSearchResult[];
     summary: LocalSearchSummary | null;
   } | null;
+  aeoReadiness?: AeoSnapshot | null;
 };
 
 export type PublicAuditRunResponse = {

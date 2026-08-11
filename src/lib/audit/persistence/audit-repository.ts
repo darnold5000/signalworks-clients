@@ -9,6 +9,7 @@ import type {
   NormalizedAuditUrl,
 } from "@/lib/audit/types";
 import type { LocalSearchSnapshot } from "@/lib/audit/local-search/types";
+import type { AeoSnapshot } from "@/lib/audit/aeo/types";
 import type { GeneratedRecommendation } from "@/lib/audit/recommendations/generate";
 import type { CategoryScoreResult } from "@/lib/audit/scoring/score-audit";
 import type { SearchVisibilitySnapshot } from "@/lib/audit/search-visibility/types";
@@ -263,5 +264,10 @@ export async function saveLocalSearchSnapshot(
     error_message: snapshot.errorMessage ?? null,
     checked_at: snapshot.checkedAt,
   }, { onConflict: "audit_run_id" });
+  if (error) throw new Error(error.message);
+}
+
+export async function saveAeoSnapshot(supabase: SupabaseClient, auditRunId: string, snapshot: AeoSnapshot): Promise<void> {
+  const { error } = await supabase.from("audit_aeo_readiness").upsert({ audit_run_id: auditRunId, score: snapshot.score, categories_json: snapshot.categories, question_coverage_json: snapshot.questionCoverage, findings_json: snapshot.findings, recommendations_json: snapshot.recommendations, evidence_json: snapshot.evidence, checked_at: snapshot.checkedAt }, { onConflict: "audit_run_id" });
   if (error) throw new Error(error.message);
 }
