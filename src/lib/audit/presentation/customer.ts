@@ -87,7 +87,7 @@ function categoryLabel(category: string) {
     performance: "Speed & Performance",
     seo: "SEO Setup",
     aeo: "AI & Answer Readiness",
-    conversion: "Customer Conversion",
+    conversion: "Conversion Readiness",
     technical: "Website Technology",
     local_seo: "Google Maps & Local Search",
   } as Record<string, string>)[category] ?? category;

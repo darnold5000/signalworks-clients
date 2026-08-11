@@ -24,7 +24,7 @@ function demandText(level: string | undefined, volume: number | null | undefined
 const CATEGORY_LABELS: Record<string, string> = {
   accessibility: "Accessibility",
   aeo: "AI & Answer Readiness",
-  conversion: "Customer Conversion",
+  conversion: "Conversion Readiness",
   performance: "Speed & Performance",
   security: "Security",
   seo: "SEO Setup",

@@ -12,7 +12,7 @@ export const RECOMMENDATION_CATEGORY_LABELS: Record<string, string> = {
   seo: "SEO",
   technical: "Technical",
   performance: "Performance",
-  conversion: "Conversion",
+  conversion: "Conversion Readiness",
   content: "Homepage content",
   aeo: "AI search",
   accessibility: "Accessibility",

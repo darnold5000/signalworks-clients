@@ -71,10 +71,8 @@ export async function runSearchVisibility(input: {
 
   const candidates = generateDiscoveryCandidates({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
-  const [resolvedLocation, demandByQuery] = await Promise.all([
-    resolveDataForSeoLocation({ city: city ?? null, state: state ?? null }),
-    ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId }),
-  ]);
+  const resolvedLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
+  const demandByQuery = await ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId, locationCode: resolvedLocation.locationCode, locationName: resolvedLocation.locationName });
   console.info("[audit/search-visibility] location resolved", {
     auditId: input.auditId,
     detectedLocation: detectedLocationName,

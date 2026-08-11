@@ -41,7 +41,7 @@ const CATEGORY_PRESENTATION: Record<string, { label: string; description: string
     description: "How clearly search engines and AI systems can understand your business.",
   },
   conversion: {
-    label: "Customer Conversion",
+    label: "Conversion Readiness",
     description: "How well your website helps visitors take the next step.",
   },
   performance: {
@@ -241,7 +241,7 @@ export function AuditDetailClient({ detail }: { detail: AuditRunDetail }) {
                 <SummaryMetric label="Search visibility" value={null} />
                 <SummaryMetric label="Local search" value={null} />
                 <SummaryMetric label="AI readiness" value={detail.scores.find((row) => row.category === "aeo")?.score ?? null} />
-                <SummaryMetric label="Conversion" value={detail.scores.find((row) => row.category === "conversion")?.score ?? null} />
+                <SummaryMetric label="Conversion Readiness" value={detail.scores.find((row) => row.category === "conversion")?.score ?? null} />
               </div>
             </div>
           </section>

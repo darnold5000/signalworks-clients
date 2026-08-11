@@ -17,6 +17,7 @@ export async function fetchGoogleLocalResults(input: { keyword: string; location
   const login = process.env.DATAFORSEO_LOGIN?.trim();
   const password = process.env.DATAFORSEO_PASSWORD?.trim();
   if (!login || !password) throw new Error("DataForSEO credentials are not configured.");
+  console.info("[audit/local-search] DataForSEO request", { keyword: input.keyword, locationCode: input.locationCode, locationName: input.locationName, device: "desktop", depth: 20 });
   const response = await fetch("https://api.dataforseo.com/v3/serp/google/local_finder/live/advanced", {
     method: "POST",
     headers: { Authorization: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`, "Content-Type": "application/json" },
