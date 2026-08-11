@@ -25,6 +25,9 @@ describe("search visibility phase 1", () => {
     expect(summary.score).toBe(0);
     expect(summary.discoveryScore).toBe(0);
     expect(summary.brandedScore).toBe(100);
+    expect(summary.discoveryQueriesAnalyzed).toBe(1);
+    expect(summary.brandedQueriesAnalyzed).toBe(1);
+    expect(summary.queriesAnalyzed).toBe(2);
     expect(summary.notFoundCount).toBe(1);
   });
 

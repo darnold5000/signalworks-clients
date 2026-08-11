@@ -7,6 +7,12 @@ const DEMAND_TTL_DAYS = Number(process.env.SEARCH_INTENT_DEMAND_TTL_DAYS ?? 90) 
 
 function normalizeIntent(value: string) { return value.trim().toLowerCase().replace(/\s+/g, " "); }
 
+const demandIsFresh = (demand: SearchDemand) => {
+  if (!demand.checkedAt) return false;
+  const age = Date.now() - new Date(demand.checkedAt).getTime();
+  return Number.isFinite(age) && age >= 0 && age <= DEMAND_TTL_DAYS * 24 * 60 * 60 * 1000;
+};
+
 function unavailable(keyword: string): SearchDemand { return { query: keyword, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable", checkedAt: "" }; }
 
 /** Reads shared national demand only. It never calls DataForSEO. */
@@ -23,6 +29,90 @@ export async function fetchSearchDemand(input: { supabase: SupabaseClient; keywo
     if (!Number.isFinite(age) || age > DEMAND_TTL_DAYS * 24 * 60 * 60 * 1000) return { ...unavailable(keyword), checkedAt: row.checked_at };
     return { query: row.display_intent ?? keyword, monthlySearchVolume: row.monthly_search_volume == null ? null : Number(row.monthly_search_volume), competition: row.competition_index == null ? row.competition : Number(row.competition_index), cpc: row.cpc == null ? null : Number(row.cpc), demandLevel: row.demand_level ?? "unavailable", checkedAt: row.checked_at };
   });
+}
+
+/**
+ * Returns demand for discovery intents, refreshing only missing or stale cache
+ * entries. A single refresh request is used for the whole batch so one audit
+ * does not create duplicate provider calls for the same intent.
+ */
+export async function ensureSearchDemand(input: {
+  supabase: SupabaseClient;
+  intents: string[];
+  auditId?: string;
+  countryCode?: string;
+  languageCode?: string;
+}): Promise<Map<string, SearchDemand>> {
+  const intents = [...new Set(input.intents.map(normalizeIntent).filter(Boolean))];
+  const result = new Map<string, SearchDemand>();
+  if (!intents.length) return result;
+
+  let cached: SearchDemand[] = [];
+  try {
+    cached = await fetchSearchDemand({
+      supabase: input.supabase,
+      keywords: intents,
+      countryCode: input.countryCode,
+      languageCode: input.languageCode,
+    });
+  } catch (error) {
+    console.warn("[audit/search-demand] cache lookup failed", {
+      auditId: input.auditId,
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+
+  const cachedByIntent = new Map<string, SearchDemand>();
+  cached.forEach((demand, index) => cachedByIntent.set(intents[index] ?? normalizeIntent(demand.query), demand));
+
+  const staleOrMissing = intents.filter((intent) => {
+    const demand = cachedByIntent.get(intent);
+    if (demand && demandIsFresh(demand)) {
+      console.info("[audit/search-demand] cache hit", { auditId: input.auditId, intent });
+      result.set(intent, demand);
+      return false;
+    }
+    console.info("[audit/search-demand] cache miss", {
+      auditId: input.auditId,
+      intent,
+      reason: demand ? "stale" : "missing",
+    });
+    return true;
+  });
+
+  if (staleOrMissing.length) {
+    try {
+      const refreshed = await refreshSearchIntentDemand({
+        supabase: input.supabase,
+        intents: staleOrMissing,
+        countryCode: input.countryCode,
+        languageCode: input.languageCode,
+      });
+      refreshed.forEach((demand, index) => {
+        const intent = staleOrMissing[index] ?? normalizeIntent(demand.query);
+        if (intent) result.set(intent, demand);
+      });
+      console.info("[audit/search-demand] refresh success", {
+        auditId: input.auditId,
+        requested: staleOrMissing.length,
+        measured: refreshed.filter((demand) => demand.monthlySearchVolume != null).length,
+      });
+    } catch (error) {
+      console.warn("[audit/search-demand] refresh failure", {
+        auditId: input.auditId,
+        requested: staleOrMissing.length,
+        error: error instanceof Error ? error.message : error,
+      });
+      for (const intent of staleOrMissing) {
+        result.set(intent, cachedByIntent.get(intent) ?? unavailable(intent));
+      }
+    }
+  }
+
+  for (const intent of intents) {
+    if (!result.has(intent)) result.set(intent, cachedByIntent.get(intent) ?? unavailable(intent));
+  }
+  return result;
 }
 
 /** Explicit platform/admin refresh. Visitor audits must not call this. */
