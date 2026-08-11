@@ -13,6 +13,13 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   checkedAt: string;
   searchEngine: "google";
   location: string;
+  enteredMarket?: string | null;
+  resolvedLocationName?: string;
+  locationCode?: number;
+  auditedDomain?: string;
+  auditedBusinessName?: string | null;
+  resultDepth?: number;
+  taskId?: string | null;
   monthlySearchVolume?: number | null;
   competition?: number | null;
   cpc?: number | null;
@@ -49,4 +56,9 @@ export type SearchVisibilitySnapshot = {
   summary: SearchVisibilitySummary | null;
   errorMessage?: string | null;
   checkedAt: string | null;
+  enteredMarket?: string | null;
+  locationCode?: number | null;
+  auditedDomain?: string | null;
+  resultDepth?: number;
+  searchEngine?: "google";
 };

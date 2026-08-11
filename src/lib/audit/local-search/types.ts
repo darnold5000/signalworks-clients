@@ -1,5 +1,6 @@
 export type LocalSearchResult = {
   query: string;
+  queryType?: "local";
   position: number | null;
   found: boolean;
   businessName: string | null;
@@ -7,6 +8,14 @@ export type LocalSearchResult = {
   resultUrl: string | null;
   location: string;
   checkedAt: string;
+  searchEngine?: "google";
+  enteredMarket?: string | null;
+  resolvedLocationName?: string;
+  locationCode?: number;
+  auditedDomain?: string;
+  auditedBusinessName?: string | null;
+  resultDepth?: number;
+  taskId?: string | null;
 };
 
 export type LocalSearchSummary = {
@@ -33,4 +42,7 @@ export type LocalSearchSnapshot = {
   summary: LocalSearchSummary | null;
   errorMessage?: string | null;
   checkedAt: string | null;
+  auditedDomain?: string | null;
+  resultDepth?: number;
+  searchEngine?: "google";
 };

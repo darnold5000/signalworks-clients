@@ -181,6 +181,11 @@ export async function executeAuditSynchronously(
         summary: null,
         errorMessage: error instanceof Error ? error.message : "Search visibility failed.",
         checkedAt: null,
+        enteredMarket: input.city ?? null,
+        locationCode: null,
+        auditedDomain: url.normalizedDomain,
+        resultDepth: 30,
+        searchEngine: "google",
       }).then(
         () => console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId, status: "failed" }),
         (saveError) => console.error("[audit/search-visibility] database persistence failed", { auditId: created.runId, error: saveError instanceof Error ? saveError.message : saveError }),
@@ -208,7 +213,7 @@ export async function executeAuditSynchronously(
       console.info("[audit/local-search] database persistence succeeded", { auditId: created.runId });
     } catch (error) {
       console.error("[audit/local-search] measurement failed", { auditId: created.runId, error: error instanceof Error ? error.message : error });
-      await saveLocalSearchSnapshot(supabase, created.runId, { status: "failed", score: null, profileKey: null, enteredMarket: input.city ?? null, normalizedMarket: null, locationName: null, locationCode: null, results: [], summary: null, errorMessage: error instanceof Error ? error.message : "Local search failed.", checkedAt: null }).catch((saveError) => console.error("[audit/local-search] persistence failed", saveError));
+      await saveLocalSearchSnapshot(supabase, created.runId, { status: "failed", score: null, profileKey: null, enteredMarket: input.city ?? null, normalizedMarket: null, locationName: null, locationCode: null, results: [], summary: null, errorMessage: error instanceof Error ? error.message : "Local search failed.", checkedAt: null, auditedDomain: url.normalizedDomain, resultDepth: 20, searchEngine: "google" }).catch((saveError) => console.error("[audit/local-search] persistence failed", saveError));
     }
   }
 

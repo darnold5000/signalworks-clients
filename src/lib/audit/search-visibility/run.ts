@@ -54,6 +54,7 @@ export async function runSearchVisibility(input: {
   const services = homepage ? detectServices(homepage.bodyText) : [];
   const [city, state] = (input.city ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   const detectedLocationName = city ? `${city}${state ? `, ${state}` : ""}, United States` : "United States";
+  const enteredMarket = input.city;
   const fallbackQueries = generateSearchQueries({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
   console.info("[audit/search-visibility] started", {
     auditId: input.auditId,
@@ -64,7 +65,7 @@ export async function runSearchVisibility(input: {
     generatedQueries: fallbackQueries.length,
   });
   if (fallbackQueries.length === 0) {
-    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null };
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
   }
 
   const resolvedLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
@@ -113,7 +114,7 @@ export async function runSearchVisibility(input: {
       matched: Boolean(match),
       matchedPosition,
     });
-    const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: resolvedLocation.locationName };
+    const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: resolvedLocation.locationName, enteredMarket, resolvedLocationName: resolvedLocation.locationName, locationCode: resolvedLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId };
     const demand = demandByQuery.get(query.query.toLowerCase());
     const opportunity = query.type === "discovery" ? opportunityForQuery(baseResult, demand) : null;
     return { ...baseResult, monthlySearchVolume: demand?.monthlySearchVolume ?? null, competition: demand?.competition ?? null, cpc: demand?.cpc ?? null, demandLevel: demand?.demandLevel ?? "unavailable", demandCheckedAt: demand?.checkedAt ?? null, opportunityScore: opportunity?.score ?? null, opportunityLabel: opportunity?.label ?? null };
@@ -121,5 +122,5 @@ export async function runSearchVisibility(input: {
   const summary = scoreSearchVisibility(results);
   const typeScores = scoreSearchVisibilityTypes(results);
   console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
-  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: resolvedLocation.locationName, results, summary, checkedAt };
+  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: resolvedLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: resolvedLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
 }

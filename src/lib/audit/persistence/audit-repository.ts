@@ -234,6 +234,11 @@ export async function saveSearchVisibilitySnapshot(
     results_json: snapshot.results,
     error_message: snapshot.errorMessage ?? null,
     checked_at: snapshot.checkedAt,
+    entered_market: snapshot.enteredMarket,
+    location_code: snapshot.locationCode,
+    audited_domain: snapshot.auditedDomain,
+    result_depth: snapshot.resultDepth,
+    search_engine: snapshot.searchEngine,
   }, { onConflict: "audit_run_id" });
   if (error) throw new Error(error.message);
 }
@@ -263,6 +268,9 @@ export async function saveLocalSearchSnapshot(
     results_json: snapshot.results,
     error_message: snapshot.errorMessage ?? null,
     checked_at: snapshot.checkedAt,
+    audited_domain: snapshot.auditedDomain,
+    result_depth: snapshot.resultDepth,
+    search_engine: snapshot.searchEngine,
   }, { onConflict: "audit_run_id" });
   if (error) throw new Error(error.message);
 }

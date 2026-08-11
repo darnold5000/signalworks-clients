@@ -7,6 +7,8 @@ export type DataForSeoOrganicResponse = {
   tasks_error?: number;
   cost?: number;
   tasks?: Array<{
+    id?: string;
+    task_id?: string;
     status_code?: number;
     status_message?: string;
     cost?: number;
@@ -18,6 +20,8 @@ export type DataForSeoOrganicFetch = {
   items: OrganicItem[];
   resultCount: number;
   itemTypes: Record<string, number>;
+  taskId: string | null;
+  resultDepth: number;
 };
 
 export type DataForSeoLocation = {
@@ -152,5 +156,5 @@ export async function fetchGoogleOrganicResults(input: { keyword: string; locati
     counts[type] = (counts[type] ?? 0) + 1;
     return counts;
   }, {});
-  return { items, resultCount: task.result?.length ?? 0, itemTypes };
+  return { items, resultCount: task.result?.length ?? 0, itemTypes, taskId: task.id ?? task.task_id ?? null, resultDepth: 30 };
 }

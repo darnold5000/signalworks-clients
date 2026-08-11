@@ -10,10 +10,10 @@ type LocalItem = {
 type LocalResponse = {
   status_code?: number;
   status_message?: string;
-  tasks?: Array<{ status_code?: number; status_message?: string; result?: Array<{ items?: LocalItem[] }> }>;
+  tasks?: Array<{ id?: string; task_id?: string; status_code?: number; status_message?: string; result?: Array<{ items?: LocalItem[] }> }>;
 };
 
-export async function fetchGoogleLocalResults(input: { keyword: string; locationCode: number; locationName: string }): Promise<LocalItem[]> {
+export async function fetchGoogleLocalResults(input: { keyword: string; locationCode: number; locationName: string }): Promise<{ items: LocalItem[]; taskId: string | null; resultDepth: number }> {
   const login = process.env.DATAFORSEO_LOGIN?.trim();
   const password = process.env.DATAFORSEO_PASSWORD?.trim();
   if (!login || !password) throw new Error("DataForSEO credentials are not configured.");
@@ -27,5 +27,5 @@ export async function fetchGoogleLocalResults(input: { keyword: string; location
   const payload = (await response.json()) as LocalResponse;
   const task = payload.tasks?.[0];
   if (payload.status_code !== 20000 || !task || task.status_code !== 20000) throw new Error(task?.status_message ?? payload.status_message ?? "DataForSEO local search failed.");
-  return (task.result?.[0]?.items ?? []).filter((item) => item.type === "local_pack");
+  return { items: (task.result?.[0]?.items ?? []).filter((item) => item.type === "local_pack"), taskId: task.id ?? task.task_id ?? null, resultDepth: 20 };
 }
