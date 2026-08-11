@@ -64,6 +64,7 @@ function normalizeLocation(city: string | null, state?: string | null) {
 
 export function generateSearchQueries(input: {
   businessName: string | null;
+  businessTypeHint?: string | null;
   city: string | null;
   state?: string | null;
   services: string[];
@@ -85,7 +86,7 @@ export function generateSearchQueries(input: {
   }
 
   const validServices = [...new Set(input.services.map(cleanPhrase).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase))];
-  const profile = selectSearchProfile({ businessName: input.businessName, services: input.services });
+  const profile = selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
   if (looksFinancial(validServices) || profile.key === "financial_advisor") {
     for (const [phrase, service] of FINANCIAL_DISCOVERY_QUERIES) {
       if (location) add(`${phrase} ${location}`, "discovery", service);
@@ -100,9 +101,9 @@ export function generateSearchQueries(input: {
   return queries.slice(0, 10);
 }
 
-export function generateDiscoveryCandidates(input: { businessName: string | null; city: string | null; state?: string | null; services: string[] }): SearchVisibilityQuery[] {
+export function generateDiscoveryCandidates(input: { businessName: string | null; businessTypeHint?: string | null; city: string | null; state?: string | null; services: string[] }): SearchVisibilityQuery[] {
   const location = normalizeLocation(input.city, input.state);
-  const profile = selectSearchProfile({ businessName: input.businessName, services: input.services });
+  const profile = selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
   const terms = [...profile.baseTerms, ...input.services.map(cleanPhrase).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase)];
   const seen = new Set<string>();
   return terms.map((term) => term.replace(/\s+/g, " ").trim()).filter((term) => {

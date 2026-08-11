@@ -34,6 +34,7 @@ export type ExecuteAuditInput = {
   auditType: AuditType;
   tenantId?: string | null;
   businessName?: string | null;
+  businessTypeHint?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
   city?: string | null;
@@ -104,6 +105,7 @@ export async function executeAuditSynchronously(
     tenantId,
     url,
     businessName: input.businessName,
+    businessTypeHint: input.businessTypeHint,
     contactName: input.contactName,
     contactEmail: input.contactEmail,
     city: input.city,
@@ -159,6 +161,7 @@ export async function executeAuditSynchronously(
         auditId: created.runId,
         normalizedUrl: url.normalizedUrl,
         businessName: input.businessName ?? null,
+        businessTypeHint: input.businessTypeHint ?? null,
         city: input.city ?? null,
         fetchHomepage: async () => {
           const response = await collectorServices.getHomepage();
@@ -207,6 +210,7 @@ export async function executeAuditSynchronously(
         auditId: created.runId,
         normalizedUrl: url.normalizedUrl,
         businessName: input.businessName ?? null,
+        businessTypeHint: input.businessTypeHint ?? null,
         enteredMarket: input.city ?? null,
         city: market.city,
         state: market.state,

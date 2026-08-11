@@ -1,11 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { matchGoogleAdsLocation, matchGoogleAdsLocations } from "./location";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { matchGoogleAdsLocation, matchGoogleAdsLocations, resolveGoogleAdsLocation } from "./location";
 
 const catalog = [
   { location_code: 1017146, location_name: "Indianapolis,Indiana,United States", country_iso_code: "US", location_type: "City" },
 ];
 
 describe("DataForSEO location catalogs", () => {
+  afterEach(() => {
+    delete process.env.DATAFORSEO_LOGIN;
+    delete process.env.DATAFORSEO_PASSWORD;
+  });
   it.each([
     ["Indianapolis", "IN"],
     ["Indianapolis", "Indiana"],
@@ -38,5 +42,45 @@ describe("DataForSEO location catalogs", () => {
     ];
     expect(matchGoogleAdsLocations(locations, { city: "Plainfield", state: null })).toHaveLength(2);
     expect(matchGoogleAdsLocation(locations, { city: "Plainfield", state: null })).toBeNull();
+  });
+
+  it("reports missing provider credentials as a provider error", async () => {
+    delete process.env.DATAFORSEO_LOGIN;
+    delete process.env.DATAFORSEO_PASSWORD;
+    const result = await resolveGoogleAdsLocation({ city: "Indianapolis", state: "Indiana", requestedMarket: "Indianapolis, Indiana", auditId: "location-auth-test" });
+    expect(result.status).toBe("provider_error");
+    expect(result.location).toBeNull();
+  });
+
+  it("distinguishes provider authentication failure from a no-match", async () => {
+    process.env.DATAFORSEO_LOGIN = "api-login";
+    process.env.DATAFORSEO_PASSWORD = "api-password";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 401 } as Response);
+
+    const result = await resolveGoogleAdsLocation({ city: "Indianapolis", state: "Indiana", requestedMarket: "Indianapolis, Indiana", auditId: "location-auth-failure-test" });
+
+    expect(result.status).toBe("provider_error");
+    expect(result.error).toContain("401");
+  });
+
+  it("uses server-side Basic Auth for the Google Ads catalog request", async () => {
+    process.env.DATAFORSEO_LOGIN = "api-login";
+    process.env.DATAFORSEO_PASSWORD = "api-password";
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ status_code: 20000, tasks: [{ status_code: 20000, result: catalog }] }),
+    } as Response);
+
+    const result = await resolveGoogleAdsLocation({ city: "Indianapolis", state: "Indiana", requestedMarket: "Indianapolis, Indiana", auditId: "location-auth-header-test" });
+
+    expect(result.status).toBe("resolved");
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.dataforseo.com/v3/keywords_data/google_ads/locations/us",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from("api-login:api-password").toString("base64")}`,
+        }),
+      }),
+    );
   });
 });

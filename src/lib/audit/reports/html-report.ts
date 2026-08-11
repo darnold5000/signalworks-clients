@@ -29,6 +29,7 @@ export function buildAuditReportHtml(detail: AuditRunDetail): string {
       <header style="margin-bottom: 2rem;">
         <p style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: #666;">Signal Works Website Audit</p>
         <h1 style="margin: 0.25rem 0 0; font-size: 28px;">${escapeHtml(detail.businessName ?? detail.normalizedDomain)}</h1>
+        ${detail.businessTypeHint ? `<p style="margin: 8px 0 0; color: #555;">Business type provided: ${escapeHtml(detail.businessTypeHint)}</p>` : ""}
         <p style="color: #555; margin-top: 0.5rem;">${escapeHtml(detail.normalizedUrl)}</p>
         <p style="color: #555;">Audit date: ${escapeHtml(detail.completedAt ?? detail.createdAt)}</p>
       </header>

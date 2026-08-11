@@ -88,6 +88,7 @@ export async function ensureSearchDemand(input: {
       const refreshed = await refreshSearchIntentDemand({
         supabase: input.supabase,
         intents: staleOrMissing,
+        auditId: input.auditId,
         countryCode: input.countryCode,
         languageCode: input.languageCode,
         googleAdsLocation: input.googleAdsLocation,
@@ -120,20 +121,35 @@ export async function ensureSearchDemand(input: {
 }
 
 /** Explicit platform/admin refresh. Visitor audits must not call this. */
-export async function refreshSearchIntentDemand(input: { supabase: SupabaseClient; intents: string[]; countryCode?: string; languageCode?: string; googleAdsLocation: GoogleAdsLocation }): Promise<SearchDemand[]> {
+export async function refreshSearchIntentDemand(input: { supabase: SupabaseClient; intents: string[]; auditId?: string; countryCode?: string; languageCode?: string; googleAdsLocation: GoogleAdsLocation }): Promise<SearchDemand[]> {
   const keywords = [...new Set(input.intents.map(normalizeIntent).filter(Boolean))];
   if (!keywords.length) return [];
   const login = process.env.DATAFORSEO_LOGIN?.trim();
   const password = process.env.DATAFORSEO_PASSWORD?.trim();
   if (!login || !password) throw new Error("DataForSEO credentials are not configured.");
   const locationCode = input.googleAdsLocation.locationCode;
+  const startedAt = Date.now();
+  console.info("[audit/search-demand] provider request", {
+    auditId: input.auditId,
+    requested: keywords.length,
+    locationCode,
+    locationName: input.googleAdsLocation.locationName,
+    languageCode: input.languageCode ?? "en",
+  });
   const response = await fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", { method: "POST", headers: { Authorization: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`, "Content-Type": "application/json" }, body: JSON.stringify([{ keywords, location_code: locationCode, language_code: input.languageCode ?? "en", search_partners: false }]), signal: AbortSignal.timeout(45_000) });
   if (!response.ok) throw new Error(`DataForSEO demand HTTP ${response.status}`);
   const payload = (await response.json()) as DemandResponse;
   const task = payload.tasks?.[0];
   if (payload.status_code !== 20000 || !task || task.status_code !== 20000) throw new Error(task?.status_message ?? payload.status_message ?? "DataForSEO demand failed.");
   const providerResults = task.result ?? [];
+  const conflictingLocations = providerResults
+    .map((result) => result.location_code)
+    .filter((resultLocationCode): resultLocationCode is number => resultLocationCode != null && resultLocationCode !== locationCode);
+  if (conflictingLocations.length) {
+    throw new Error(`DataForSEO demand response returned a different location code than requested (${[...new Set(conflictingLocations)].join(", ")}).`);
+  }
   console.info("[audit/search-demand] provider response", {
+    auditId: input.auditId,
     requested: keywords.length,
     returned: providerResults.length,
     resultCount: task.result_count ?? providerResults.length,
@@ -142,11 +158,28 @@ export async function refreshSearchIntentDemand(input: { supabase: SupabaseClien
     locationCode: providerResults[0]?.location_code ?? locationCode,
     locationName: input.googleAdsLocation.locationName,
     languageCode: providerResults[0]?.language_code ?? input.languageCode ?? "en",
+    durationMs: Date.now() - startedAt,
   });
   const checkedAt = new Date().toISOString();
   const measured = new Map(providerResults.map((result) => { const normalized = normalizeIntent(result.keyword ?? ""); return [normalized, normalizeDemand({ query: result.keyword ?? normalized, searchVolume: result.search_volume, competition: result.competition_index ?? result.competition, cpc: result.cpc, checkedAt })]; }));
   const rows = keywords.map((keyword) => { const item = measured.get(keyword) ?? unavailable(keyword); return { normalized_intent: keyword, display_intent: item.query, country_code: input.countryCode ?? "US", language_code: input.languageCode ?? "en", location_code: locationCode, location_name: input.googleAdsLocation.locationName, monthly_search_volume: item.monthlySearchVolume, demand_level: item.demandLevel, competition: item.competition, competition_index: item.competition, cpc: item.cpc, source: "dataforseo_google_ads", confidence: item.demandLevel === "unavailable" ? "unavailable" : "measured", checked_at: checkedAt, updated_at: checkedAt }; });
   const { error } = await input.supabase.from("search_intent_demand").upsert(rows, { onConflict: "normalized_intent,country_code,language_code,location_code" });
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.warn("[audit/search-demand] persist failed", {
+      auditId: input.auditId,
+      requested: keywords.length,
+      locationCode,
+      locationName: input.googleAdsLocation.locationName,
+      error: error.message,
+    });
+    throw new Error(error.message);
+  }
+  console.info("[audit/search-demand] persist success", {
+    auditId: input.auditId,
+    requested: keywords.length,
+    locationCode,
+    locationName: input.googleAdsLocation.locationName,
+    persisted: rows.length,
+  });
   return keywords.map((keyword) => measured.get(keyword) ?? unavailable(keyword));
 }

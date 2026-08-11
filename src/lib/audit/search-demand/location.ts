@@ -4,6 +4,9 @@ export type GoogleAdsLocation = {
   countryIsoCode: string | null;
   locationType: string | null;
 };
+export type GoogleAdsLocationResolution =
+  | { status: "resolved"; location: GoogleAdsLocation; error: null }
+  | { status: "ambiguous" | "not_found" | "provider_error" | "unavailable"; location: null; error: string };
 
 type GoogleAdsLocationRecord = {
   location_code?: number;
@@ -63,28 +66,41 @@ async function fetchUsGoogleAdsLocations(): Promise<GoogleAdsLocationRecord[] | 
   return task.result ?? [];
 }
 
-export async function resolveGoogleAdsLocation(input: { city: string | null; state: string | null; auditId?: string }): Promise<GoogleAdsLocation | null> {
+export async function resolveGoogleAdsLocation(input: { city: string | null; state: string | null; auditId?: string; requestedMarket?: string | null }): Promise<GoogleAdsLocationResolution> {
+  const metadata = { auditId: input.auditId, requestedMarket: input.requestedMarket ?? null, requestedCity: input.city, requestedState: input.state };
   if (!input.city) {
-    console.warn("[audit/search-demand] Google Ads location unavailable: city is required", { auditId: input.auditId, city: input.city, state: input.state });
-    return null;
+    console.warn("[audit/search-demand] Google Ads location unavailable: city is required", metadata);
+    return { status: "unavailable", location: null, error: "A city is required for localized demand." };
   }
+  const login = process.env.DATAFORSEO_LOGIN?.trim() ?? "";
+  const password = process.env.DATAFORSEO_PASSWORD?.trim() ?? "";
+  console.info("[audit/search-demand] Google Ads location resolution started", {
+    ...metadata,
+    endpoint: "/v3/keywords_data/google_ads/locations/us",
+    credentialsPresent: Boolean(login && password),
+    loginLength: login.length,
+    passwordLength: password.length,
+  });
   usGoogleAdsLocationsPromise ??= fetchUsGoogleAdsLocations();
   try {
     const matches = matchGoogleAdsLocations(await usGoogleAdsLocationsPromise, input);
     if (matches.length > 1 && !input.state) {
-      console.warn("[audit/search-demand] Google Ads city location is ambiguous", { auditId: input.auditId, city: input.city, candidates: matches.map((match) => match.locationName) });
-      return null;
+      const error = `Multiple Google Ads city locations matched ${input.city}.`;
+      console.warn("[audit/search-demand] Google Ads city location is ambiguous", { ...metadata, candidates: matches.map((match) => match.locationName) });
+      return { status: "ambiguous", location: null, error };
     }
     const location = matches[0];
     if (!location) {
-      console.warn("[audit/search-demand] Google Ads city location not found", { auditId: input.auditId, city: input.city, state: input.state });
-      return null;
+      const error = `No Google Ads city location matched ${input.city}${input.state ? `, ${input.state}` : ""}.`;
+      console.warn("[audit/search-demand] Google Ads city location not found", { ...metadata, resolutionStatus: "not_found" });
+      return { status: "not_found", location: null, error };
     }
-    console.info("[audit/search-demand] Google Ads location resolved", { auditId: input.auditId, locationCode: location.locationCode, locationName: location.locationName, locationType: location.locationType });
-    return location;
+    console.info("[audit/search-demand] Google Ads location resolved", { ...metadata, resolutionStatus: "resolved", locationCode: location.locationCode, locationName: location.locationName, locationType: location.locationType, countryIsoCode: location.countryIsoCode });
+    return { status: "resolved", location, error: null };
   } catch (error) {
     usGoogleAdsLocationsPromise = null;
-    console.warn("[audit/search-demand] Google Ads location resolution failed", { auditId: input.auditId, city: input.city, state: input.state, error: error instanceof Error ? error.message : error });
-    return null;
+    const message = error instanceof Error ? error.message : "Google Ads location catalog request failed.";
+    console.warn("[audit/search-demand] Google Ads location resolution failed", { ...metadata, resolutionStatus: "provider_error", error: message });
+    return { status: "provider_error", location: null, error: message };
   }
 }

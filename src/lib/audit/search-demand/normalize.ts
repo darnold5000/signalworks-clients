@@ -6,7 +6,7 @@ export function demandLevelForVolume(volume: number | null): DemandLevel {
   if (volume >= 100) return "moderate";
   if (volume >= 20) return "low";
   if (volume >= 1) return "very_low";
-  return "unavailable";
+  return "very_low";
 }
 
 export function normalizeDemand(input: { query: string; searchVolume?: number | null; competition?: number | null; cpc?: number | null; checkedAt: string }): SearchDemand {

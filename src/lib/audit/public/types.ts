@@ -35,6 +35,7 @@ export type PublicAuditDetail = {
   runId: string;
   status: string;
   businessName: string | null;
+  businessTypeHint: string | null;
   normalizedDomain: string;
   normalizedUrl: string;
   overallScore: number | null;
@@ -49,6 +50,14 @@ export type PublicAuditDetail = {
     status: "completed" | "unavailable" | "failed";
     score: number | null;
     locationName: string | null;
+    demandLocation?: {
+      requested: string | null;
+      canonical: string | null;
+      status: string | null;
+      googleAdsLocationCode: number | null;
+      googleAdsLocationName: string | null;
+      error: string | null;
+    } | null;
     results: SearchVisibilityResult[];
     summary: SearchVisibilitySummary | null;
   } | null;

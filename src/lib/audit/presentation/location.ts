@@ -18,5 +18,5 @@ export function formatSearchQuery(query: string, location: string | null | undef
 
 export function formatSearchDemand(level: string | undefined, monthlySearchVolume: number | null | undefined): string {
   const label = level === "high" ? "High demand" : level === "moderate" ? "Moderate demand" : level === "low" ? "Low demand" : level === "very_low" ? "Very low demand" : "Not available";
-  return monthlySearchVolume == null ? label : `${label} · ~${monthlySearchVolume.toLocaleString()} searches/month`;
+  return monthlySearchVolume == null ? label : `${label} · ${monthlySearchVolume === 0 ? "0" : `~${monthlySearchVolume.toLocaleString()}`} searches/month`;
 }

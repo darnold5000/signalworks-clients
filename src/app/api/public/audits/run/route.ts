@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       auditType: "public",
       tenantId: null,
       businessName: input.businessName ?? null,
+      businessTypeHint: input.businessTypeHint ?? null,
       contactName: input.contactName ?? null,
       contactEmail: input.contactEmail?.trim() || null,
       city: input.city ?? null,

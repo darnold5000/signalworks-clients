@@ -20,6 +20,7 @@ export type CreateAuditRunInput = {
   tenantId: string | null;
   url: NormalizedAuditUrl;
   businessName?: string | null;
+  businessTypeHint?: string | null;
   contactName?: string | null;
   contactEmail?: string | null;
   city?: string | null;
@@ -50,6 +51,8 @@ export async function createAuditExecution(
       normalized_url: input.url.normalizedUrl,
       normalized_domain: input.url.normalizedDomain,
       business_name: input.businessName ?? null,
+      business_type_hint: input.businessTypeHint?.trim() || null,
+      business_type_hint_normalized: input.businessTypeHint?.trim().toLowerCase().replace(/\s+/g, " ") || null,
       contact_name: input.contactName ?? null,
       contact_email: input.contactEmail ?? null,
       city: input.city ?? null,
@@ -239,6 +242,12 @@ export async function saveSearchVisibilitySnapshot(
     audited_domain: snapshot.auditedDomain,
     result_depth: snapshot.resultDepth,
     search_engine: snapshot.searchEngine,
+    demand_location_requested: snapshot.demandLocation?.requested ?? null,
+    demand_location_canonical: snapshot.demandLocation?.canonical ?? null,
+    demand_google_ads_location_code: snapshot.demandLocation?.googleAdsLocationCode ?? null,
+    demand_google_ads_location_name: snapshot.demandLocation?.googleAdsLocationName ?? null,
+    demand_location_status: snapshot.demandLocation?.status ?? null,
+    demand_location_error: snapshot.demandLocation?.error ?? null,
   }, { onConflict: "audit_run_id" });
   if (error) throw new Error(error.message);
 }

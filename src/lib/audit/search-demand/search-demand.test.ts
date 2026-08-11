@@ -62,6 +62,7 @@ describe("search demand and opportunities", () => {
     expect(demandLevelForVolume(20)).toBe("low");
     expect(demandLevelForVolume(1)).toBe("very_low");
     expect(demandLevelForVolume(null)).toBe("unavailable");
+    expect(demandLevelForVolume(0)).toBe("very_low");
   });
 
   it("does not turn missing demand into zero demand", () => {
@@ -79,6 +80,14 @@ describe("search demand and opportunities", () => {
   it("treats a top-three ranking as already strong", () => {
     const opportunity = opportunityForQuery({ query: "financial advisor Indianapolis", type: "discovery", service: "financial advisor", position: 2, found: true, rankingUrl: "https://example.com", checkedAt: "now", searchEngine: "google", location: "Indianapolis" }, normalizeDemand({ query: "financial advisor Indianapolis", searchVolume: 1000, checkedAt: "now" }));
     expect(opportunity.label).toBe("already_strong");
+  });
+
+  it("treats measured zero volume as valid demand with no unavailable fallback boost", () => {
+    const opportunity = opportunityForQuery({ query: "rare service Indianapolis", type: "discovery", service: "rare service", position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google", location: "Indianapolis" }, normalizeDemand({ query: "rare service Indianapolis", searchVolume: 0, checkedAt: "now" }));
+    expect(opportunity.monthlySearchVolume).toBe(0);
+    expect(opportunity.demandLevel).toBe("very_low");
+    expect(opportunity.label).toBe("strong_opportunity");
+    expect(opportunity.score).toBe(48);
   });
 
   it("reuses valid cached demand without calling the provider", async () => {
@@ -107,6 +116,7 @@ describe("search demand and opportunities", () => {
     });
     expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]?.[1]?.headers).toEqual(expect.objectContaining({ Authorization: `Basic ${Buffer.from("login:password").toString("base64")}` }));
   });
 
   it("refreshes missing demand and preserves an unavailable item when the provider omits it", async () => {
@@ -153,5 +163,21 @@ describe("search demand and opportunities", () => {
     expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))[0].location_code).toBe(indianapolisGoogleAdsLocation.locationCode);
+  });
+
+  it("rejects a provider response that reports a different location", async () => {
+    process.env.DATAFORSEO_LOGIN = "login";
+    process.env.DATAFORSEO_PASSWORD = "password";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(providerResponse([
+      { keyword: "financial advisor", search_volume: 250, location_code: 2840 },
+    ]) as Response);
+    const result = await ensureSearchDemand({
+      supabase: supabaseForDemand([]),
+      intents: ["financial advisor"],
+      auditId: "audit-location-mismatch",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
+    });
+    expect(result.get("financial advisor")?.monthlySearchVolume).toBeNull();
+    expect(result.get("financial advisor")?.demandLevel).toBe("unavailable");
   });
 });

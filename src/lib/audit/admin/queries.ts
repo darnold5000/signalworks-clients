@@ -24,6 +24,7 @@ type RunRow = {
     id: string;
     audit_type: string;
     business_name: string | null;
+    business_type_hint: string | null;
     normalized_domain: string;
     normalized_url: string;
     tenant_id: string | null;
@@ -58,6 +59,7 @@ function mapListItem(
     requestId: run.audit_request_id,
     auditType: run.audit_requests.audit_type,
     businessName: run.audit_requests.business_name,
+    businessTypeHint: run.audit_requests.business_type_hint,
     normalizedDomain: run.audit_requests.normalized_domain,
     normalizedUrl: run.audit_requests.normalized_url,
     tenantId: run.tenant_id,
@@ -108,7 +110,7 @@ export async function listAdminAudits(filters?: {
     .from(TABLES.auditRuns)
     .select(
       `id, audit_request_id, tenant_id, status, overall_score, summary, engine_version, scope_version, progress_json, created_at, completed_at,
-      audit_requests!inner(id, audit_type, business_name, normalized_domain, normalized_url, tenant_id, internal_notes, created_at)`,
+      audit_requests!inner(id, audit_type, business_name, business_type_hint, normalized_domain, normalized_url, tenant_id, internal_notes, created_at)`,
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -286,6 +288,7 @@ export async function getAdminAuditRunDetail(runId: string): Promise<AuditRunDet
     requestId: runRow.audit_request_id,
     auditType: runRow.audit_requests.audit_type,
     businessName: runRow.audit_requests.business_name,
+    businessTypeHint: runRow.audit_requests.business_type_hint,
     normalizedDomain: runRow.audit_requests.normalized_domain,
     normalizedUrl: runRow.audit_requests.normalized_url,
     tenantId: runRow.tenant_id,

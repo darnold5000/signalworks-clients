@@ -35,6 +35,12 @@ describe("publicRunAuditSchema", () => {
     });
     expect(parsed.success).toBe(true);
   });
+
+  it("accepts an optional business type hint without requiring it", () => {
+    const parsed = publicRunAuditSchema.safeParse({ rawUrl: "https://example.com", businessTypeHint: "Web design & software development" });
+    expect(parsed.success).toBe(true);
+    expect(publicRunAuditSchema.safeParse({ rawUrl: "https://example.com", businessTypeHint: "x".repeat(161) }).success).toBe(false);
+  });
 });
 
 describe("filterFindingsForPublicAudience", () => {

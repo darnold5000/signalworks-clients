@@ -14,11 +14,22 @@ describe("search visibility phase 1", () => {
   });
 
   it("rejects homepage marketing copy and supplies realistic web-service discovery queries", () => {
-    const queries = generateSearchQueries({ businessName: "Signal Works", city: "Plainfield", state: "IN", services: ["Websites, software, and AI — without agency pricing."] });
+    const queries = generateSearchQueries({ businessName: "Signal Works", businessTypeHint: "Web design & software development", city: "Plainfield", state: "IN", services: ["Websites, software, and AI — without agency pricing."] });
     const discovery = queries.filter((query) => query.type === "discovery");
     expect(discovery).toHaveLength(8);
     expect(discovery.map((query) => query.service)).toEqual(expect.arrayContaining(["web design", "website designer", "web development", "software development"]));
     expect(discovery.some((query) => /without agency pricing/i.test(query.query))).toBe(false);
+  });
+
+  it("uses a business type hint when website evidence is not specific", () => {
+    const queries = generateSearchQueries({ businessName: "Example Advisors", businessTypeHint: "Financial advisor", city: "Plainfield", state: "IN", services: ["Welcome to our business"] });
+    expect(queries.filter((query) => query.type === "discovery").map((query) => query.query)).toContain("financial advisor Plainfield IN");
+  });
+
+  it("does not let a contradictory hint override strong website evidence", () => {
+    const profile = selectSearchProfile({ businessName: "Example Dental", businessTypeHint: "Web design", services: ["dentist", "cosmetic dentist"] });
+    expect(profile.key).toBe("dentist");
+    expect(profile.hintDisagreed).toBe(true);
   });
 
   it("does not score an audit with only one discovery query", () => {

@@ -48,6 +48,7 @@ export async function runSearchVisibility(input: {
   auditId: string;
   normalizedUrl: string;
   businessName: string | null;
+  businessTypeHint?: string | null;
   city: string | null;
   fetchHomepage: () => Promise<{ bodyText: string } | null>;
   supabase: SupabaseClient;
@@ -60,7 +61,7 @@ export async function runSearchVisibility(input: {
   const state = parsedMarket.state;
   const detectedLocationName = city ? `${city}${state ? `, ${state}` : ""}, United States` : "United States";
   const enteredMarket = input.city;
-  const fallbackQueries = generateSearchQueries({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
+  const fallbackQueries = generateSearchQueries({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services });
   console.info("[audit/search-visibility] started", {
     auditId: input.auditId,
     normalizedDomain: normalizeHostname(input.normalizedUrl),
@@ -73,7 +74,7 @@ export async function runSearchVisibility(input: {
     return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
   }
 
-  const candidates = generateDiscoveryCandidates({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
+  const candidates = generateDiscoveryCandidates({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services });
   const plannedQueries = [...fallbackQueries.filter((query) => query.type === "branded"), ...candidates].slice(0, 10);
   if (plannedQueries.filter((query) => query.type === "discovery").length < 3) {
     console.warn("[audit/search-visibility] insufficient discovery coverage", { auditId: input.auditId, generatedQueries: plannedQueries.length, discoveryQueries: plannedQueries.filter((query) => query.type === "discovery").length });
@@ -87,11 +88,13 @@ export async function runSearchVisibility(input: {
   }
   const serpLocation = serpResolution.location;
   const canonicalMarket = parseCanonicalLocationName(serpLocation.locationName);
-  const googleAdsLocation = await resolveGoogleAdsLocation({ city: canonicalMarket.city, state: canonicalMarket.state, auditId: input.auditId });
+  const googleAdsResolution = await resolveGoogleAdsLocation({ city: canonicalMarket.city, state: canonicalMarket.state, requestedMarket: input.city, auditId: input.auditId });
+  const googleAdsLocation = googleAdsResolution.status === "resolved" ? googleAdsResolution.location : null;
   const demandByQuery = googleAdsLocation
     ? await ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId, googleAdsLocation })
     : new Map(demandIntents.map((intent) => [intent.trim().toLowerCase(), { query: intent, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable" as const, checkedAt: "" }]));
-  console.info("[audit/search-visibility] endpoint locations", { auditId: input.auditId, serpLocation, googleAdsLocation });
+  const demandLocation = { requested: input.city, canonical: serpLocation.locationName, status: googleAdsResolution.status, googleAdsLocationCode: googleAdsLocation?.locationCode ?? null, googleAdsLocationName: googleAdsLocation?.locationName ?? null, error: googleAdsResolution.error };
+  console.info("[audit/search-visibility] endpoint locations", { auditId: input.auditId, serpLocation, googleAdsLocation, googleAdsResolutionStatus: googleAdsResolution.status });
   console.info("[audit/search-visibility] location resolved", {
     auditId: input.auditId,
     detectedLocation: detectedLocationName,
@@ -136,9 +139,9 @@ export async function runSearchVisibility(input: {
   }));
   const summary = scoreSearchVisibility(results);
   if (!hasSufficientDiscoveryCoverage(results)) {
-    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary: null, errorMessage: "Not enough validated customer search intents were measured.", checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary: null, errorMessage: "Not enough validated customer search intents were measured.", checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", demandLocation };
   }
   const typeScores = scoreSearchVisibilityTypes(results);
   console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
-  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
+  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", demandLocation };
 }

@@ -2,6 +2,7 @@ export type SearchProfile = {
   key: string;
   applicable: boolean;
   baseTerms: string[];
+  hintDisagreed?: boolean;
 };
 
 const PROFILES: Array<SearchProfile & { signals: RegExp }> = [
@@ -16,15 +17,31 @@ const PROFILES: Array<SearchProfile & { signals: RegExp }> = [
   { key: "professional_services", signals: /advisor|consult|accounting|attorney|contractor|landscap|mortgage|insurance|therapy/i, applicable: true, baseTerms: [] },
 ];
 
-export function selectSearchProfile(input: { businessName: string | null; services: string[]; content?: string }): SearchProfile {
+function profileForSource(source: string) {
+  if (/\b(?:saas|software platform|ecommerce|e-commerce|online only|national publication|nationwide)\b/i.test(source)) return { key: "not_applicable", applicable: false, baseTerms: [] } satisfies SearchProfile;
+  return PROFILES.find((profile) => profile.signals.test(source)) ?? null;
+}
+
+function normalizeHint(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/[&/,]+/g, " ").replace(/\s+/g, " ") ?? "";
+}
+
+export function normalizeBusinessTypeHint(value: string | null | undefined) {
+  return normalizeHint(value);
+}
+
+export function selectSearchProfile(input: { businessName: string | null; services: string[]; businessTypeHint?: string | null; content?: string }): SearchProfile {
   // Profile selection must use this audit's business identity and validated
   // service intents only. Homepage copy is not an industry classification
   // source and can mention unrelated industries.
-  const source = [input.businessName ?? "", ...input.services].join(" ");
-  if (/\b(?:saas|software platform|ecommerce|e-commerce|online only|national publication|nationwide)\b/i.test(source)) {
-    return { key: "not_applicable", applicable: false, baseTerms: [] };
+  const serviceSource = input.services.filter((service) => !/(?:without|pricing|[,.;:!?])/i.test(service)).join(" ");
+  const websiteProfile = profileForSource(serviceSource);
+  const hintProfile = profileForSource(normalizeHint(input.businessTypeHint));
+  if (websiteProfile && hintProfile && websiteProfile.key !== hintProfile.key) {
+    console.warn("[audit/search-profile] business type disagrees with website services", { websiteProfile: websiteProfile.key, hintProfile: hintProfile.key });
+    return { ...websiteProfile, hintDisagreed: true };
   }
-  const selected = PROFILES.find((profile) => profile.signals.test(source));
+  const selected = websiteProfile ?? hintProfile;
   if (selected) return { key: selected.key, applicable: selected.applicable, baseTerms: selected.baseTerms };
   if (input.services.length > 0) return { key: "generic_local_business", applicable: true, baseTerms: [] };
   return { key: "not_applicable", applicable: false, baseTerms: [] };

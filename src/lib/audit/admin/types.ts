@@ -5,6 +5,7 @@ export type AuditListItem = {
   requestId: string;
   auditType: string;
   businessName: string | null;
+  businessTypeHint?: string | null;
   normalizedDomain: string;
   normalizedUrl: string;
   tenantId: string | null;
@@ -60,6 +61,7 @@ export type AuditRunDetail = {
   requestId: string;
   auditType: string;
   businessName: string | null;
+  businessTypeHint?: string | null;
   normalizedDomain: string;
   normalizedUrl: string;
   tenantId: string | null;

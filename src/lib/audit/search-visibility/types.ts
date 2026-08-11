@@ -67,4 +67,12 @@ export type SearchVisibilitySnapshot = {
   auditedDomain?: string | null;
   resultDepth?: number;
   searchEngine?: "google";
+  demandLocation?: {
+    requested: string | null;
+    canonical: string | null;
+    status: "resolved" | "ambiguous" | "not_found" | "provider_error" | "unavailable";
+    googleAdsLocationCode: number | null;
+    googleAdsLocationName: string | null;
+    error: string | null;
+  };
 };

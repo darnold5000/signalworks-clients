@@ -27,7 +27,7 @@ export async function getPublicAuditByToken(
   const { data: request, error: requestError } = await supabase
     .from(TABLES.auditRequests)
     .select(
-      "id, audit_type, business_name, normalized_domain, normalized_url, tenant_id, created_at",
+      "id, audit_type, business_name, business_type_hint, normalized_domain, normalized_url, tenant_id, created_at",
     )
     .eq("public_access_token", token)
     .eq("audit_type", "public")
@@ -62,7 +62,7 @@ export async function getPublicAuditByToken(
     ]);
   const { data: searchVisibility, error: searchVisibilityError } = await supabase
     .from("audit_search_visibility")
-    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position")
+    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position, demand_location_requested, demand_location_canonical, demand_google_ads_location_code, demand_google_ads_location_name, demand_location_status, demand_location_error")
     .eq("audit_run_id", run.id)
     .maybeSingle();
   if (searchVisibilityError) {
@@ -129,6 +129,7 @@ export async function getPublicAuditByToken(
     runId: run.id,
     status: run.status,
     businessName: request.business_name,
+    businessTypeHint: request.business_type_hint ?? null,
     normalizedDomain: request.normalized_domain,
     normalizedUrl: request.normalized_url,
     overallScore: run.overall_score,
@@ -160,6 +161,14 @@ export async function getPublicAuditByToken(
           status: searchVisibility.status,
           score: searchVisibility.score == null ? null : Number(searchVisibility.score),
           locationName: searchVisibility.location_name,
+          demandLocation: {
+            requested: searchVisibility.demand_location_requested,
+            canonical: searchVisibility.demand_location_canonical,
+            status: searchVisibility.demand_location_status,
+            googleAdsLocationCode: searchVisibility.demand_google_ads_location_code,
+            googleAdsLocationName: searchVisibility.demand_google_ads_location_name,
+            error: searchVisibility.demand_location_error,
+          },
           results: searchResults,
           summary: {
             score: searchVisibility.score == null ? 0 : Number(searchVisibility.score),

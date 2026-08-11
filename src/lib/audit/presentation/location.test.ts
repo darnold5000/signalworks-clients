@@ -9,5 +9,6 @@ describe("report search presentation", () => {
   it("shows estimated monthly demand when persisted", () => {
     expect(formatSearchDemand("high", 1300)).toBe("High demand · ~1,300 searches/month");
     expect(formatSearchDemand("high", null)).toBe("High demand");
+    expect(formatSearchDemand("very_low", 0)).toBe("Very low demand · 0 searches/month");
   });
 });
