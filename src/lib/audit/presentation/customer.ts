@@ -23,7 +23,7 @@ function categoryLabel(category: string) {
     aeo: "AI & Answer Readiness",
     conversion: "Customer Conversion",
     technical: "Website Technology",
-    local_seo: "Local Search",
+    local_seo: "Google Maps & Local Search",
   } as Record<string, string>)[category] ?? category;
 }
 
