@@ -12,11 +12,15 @@ const PROFILES: Array<SearchProfile & { signals: RegExp }> = [
   { key: "coffee_shop", signals: /coffee|cafe|espresso/i, applicable: true, baseTerms: ["coffee shop", "coffee", "cafe", "espresso"] },
   { key: "restaurant", signals: /restaurant|menu|dining|cuisine/i, applicable: true, baseTerms: ["restaurant", "restaurant near me", "local dining"] },
   { key: "salon", signals: /salon|hair|nail|barber/i, applicable: true, baseTerms: ["hair salon", "hair stylist", "nail salon", "barber"] },
+  { key: "web_services", signals: /web ?design|website|web ?development|software ?development|digital ?agency|agency/i, applicable: true, baseTerms: ["web design", "website designer", "web development", "small business website design", "custom website development", "software development", "business software development", "website development agency"] },
   { key: "professional_services", signals: /advisor|consult|accounting|attorney|contractor|landscap|mortgage|insurance|therapy/i, applicable: true, baseTerms: [] },
 ];
 
 export function selectSearchProfile(input: { businessName: string | null; services: string[]; content?: string }): SearchProfile {
-  const source = [input.businessName ?? "", ...input.services, input.content ?? ""].join(" ");
+  // Profile selection must use this audit's business identity and validated
+  // service intents only. Homepage copy is not an industry classification
+  // source and can mention unrelated industries.
+  const source = [input.businessName ?? "", ...input.services].join(" ");
   if (/\b(?:saas|software platform|ecommerce|e-commerce|online only|national publication|nationwide)\b/i.test(source)) {
     return { key: "not_applicable", applicable: false, baseTerms: [] };
   }

@@ -2,7 +2,7 @@ import { extractHeadings, extractLinks } from "@/lib/audit/collectors/shared/htm
 import { normalizeAuditUrl } from "@/lib/audit/url/normalize";
 import { fetchGoogleOrganicResults, resolveDataForSeoLocation } from "./client";
 import { generateDiscoveryCandidates, generateSearchQueries } from "./query-generation";
-import { scoreSearchVisibility, scoreSearchVisibilityTypes } from "./scoring";
+import { hasSufficientDiscoveryCoverage, scoreSearchVisibility, scoreSearchVisibilityTypes } from "./scoring";
 import { ensureSearchDemand } from "@/lib/audit/search-demand/client";
 import { resolveGoogleAdsLocation } from "@/lib/audit/search-demand/location";
 import { opportunityForQuery } from "@/lib/audit/search-demand/opportunity";
@@ -71,6 +71,11 @@ export async function runSearchVisibility(input: {
   }
 
   const candidates = generateDiscoveryCandidates({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
+  const plannedQueries = [...fallbackQueries.filter((query) => query.type === "branded"), ...candidates].slice(0, 10);
+  if (plannedQueries.filter((query) => query.type === "discovery").length < 3) {
+    console.warn("[audit/search-visibility] insufficient discovery coverage", { auditId: input.auditId, generatedQueries: plannedQueries.length, discoveryQueries: plannedQueries.filter((query) => query.type === "discovery").length });
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Not enough validated customer search intents were available to measure Search Visibility.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
+  }
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
   const serpLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
   const googleAdsLocation = await resolveGoogleAdsLocation({ city: city ?? null, state: state ?? null, auditId: input.auditId });
@@ -121,6 +126,9 @@ export async function runSearchVisibility(input: {
     return { ...baseResult, monthlySearchVolume: demand?.monthlySearchVolume ?? null, competition: demand?.competition ?? null, cpc: demand?.cpc ?? null, demandLevel: demand?.demandLevel ?? "unavailable", demandCheckedAt: demand?.checkedAt ?? null, opportunityScore: opportunity?.score ?? null, opportunityLabel: opportunity?.label ?? null };
   }));
   const summary = scoreSearchVisibility(results);
+  if (!hasSufficientDiscoveryCoverage(results)) {
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary: null, errorMessage: "Not enough validated customer search intents were measured.", checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
+  }
   const typeScores = scoreSearchVisibilityTypes(results);
   console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
   return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };

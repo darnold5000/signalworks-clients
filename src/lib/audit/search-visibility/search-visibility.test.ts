@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSearchQueries } from "@/lib/audit/search-visibility/query-generation";
-import { scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
+import { hasSufficientDiscoveryCoverage, scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
+import { selectLocalQueryTerms, selectSearchProfile } from "@/lib/audit/search-profiles";
 import { domainMatches } from "@/lib/audit/search-visibility/run";
 import { matchUsLocation } from "@/lib/audit/search-visibility/client";
 
@@ -8,8 +9,28 @@ describe("search visibility phase 1", () => {
   it("generates distinct branded and discovery queries", () => {
     const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Plainfield", state: "IN", services: ["Personal Training", "Personal Training", "Our Services"] });
     expect(queries.filter((query) => query.type === "branded")).toHaveLength(2);
-    expect(queries.filter((query) => query.type === "discovery")).toHaveLength(1);
+    expect(queries.filter((query) => query.type === "discovery")).toHaveLength(6);
     expect(new Set(queries.map((query) => query.query.toLowerCase())).size).toBe(queries.length);
+  });
+
+  it("rejects homepage marketing copy and supplies realistic web-service discovery queries", () => {
+    const queries = generateSearchQueries({ businessName: "Signal Works", city: "Plainfield", state: "IN", services: ["Websites, software, and AI — without agency pricing."] });
+    const discovery = queries.filter((query) => query.type === "discovery");
+    expect(discovery).toHaveLength(8);
+    expect(discovery.map((query) => query.service)).toEqual(expect.arrayContaining(["web design", "website designer", "web development", "software development"]));
+    expect(discovery.some((query) => /without agency pricing/i.test(query.query))).toBe(false);
+  });
+
+  it("does not score an audit with only one discovery query", () => {
+    const results = [{ query: "unvalidated headline", type: "discovery" as const, service: null, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Plainfield, Indiana" }];
+    expect(hasSufficientDiscoveryCoverage(results)).toBe(false);
+    expect(scoreSearchVisibility(results).score).toBe(0);
+  });
+
+  it("keeps local terms tied to the current web-services profile", () => {
+    const profile = selectSearchProfile({ businessName: "Signal Works", services: ["web design Plainfield IN", "software development Plainfield IN"] });
+    expect(profile.key).toBe("web_services");
+    expect(selectLocalQueryTerms({ profile, discoveryQueries: ["web design Plainfield IN", "software development Plainfield IN"] })).not.toContain("financial advisor");
   });
 
   it("matches the audited domain without substring false positives", () => {

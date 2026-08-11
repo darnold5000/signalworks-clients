@@ -27,6 +27,7 @@ const NON_COMMERCIAL_PATTERNS = [
 ];
 
 const COMMERCIAL_INTENT = /\b(?:advisor|advisory|accounting|agency|attorney|consulting|counseling|financial|insurance|investment|law|management|marketing|mortgage|planning|retirement|therapy|training|wealth)\b/i;
+const MARKETING_COPY = /(?:\bwithout\b|\bpricing\b|\bsolutions?\b|\bfor your\b|\bwe\b|\byour\b|\bwe believe\b|[,.;:!?])/i;
 
 const FINANCIAL_DISCOVERY_QUERIES = [
   ["wealth management", null],
@@ -43,6 +44,7 @@ function cleanPhrase(value: string): string | null {
   const cleaned = value.replace(/\s+/g, " ").replace(/[|•·]/g, " ").trim();
   if (cleaned.length < 4 || cleaned.length > 60) return null;
   if (NON_COMMERCIAL_PATTERNS.some((pattern) => pattern.test(cleaned))) return null;
+  if (MARKETING_COPY.test(cleaned)) return null;
   if (/^(?:our|the)\s+(?:people|team|story|approach|process|fees|resources|foundations?)$/i.test(cleaned)) return null;
   if (/\b(?:privacy|disclosure|legal|copyright|login|portal|career|careers|news|blog)\b/i.test(cleaned)) return null;
   return cleaned;
@@ -83,12 +85,14 @@ export function generateSearchQueries(input: {
   }
 
   const validServices = [...new Set(input.services.map(cleanPhrase).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase))];
-  if (looksFinancial(validServices)) {
+  const profile = selectSearchProfile({ businessName: input.businessName, services: input.services });
+  if (looksFinancial(validServices) || profile.key === "financial_advisor") {
     for (const [phrase, service] of FINANCIAL_DISCOVERY_QUERIES) {
       if (location) add(`${phrase} ${location}`, "discovery", service);
     }
   } else {
-    for (const service of validServices.slice(0, 8)) {
+    const discoveryTerms = validServices.length >= 2 ? validServices : [...profile.baseTerms, ...validServices];
+    for (const service of [...new Set(discoveryTerms)].slice(0, 8)) {
       if (location) add(`${service} ${location}`, "discovery", service);
     }
   }

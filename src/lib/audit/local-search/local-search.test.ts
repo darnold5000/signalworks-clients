@@ -9,6 +9,10 @@ describe("local search phase 2", () => {
     expect(selectSearchProfile({ businessName: "Cloud Platform", services: ["software platform"] }).applicable).toBe(false);
   });
 
+  it("does not classify local search from unrelated homepage copy", () => {
+    expect(selectSearchProfile({ businessName: "Signal Works", services: ["web design Plainfield IN"], content: "financial planning resources" }).key).toBe("web_services");
+  });
+
   it("selects no more than five local queries", () => {
     expect(selectLocalQueryTerms({ profile: { key: "financial_advisor", applicable: true, baseTerms: ["financial advisor", "wealth management", "financial planner", "retirement planning", "wealth advisor"] }, discoveryQueries: ["wealth management Indianapolis", "financial advisor Indianapolis", "financial planner Indianapolis", "retirement planning Indianapolis", "retirement advisor Indianapolis", "investment management Indianapolis", "business retirement plans Indianapolis", "wealth advisor Indianapolis"] })).toHaveLength(5);
   });
