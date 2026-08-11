@@ -24,6 +24,7 @@ import type {
 } from "@/lib/audit/types";
 import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
 import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
+import { parseMarketInput } from "@/lib/audit/location-input";
 import { runLocalSearch } from "@/lib/audit/local-search/run";
 import { analyzeAeoReadiness } from "@/lib/audit/aeo/analyze";
 import { captureSearchScreenshots, CLIENT_SCREENSHOT_RETENTION_DAYS, FREE_SCREENSHOT_RETENTION_DAYS } from "@/lib/audit/search-visibility/screenshots";
@@ -198,15 +199,17 @@ export async function executeAuditSynchronously(
 
     try {
       const homepage = await collectorServices.getHomepage();
-      const [city, state] = (input.city ?? "").split(",").map((value) => value.trim()).filter(Boolean);
-      const location = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
+      const market = parseMarketInput(input.city);
+      const locationResolution = await resolveDataForSeoLocation(market);
+      if (locationResolution.status !== "resolved") throw new Error(locationResolution.status === "ambiguous" ? `Please enter city and state. Multiple locations matched ${locationResolution.city}: ${locationResolution.candidates.join("; ")}.` : locationResolution.reason);
+      const location = locationResolution.location;
       const localSnapshot = await runLocalSearch({
         auditId: created.runId,
         normalizedUrl: url.normalizedUrl,
         businessName: input.businessName ?? null,
         enteredMarket: input.city ?? null,
-        city: city ?? null,
-        state: state ?? null,
+        city: market.city,
+        state: market.state,
         locationCode: location.locationCode,
         locationName: location.locationName,
         homepageText: homepage?.bodyText ?? "",

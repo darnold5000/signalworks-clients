@@ -8,6 +8,7 @@ import { resolveGoogleAdsLocation } from "@/lib/audit/search-demand/location";
 import { opportunityForQuery } from "@/lib/audit/search-demand/opportunity";
 import type { SearchVisibilityQuery, SearchVisibilityResult, SearchVisibilitySnapshot } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseMarketInput, parseCanonicalLocationName } from "@/lib/audit/location-input";
 
 function normalizeHostname(value: string) {
   return normalizeAuditUrl(value).normalizedDomain;
@@ -54,7 +55,9 @@ export async function runSearchVisibility(input: {
   const checkedAt = new Date().toISOString();
   const homepage = await input.fetchHomepage();
   const services = homepage ? detectServices(homepage.bodyText) : [];
-  const [city, state] = (input.city ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  const parsedMarket = parseMarketInput(input.city);
+  const city = parsedMarket.city;
+  const state = parsedMarket.state;
   const detectedLocationName = city ? `${city}${state ? `, ${state}` : ""}, United States` : "United States";
   const enteredMarket = input.city;
   const fallbackQueries = generateSearchQueries({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
@@ -77,8 +80,14 @@ export async function runSearchVisibility(input: {
     return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Not enough validated customer search intents were available to measure Search Visibility.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
   }
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
-  const serpLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
-  const googleAdsLocation = await resolveGoogleAdsLocation({ city: city ?? null, state: state ?? null, auditId: input.auditId });
+  const serpResolution = await resolveDataForSeoLocation({ city, state });
+  if (serpResolution.status !== "resolved") {
+    const message = serpResolution.status === "ambiguous" ? `Please enter city and state. Multiple locations matched ${serpResolution.city}: ${serpResolution.candidates.join("; ")}.` : serpResolution.reason;
+    return { status: "unavailable", score: null, businessName: input.businessName, city, state, locationName: detectedLocationName, results: [], summary: null, errorMessage: message, checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
+  }
+  const serpLocation = serpResolution.location;
+  const canonicalMarket = parseCanonicalLocationName(serpLocation.locationName);
+  const googleAdsLocation = await resolveGoogleAdsLocation({ city: canonicalMarket.city, state: canonicalMarket.state, auditId: input.auditId });
   const demandByQuery = googleAdsLocation
     ? await ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId, googleAdsLocation })
     : new Map(demandIntents.map((intent) => [intent.trim().toLowerCase(), { query: intent, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable" as const, checkedAt: "" }]));

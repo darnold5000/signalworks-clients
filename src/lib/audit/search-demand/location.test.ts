@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { matchGoogleAdsLocation } from "./location";
+import { matchGoogleAdsLocation, matchGoogleAdsLocations } from "./location";
 
 const catalog = [
   { location_code: 1017146, location_name: "Indianapolis,Indiana,United States", country_iso_code: "US", location_type: "City" },
-  { location_code: 2001001, location_name: "Indianapolis,Indiana,United States", country_iso_code: "US", location_type: "City" },
 ];
 
 describe("DataForSEO location catalogs", () => {
@@ -22,7 +21,7 @@ describe("DataForSEO location catalogs", () => {
   });
 
   it("keeps the Google Ads catalog code independent from the SERP catalog code", () => {
-    const location = matchGoogleAdsLocation([catalog[1]], { city: "Indianapolis", state: "IN" });
+    const location = matchGoogleAdsLocation([{ location_code: 2001001, location_name: "Indianapolis,Indiana,United States", country_iso_code: "US", location_type: "City" }], { city: "Indianapolis", state: "IN" });
     expect(location?.locationCode).toBe(2001001);
     expect(location?.locationCode).not.toBe(1017146);
   });
@@ -30,5 +29,14 @@ describe("DataForSEO location catalogs", () => {
   it("requires a city and never silently selects the United States", () => {
     expect(matchGoogleAdsLocation(catalog, { city: null, state: "IN" })).toBeNull();
     expect(matchGoogleAdsLocation(catalog, { city: "Indiana", state: null })).toBeNull();
+  });
+
+  it("does not choose an ambiguous city without a state", () => {
+    const locations = [
+      { location_code: 1, location_name: "Plainfield,Indiana,United States", country_iso_code: "US", location_type: "City" },
+      { location_code: 2, location_name: "Plainfield,Illinois,United States", country_iso_code: "US", location_type: "City" },
+    ];
+    expect(matchGoogleAdsLocations(locations, { city: "Plainfield", state: null })).toHaveLength(2);
+    expect(matchGoogleAdsLocation(locations, { city: "Plainfield", state: null })).toBeNull();
   });
 });

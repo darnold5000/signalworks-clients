@@ -29,6 +29,7 @@ export type DataForSeoLocation = {
   locationName: string;
   locationType: string;
 };
+export type DataForSeoLocationResolution = { status: "resolved"; location: DataForSeoLocation } | { status: "ambiguous"; city: string; candidates: string[] } | { status: "unavailable"; reason: string };
 
 type DataForSeoLocationRecord = {
   location_code?: number;
@@ -47,28 +48,28 @@ type DataForSeoLocationsResponse = {
   }>;
 };
 
-const US_STATE_NAMES: Record<string, string> = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
-};
+import { normalizeState } from "@/lib/audit/location-input";
 
 function normalizeLocationPart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export function matchUsLocation(locations: DataForSeoLocationRecord[] | undefined, input: { city: string | null; state: string | null }): DataForSeoLocation | null {
-  if (!input.city) return null;
+export function matchUsLocations(locations: DataForSeoLocationRecord[] | undefined, input: { city: string | null; state: string | null }): DataForSeoLocation[] {
+  if (!input.city) return [];
   const city = normalizeLocationPart(input.city);
-  const state = normalizeLocationPart(US_STATE_NAMES[input.state?.toUpperCase() ?? ""] ?? input.state ?? "");
-  const match = (locations ?? []).find((location) => {
+  const state = normalizeLocationPart(normalizeState(input.state));
+  return (locations ?? []).filter((location) => {
     if (!location.location_code || !location.location_name || location.country_iso_code?.toUpperCase() !== "US") return false;
     const [locationCity, locationState] = location.location_name.split(",");
     return normalizeLocationPart(locationCity ?? "") === city
       && (!state || normalizeLocationPart(locationState ?? "") === state)
       && /city|town|municipality/i.test(location.location_type ?? "");
-  });
-  return match?.location_code && match.location_name
-    ? { locationCode: match.location_code, locationName: match.location_name, locationType: match.location_type ?? "City" }
-    : null;
+  }).filter((location): location is DataForSeoLocationRecord & { location_code: number; location_name: string } => Boolean(location.location_code && location.location_name)).map((location) => ({ locationCode: location.location_code, locationName: location.location_name, locationType: location.location_type ?? "City" }));
+}
+
+export function matchUsLocation(locations: DataForSeoLocationRecord[] | undefined, input: { city: string | null; state: string | null }): DataForSeoLocation | null {
+  const matches = matchUsLocations(locations, input);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 let usLocationsPromise: Promise<DataForSeoLocationRecord[] | undefined> | null = null;
@@ -92,19 +93,19 @@ async function fetchUsLocations(): Promise<DataForSeoLocationRecord[] | undefine
   return payload.tasks?.[0]?.result ?? [];
 }
 
-export async function resolveDataForSeoLocation(input: { city: string | null; state: string | null }): Promise<DataForSeoLocation> {
-  const fallback: DataForSeoLocation = { locationCode: 2840, locationName: "United States", locationType: "Country" };
-  if (!input.city) return fallback;
+export async function resolveDataForSeoLocation(input: { city: string | null; state: string | null }): Promise<DataForSeoLocationResolution> {
+  if (!input.city) return { status: "unavailable", reason: "A primary city is required." };
   usLocationsPromise ??= fetchUsLocations();
   try {
-    const match = matchUsLocation(await usLocationsPromise, input);
-    if (match) return match;
-    console.warn("[audit/search-visibility] DataForSEO city not found; using country fallback", input);
-    return fallback;
+    const matches = matchUsLocations(await usLocationsPromise, input);
+    if (matches.length === 1) return { status: "resolved", location: matches[0] };
+    if (matches.length > 1 && !input.state) return { status: "ambiguous", city: input.city, candidates: matches.map((match) => match.locationName) };
+    console.warn("[audit/search-visibility] DataForSEO city not found", input);
+    return { status: "unavailable", reason: `No clear DataForSEO city match was found for ${input.city}.` };
   } catch (error) {
     usLocationsPromise = null;
-    console.warn("[audit/search-visibility] DataForSEO location lookup failed; using country fallback", error instanceof Error ? error.message : error);
-    return fallback;
+    console.warn("[audit/search-visibility] DataForSEO city location lookup failed", error instanceof Error ? error.message : error);
+    return { status: "unavailable", reason: error instanceof Error ? error.message : "DataForSEO location lookup failed." };
   }
 }
 

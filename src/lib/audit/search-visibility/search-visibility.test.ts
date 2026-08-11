@@ -93,4 +93,13 @@ describe("search visibility phase 1", () => {
       locationType: "City",
     });
   });
+
+  it("normalizes explicit city and state inputs", () => {
+    const locations = [
+      { location_code: 1001, location_name: "Plainfield,Indiana,United States", location_type: "City", country_iso_code: "US" },
+      { location_code: 1002, location_name: "Plainfield,Illinois,United States", location_type: "City", country_iso_code: "US" },
+    ];
+    expect(matchUsLocation(locations, { city: "Plainfield", state: "IN" })?.locationName).toBe("Plainfield,Indiana,United States");
+    expect(matchUsLocation(locations, { city: "Plainfield", state: "Indiana" })?.locationName).toBe("Plainfield,Indiana,United States");
+  });
 });

@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Audit failed.";
     return withPublicAuditCors(
       request,
-      NextResponse.json({ error: message }, { status: 500 }),
+      NextResponse.json({ error: message }, { status: message.startsWith("Please enter city and state") ? 400 : 500 }),
     );
   }
 }

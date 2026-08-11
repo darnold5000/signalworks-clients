@@ -22,28 +22,28 @@ type GoogleAdsLocationsResponse = {
   }>;
 };
 
-const US_STATE_NAMES: Record<string, string> = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", MA: "Massachusetts", MD: "Maryland", MI: "Michigan", MN: "Minnesota", MO: "Missouri", MS: "Mississippi", NC: "North Carolina", ND: "North Dakota", NE: "Nebraska", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NV: "Nevada", NY: "New York", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VA: "Virginia", VT: "Vermont", WA: "Washington", WI: "Wisconsin", WV: "West Virginia",
-};
+import { normalizeState } from "@/lib/audit/location-input";
 
 function normalizeLocationPart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export function matchGoogleAdsLocation(locations: GoogleAdsLocationRecord[] | undefined, input: { city: string | null; state: string | null }): GoogleAdsLocation | null {
-  if (!input.city) return null;
+export function matchGoogleAdsLocations(locations: GoogleAdsLocationRecord[] | undefined, input: { city: string | null; state: string | null }): GoogleAdsLocation[] {
+  if (!input.city) return [];
   const city = normalizeLocationPart(input.city);
-  const state = normalizeLocationPart(US_STATE_NAMES[input.state?.toUpperCase() ?? ""] ?? input.state ?? "");
-  const match = (locations ?? []).find((location) => {
+  const state = normalizeLocationPart(normalizeState(input.state));
+  return (locations ?? []).filter((location) => {
     if (!location.location_code || !location.location_name || location.country_iso_code?.toUpperCase() !== "US") return false;
     const [locationCity, locationState] = location.location_name.split(",");
     return normalizeLocationPart(locationCity ?? "") === city
       && (!state || normalizeLocationPart(locationState ?? "") === state)
       && /city|town|municipality/i.test(location.location_type ?? "");
-  });
-  return match?.location_code && match.location_name
-    ? { locationCode: match.location_code, locationName: match.location_name, countryIsoCode: match.country_iso_code ?? null, locationType: match.location_type ?? null }
-    : null;
+  }).filter((location): location is GoogleAdsLocationRecord & { location_code: number; location_name: string } => Boolean(location.location_code && location.location_name)).map((location) => ({ locationCode: location.location_code, locationName: location.location_name, countryIsoCode: location.country_iso_code ?? null, locationType: location.location_type ?? null }));
+}
+
+export function matchGoogleAdsLocation(locations: GoogleAdsLocationRecord[] | undefined, input: { city: string | null; state: string | null }): GoogleAdsLocation | null {
+  const matches = matchGoogleAdsLocations(locations, input);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 let usGoogleAdsLocationsPromise: Promise<GoogleAdsLocationRecord[] | undefined> | null = null;
@@ -70,7 +70,12 @@ export async function resolveGoogleAdsLocation(input: { city: string | null; sta
   }
   usGoogleAdsLocationsPromise ??= fetchUsGoogleAdsLocations();
   try {
-    const location = matchGoogleAdsLocation(await usGoogleAdsLocationsPromise, input);
+    const matches = matchGoogleAdsLocations(await usGoogleAdsLocationsPromise, input);
+    if (matches.length > 1 && !input.state) {
+      console.warn("[audit/search-demand] Google Ads city location is ambiguous", { auditId: input.auditId, city: input.city, candidates: matches.map((match) => match.locationName) });
+      return null;
+    }
+    const location = matches[0];
     if (!location) {
       console.warn("[audit/search-demand] Google Ads city location not found", { auditId: input.auditId, city: input.city, state: input.state });
       return null;
