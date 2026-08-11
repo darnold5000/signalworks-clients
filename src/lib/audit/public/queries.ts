@@ -76,7 +76,7 @@ export async function getPublicAuditByToken(
   }
   const storedSearchResults = (searchVisibility?.results_json ?? []) as SearchVisibilityResult[];
   const searchResults = await Promise.all(storedSearchResults.map(async (result) => {
-    if (result.screenshotStatus !== "available" || !result.screenshotStoragePath) return result;
+    if (result.screenshotStatus !== "available" || !result.screenshotStoragePath || (result.screenshotExpiresAt && new Date(result.screenshotExpiresAt).getTime() <= Date.now())) return { ...result, screenshotUrl: null };
     const { data, error } = await supabase.storage.from(SEARCH_EVIDENCE_BUCKET).createSignedUrl(result.screenshotStoragePath, 3600);
     if (error || !data?.signedUrl) {
       console.error("[audit/search-screenshot] signed URL failed", { auditId: run.id, query: result.query, message: error?.message });

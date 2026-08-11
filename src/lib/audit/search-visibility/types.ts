@@ -25,6 +25,7 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   screenshotCreatedAt?: string | null;
   screenshotSourceTaskId?: string | null;
   screenshotUrl?: string | null;
+  screenshotExpiresAt?: string | null;
   monthlySearchVolume?: number | null;
   competition?: number | null;
   cpc?: number | null;

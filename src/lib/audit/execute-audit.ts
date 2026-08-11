@@ -26,7 +26,7 @@ import { runSearchVisibility } from "@/lib/audit/search-visibility/run";
 import { resolveDataForSeoLocation } from "@/lib/audit/search-visibility/client";
 import { runLocalSearch } from "@/lib/audit/local-search/run";
 import { analyzeAeoReadiness } from "@/lib/audit/aeo/analyze";
-import { captureSearchScreenshots } from "@/lib/audit/search-visibility/screenshots";
+import { captureSearchScreenshots, CLIENT_SCREENSHOT_RETENTION_DAYS, FREE_SCREENSHOT_RETENTION_DAYS } from "@/lib/audit/search-visibility/screenshots";
 
 export type ExecuteAuditInput = {
   rawUrl: string;
@@ -163,12 +163,14 @@ export async function executeAuditSynchronously(
           const response = await collectorServices.getHomepage();
           return response ? { bodyText: response.bodyText } : null;
         },
+        supabase,
       });
       organicSnapshot = snapshot;
       console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId });
       await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
       console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId });
-      await captureSearchScreenshots(supabase, created.runId, snapshot).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
+      const screenshotRetentionDays = input.auditType === "public" ? FREE_SCREENSHOT_RETENTION_DAYS : CLIENT_SCREENSHOT_RETENTION_DAYS;
+      await captureSearchScreenshots(supabase, created.runId, snapshot, screenshotRetentionDays).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     } catch (error) {
       console.error("[audit/search-visibility] measurement failed", error);
       console.error("[audit/search-visibility] database persistence attempted", { auditId: created.runId, status: "failed" });

@@ -7,6 +7,7 @@ import { fetchSearchDemand } from "@/lib/audit/search-demand/client";
 import { opportunityForQuery } from "@/lib/audit/search-demand/opportunity";
 import type { SearchDemand } from "@/lib/audit/search-demand/types";
 import type { SearchVisibilityQuery, SearchVisibilityResult, SearchVisibilitySnapshot } from "./types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function normalizeHostname(value: string) {
   return normalizeAuditUrl(value).normalizedDomain;
@@ -48,6 +49,7 @@ export async function runSearchVisibility(input: {
   businessName: string | null;
   city: string | null;
   fetchHomepage: () => Promise<{ bodyText: string } | null>;
+  supabase: SupabaseClient;
 }): Promise<SearchVisibilitySnapshot> {
   const checkedAt = new Date().toISOString();
   const homepage = await input.fetchHomepage();
@@ -80,10 +82,10 @@ export async function runSearchVisibility(input: {
   let selectedDiscovery = fallbackQueries.filter((query) => query.type === "discovery");
   if (candidates.length > 0) {
     try {
-      const demand = await fetchSearchDemand({ keywords: candidates.map((candidate) => candidate.query), locationName: resolvedLocation.locationName });
+      const demand = await fetchSearchDemand({ supabase: input.supabase, keywords: candidates.map((candidate) => candidate.service ?? candidate.query) });
       demandByQuery = new Map(demand.map((item) => [item.query.toLowerCase(), item]));
       const demandRank = (query: SearchVisibilityQuery) => {
-        const item = demandByQuery.get(query.query.toLowerCase());
+        const item = demandByQuery.get((query.service ?? query.query).toLowerCase());
         return item?.monthlySearchVolume ?? -1;
       };
       selectedDiscovery = [...candidates].sort((a, b) => demandRank(b) - demandRank(a)).slice(0, 8);
@@ -115,7 +117,7 @@ export async function runSearchVisibility(input: {
       matchedPosition,
     });
     const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: resolvedLocation.locationName, enteredMarket, resolvedLocationName: resolvedLocation.locationName, locationCode: resolvedLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId };
-    const demand = demandByQuery.get(query.query.toLowerCase());
+    const demand = demandByQuery.get((query.service ?? query.query).toLowerCase());
     const opportunity = query.type === "discovery" ? opportunityForQuery(baseResult, demand) : null;
     return { ...baseResult, monthlySearchVolume: demand?.monthlySearchVolume ?? null, competition: demand?.competition ?? null, cpc: demand?.cpc ?? null, demandLevel: demand?.demandLevel ?? "unavailable", demandCheckedAt: demand?.checkedAt ?? null, opportunityScore: opportunity?.score ?? null, opportunityLabel: opportunity?.label ?? null };
   }));
