@@ -33,6 +33,9 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   demandCheckedAt?: string | null;
   opportunityScore?: number | null;
   opportunityLabel?: string | null;
+  collectionStatus?: "succeeded" | "failed";
+  collectionErrorCode?: string | null;
+  collectionErrorMessage?: string | null;
 };
 
 export type SearchVisibilitySummary = {
@@ -74,5 +77,12 @@ export type SearchVisibilitySnapshot = {
     googleAdsLocationCode: number | null;
     googleAdsLocationName: string | null;
     error: string | null;
+  };
+  diagnostics?: {
+    failurePhase: string | null;
+    failureCode: string | null;
+    failureMessage: string | null;
+    successfulQueryCount: number;
+    failedQueryCount: number;
   };
 };

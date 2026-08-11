@@ -62,7 +62,7 @@ export async function getPublicAuditByToken(
     ]);
   const { data: searchVisibility, error: searchVisibilityError } = await supabase
     .from("audit_search_visibility")
-    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position, demand_location_requested, demand_location_canonical, demand_google_ads_location_code, demand_google_ads_location_name, demand_location_status, demand_location_error")
+    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position, error_message, demand_location_requested, demand_location_canonical, demand_google_ads_location_code, demand_google_ads_location_name, demand_location_status, demand_location_error, failure_phase, failure_code, failure_message, successful_query_count, failed_query_count")
     .eq("audit_run_id", run.id)
     .maybeSingle();
   if (searchVisibilityError) {
@@ -168,6 +168,14 @@ export async function getPublicAuditByToken(
             googleAdsLocationCode: searchVisibility.demand_google_ads_location_code,
             googleAdsLocationName: searchVisibility.demand_google_ads_location_name,
             error: searchVisibility.demand_location_error,
+          },
+          errorMessage: searchVisibility.error_message,
+          diagnostics: {
+            failurePhase: searchVisibility.failure_phase,
+            failureCode: searchVisibility.failure_code,
+            failureMessage: searchVisibility.failure_message,
+            successfulQueryCount: searchVisibility.successful_query_count ?? 0,
+            failedQueryCount: searchVisibility.failed_query_count ?? 0,
           },
           results: searchResults,
           summary: {

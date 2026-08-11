@@ -50,6 +50,14 @@ export type PublicAuditDetail = {
     status: "completed" | "unavailable" | "failed";
     score: number | null;
     locationName: string | null;
+    errorMessage?: string | null;
+    diagnostics?: {
+      failurePhase: string | null;
+      failureCode: string | null;
+      failureMessage: string | null;
+      successfulQueryCount: number;
+      failedQueryCount: number;
+    } | null;
     demandLocation?: {
       requested: string | null;
       canonical: string | null;

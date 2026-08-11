@@ -157,7 +157,7 @@ export async function executeAuditSynchronously(
     }
     let organicSnapshot: Awaited<ReturnType<typeof runSearchVisibility>> | null = null;
     try {
-      const snapshot = await runSearchVisibility({
+      organicSnapshot = await runSearchVisibility({
         auditId: created.runId,
         normalizedUrl: url.normalizedUrl,
         businessName: input.businessName ?? null,
@@ -169,16 +169,10 @@ export async function executeAuditSynchronously(
         },
         supabase,
       });
-      organicSnapshot = snapshot;
-      console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId });
-      await saveSearchVisibilitySnapshot(supabase, created.runId, snapshot);
-      console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId });
-      const screenshotRetentionDays = input.auditType === "public" ? FREE_SCREENSHOT_RETENTION_DAYS : CLIENT_SCREENSHOT_RETENTION_DAYS;
-      await captureSearchScreenshots(supabase, created.runId, snapshot, screenshotRetentionDays).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     } catch (error) {
-      console.error("[audit/search-visibility] measurement failed", error);
-      console.error("[audit/search-visibility] database persistence attempted", { auditId: created.runId, status: "failed" });
-      await saveSearchVisibilitySnapshot(supabase, created.runId, {
+      const failureMessage = error instanceof Error ? error.message : "Search visibility execution failed.";
+      console.error("[audit/search-visibility] execution failed", { auditId: created.runId, phase: "search_visibility_execution", failureCode: "search_visibility_execution_failed", error: failureMessage });
+      const failureSnapshot = {
         status: "failed",
         score: null,
         businessName: input.businessName ?? null,
@@ -194,10 +188,42 @@ export async function executeAuditSynchronously(
         auditedDomain: url.normalizedDomain,
         resultDepth: 30,
         searchEngine: "google",
-      }).then(
-        () => console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId, status: "failed" }),
-        (saveError) => console.error("[audit/search-visibility] database persistence failed", { auditId: created.runId, error: saveError instanceof Error ? saveError.message : saveError }),
+        diagnostics: { failurePhase: "search_visibility_execution", failureCode: "search_visibility_execution_failed", failureMessage, successfulQueryCount: 0, failedQueryCount: 0 },
+      } as const;
+      await saveSearchVisibilitySnapshot(supabase, created.runId, failureSnapshot).then(
+        () => console.info("[audit/search-visibility] failure diagnostic persisted", { auditId: created.runId, phase: failureSnapshot.diagnostics.failurePhase, failureCode: failureSnapshot.diagnostics.failureCode }),
+        (saveError) => console.error("[audit/search-visibility] failure diagnostic persistence failed", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed", error: saveError instanceof Error ? saveError.message : saveError }),
       );
+    }
+
+    if (organicSnapshot) {
+      try {
+        console.info("[audit/search-visibility] database persistence attempted", { auditId: created.runId, measurementStatus: organicSnapshot.status });
+        await saveSearchVisibilitySnapshot(supabase, created.runId, organicSnapshot);
+        console.info("[audit/search-visibility] database persistence succeeded", { auditId: created.runId, measurementStatus: organicSnapshot.status });
+      } catch (error) {
+        const failureMessage = error instanceof Error ? error.message : "Search visibility persistence failed.";
+        console.error("[audit/search-visibility] measurement succeeded but persistence failed", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed", measurementStatus: organicSnapshot.status, successfulQueryCount: organicSnapshot.diagnostics?.successfulQueryCount ?? organicSnapshot.results.filter((result) => result.collectionStatus !== "failed").length, failedQueryCount: organicSnapshot.diagnostics?.failedQueryCount ?? organicSnapshot.results.filter((result) => result.collectionStatus === "failed").length, error: failureMessage });
+        const persistenceFailureSnapshot = {
+          ...organicSnapshot,
+          status: "failed" as const,
+          score: null,
+          errorMessage: `Search visibility measurement completed, but persistence failed: ${failureMessage}`,
+          diagnostics: {
+            failurePhase: "search_visibility_persistence",
+            failureCode: "search_visibility_persistence_failed",
+            failureMessage,
+            successfulQueryCount: organicSnapshot.diagnostics?.successfulQueryCount ?? organicSnapshot.results.filter((result) => result.collectionStatus !== "failed").length,
+            failedQueryCount: organicSnapshot.diagnostics?.failedQueryCount ?? organicSnapshot.results.filter((result) => result.collectionStatus === "failed").length,
+          },
+        };
+        await saveSearchVisibilitySnapshot(supabase, created.runId, persistenceFailureSnapshot).then(
+          () => console.info("[audit/search-visibility] persistence failure diagnostic persisted", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed" }),
+          (saveError) => console.error("[audit/search-visibility] persistence failure diagnostic could not be persisted", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed", error: saveError instanceof Error ? saveError.message : saveError }),
+        );
+      }
+      const screenshotRetentionDays = input.auditType === "public" ? FREE_SCREENSHOT_RETENTION_DAYS : CLIENT_SCREENSHOT_RETENTION_DAYS;
+      await captureSearchScreenshots(supabase, created.runId, organicSnapshot, screenshotRetentionDays).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     }
 
     try {

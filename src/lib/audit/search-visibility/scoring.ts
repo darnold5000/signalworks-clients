@@ -3,7 +3,7 @@ import type { SearchVisibilityResult, SearchVisibilitySummary } from "./types";
 export const MIN_DISCOVERY_QUERIES = 3;
 
 export function hasSufficientDiscoveryCoverage(results: SearchVisibilityResult[]) {
-  return results.filter((result) => result.type === "discovery").length >= MIN_DISCOVERY_QUERIES;
+  return results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed").length >= MIN_DISCOVERY_QUERIES;
 }
 
 function visibilityValue(position: number | null) {

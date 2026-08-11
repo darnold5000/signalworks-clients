@@ -248,6 +248,11 @@ export async function saveSearchVisibilitySnapshot(
     demand_google_ads_location_name: snapshot.demandLocation?.googleAdsLocationName ?? null,
     demand_location_status: snapshot.demandLocation?.status ?? null,
     demand_location_error: snapshot.demandLocation?.error ?? null,
+    failure_phase: snapshot.diagnostics?.failurePhase ?? null,
+    failure_code: snapshot.diagnostics?.failureCode ?? null,
+    failure_message: snapshot.diagnostics?.failureMessage ?? null,
+    successful_query_count: snapshot.diagnostics?.successfulQueryCount ?? snapshot.results.filter((result) => result.collectionStatus !== "failed").length,
+    failed_query_count: snapshot.diagnostics?.failedQueryCount ?? snapshot.results.filter((result) => result.collectionStatus === "failed").length,
   }, { onConflict: "audit_run_id" });
   if (error) throw new Error(error.message);
 }
