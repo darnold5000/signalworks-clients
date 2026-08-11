@@ -6,6 +6,66 @@ export type CustomerAuditPresentation = {
   technicalValue: string | null;
 };
 
+type CustomerRecommendationLike = {
+  recommendationKey: string;
+  category: string;
+  title: string;
+  description: string;
+  priority: string;
+  supportingFindingKeys?: string[];
+};
+
+const PRIORITY_ORDER: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+function recommendationIdentity(recommendation: CustomerRecommendationLike) {
+  if (recommendation.recommendationKey.startsWith("performance.improve_mobile_")) {
+    return "performance.improve_mobile_loading";
+  }
+  if (recommendation.recommendationKey.includes("localbusiness_schema")) {
+    return "seo.localbusiness_schema";
+  }
+  const title = presentCustomerRecommendation(recommendation).customerTitle;
+  // Generic fallback copy is intentionally not an identity: several unrelated
+  // categories can legitimately use that copy.
+  if (title.startsWith("Your website ")) return recommendation.recommendationKey;
+  return title.trim().toLowerCase();
+}
+
+/** Removes duplicate customer-facing recommendations while retaining the strongest evidence. */
+export function dedupeCustomerRecommendations<T extends CustomerRecommendationLike>(
+  recommendations: T[],
+): T[] {
+  const selected = new Map<string, T>();
+
+  for (const recommendation of recommendations) {
+    const identity = recommendationIdentity(recommendation);
+    const current = selected.get(identity);
+    if (!current) {
+      selected.set(identity, recommendation);
+      continue;
+    }
+
+    const currentPriority = PRIORITY_ORDER[current.priority] ?? Number.MAX_SAFE_INTEGER;
+    const nextPriority = PRIORITY_ORDER[recommendation.priority] ?? Number.MAX_SAFE_INTEGER;
+    const currentEvidence = current.supportingFindingKeys?.length ?? 0;
+    const nextEvidence = recommendation.supportingFindingKeys?.length ?? 0;
+    if (
+      nextPriority < currentPriority ||
+      (nextPriority === currentPriority && nextEvidence > currentEvidence) ||
+      (nextPriority === currentPriority && nextEvidence === currentEvidence && recommendation.recommendationKey < current.recommendationKey)
+    ) {
+      selected.set(identity, recommendation);
+    }
+  }
+
+  return recommendations.filter((recommendation) => selected.get(recommendationIdentity(recommendation)) === recommendation);
+}
+
 export function formatMilliseconds(value: number | string): string {
   const numeric = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numeric) ? `${(numeric / 1000).toFixed(1)} seconds` : String(value);

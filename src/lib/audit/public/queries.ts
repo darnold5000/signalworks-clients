@@ -12,6 +12,7 @@ import type { AeoSnapshot } from "@/lib/audit/aeo/types";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { SEARCH_EVIDENCE_BUCKET } from "@/lib/audit/search-visibility/screenshots";
+import { dedupeCustomerRecommendations } from "@/lib/audit/presentation/customer";
 
 function isValidToken(token: string): boolean {
   return /^[a-f0-9]{64}$/i.test(token);
@@ -110,7 +111,7 @@ export async function getPublicAuditByToken(
 
   const publicFindings = filterFindingsForPublicAudience(mappedFindings);
 
-  const publicRecommendations = (recommendations ?? [])
+  const publicRecommendations = dedupeCustomerRecommendations((recommendations ?? [])
     .filter((row) => row.is_public)
     .map((row) => ({
       recommendationKey: row.recommendation_key,
@@ -121,7 +122,7 @@ export async function getPublicAuditByToken(
       impact: row.impact,
       effort: row.effort,
       signalworksServiceKey: row.signalworks_service_key,
-    }));
+    })));
 
   return {
     token,

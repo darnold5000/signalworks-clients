@@ -3,6 +3,7 @@ import {
   formatMilliseconds,
   presentCustomerFinding,
   presentCustomerRecommendation,
+  dedupeCustomerRecommendations,
 } from "@/lib/audit/presentation/customer";
 
 describe("customer audit presentation", () => {
@@ -25,5 +26,49 @@ describe("customer audit presentation", () => {
     const h1 = presentCustomerRecommendation({ category: "seo", title: "Fix homepage H1 heading structure", description: "One H1 is recommended" });
     expect(h1.customerTitle).toBe("Clarify your homepage's main message");
     expect(h1.customerTitle).not.toContain("H1");
+  });
+
+  it("deduplicates recommendations that share customer-facing copy", () => {
+    const recommendations = [
+      {
+        recommendationKey: "performance.improve_mobile_score",
+        category: "performance",
+        title: "Improve mobile performance score",
+        description: "Address mobile performance opportunities.",
+        priority: "high",
+        supportingFindingKeys: ["performance.mobile.score"],
+      },
+      {
+        recommendationKey: "performance.improve_mobile_lcp",
+        category: "performance",
+        title: "Improve mobile loading performance (LCP)",
+        description: "Reduce Largest Contentful Paint on mobile.",
+        priority: "high",
+        supportingFindingKeys: ["performance.mobile.lcp"],
+      },
+      {
+        recommendationKey: "seo.add_localbusiness_schema",
+        category: "local_seo",
+        title: "Add LocalBusiness structured data",
+        description: "Add LocalBusiness JSON-LD.",
+        priority: "high",
+        supportingFindingKeys: ["seo.localbusiness_schema.missing"],
+      },
+      {
+        recommendationKey: "seo.complete_localbusiness_schema",
+        category: "local_seo",
+        title: "Complete LocalBusiness structured data fields",
+        description: "Complete LocalBusiness schema fields.",
+        priority: "medium",
+        supportingFindingKeys: ["seo.localbusiness_schema.address"],
+      },
+    ];
+
+    const deduped = dedupeCustomerRecommendations(recommendations);
+    expect(deduped).toHaveLength(2);
+    expect(deduped.map((item) => item.recommendationKey)).toEqual([
+      "performance.improve_mobile_lcp",
+      "seo.add_localbusiness_schema",
+    ]);
   });
 });

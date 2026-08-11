@@ -6,6 +6,7 @@ import {
   type RecommendationRule,
 } from "@/lib/audit/recommendations/catalog";
 import type { AuditFindingInput, AuditScope } from "@/lib/audit/types";
+import { dedupeCustomerRecommendations } from "@/lib/audit/presentation/customer";
 
 export type GeneratedRecommendation = {
   recommendationKey: string;
@@ -99,7 +100,9 @@ function applyScopeVisibility(
   scope: AuditScope,
 ): GeneratedRecommendation[] {
   if (!scope.isPublicReport) return recommendations;
-  return recommendations.filter((recommendation) => recommendation.isPublic);
+  return dedupeCustomerRecommendations(
+    recommendations.filter((recommendation) => recommendation.isPublic),
+  );
 }
 
 export function filterRecommendationsForAudience(
@@ -108,7 +111,9 @@ export function filterRecommendationsForAudience(
 ): GeneratedRecommendation[] {
   if (audience === "staff") return recommendations;
   if (audience === "public") {
-    return recommendations.filter((recommendation) => recommendation.isPublic);
+    return dedupeCustomerRecommendations(
+      recommendations.filter((recommendation) => recommendation.isPublic),
+    );
   }
   return recommendations.filter((recommendation) => recommendation.isClientVisible);
 }
