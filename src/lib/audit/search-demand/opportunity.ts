@@ -4,6 +4,8 @@ import type { SearchVisibilityResult } from "@/lib/audit/search-visibility/types
 export type Opportunity = SearchDemand & { position: number | null; score: number | null; label: "high_priority" | "strong_opportunity" | "moderate_opportunity" | "low_priority" | "already_strong" | "unavailable" };
 
 export function opportunityForQuery(result: SearchVisibilityResult, demand: SearchDemand | undefined): Opportunity {
+  // Demand describes the business importance of a ranking opportunity; the
+  // Search Visibility score itself remains a measure of observed position.
   if (!demand || demand.monthlySearchVolume == null) return { query: result.query, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable", checkedAt: demand?.checkedAt ?? result.checkedAt, position: result.position, score: null, label: "unavailable" };
   const demandScore = demand.demandLevel === "high" ? 100 : demand.demandLevel === "moderate" ? 70 : demand.demandLevel === "low" ? 40 : 15;
   const gapScore = result.position == null ? 100 : result.position <= 3 ? 0 : result.position <= 10 ? 35 : result.position <= 20 ? 75 : 90;

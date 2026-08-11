@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SearchDemand } from "./types";
 import { normalizeDemand } from "./normalize";
+import type { GoogleAdsLocation } from "./location";
 
 type DemandResponse = { status_code?: number; status_message?: string; tasks?: Array<{ status_code?: number; status_message?: string; result_count?: number; result?: Array<{ keyword?: string; search_volume?: number | null; competition?: number | null; competition_index?: number | null; cpc?: number | null; location_code?: number; language_code?: string }> }> };
 const DEMAND_TTL_DAYS = Number(process.env.SEARCH_INTENT_DEMAND_TTL_DAYS ?? 90) || 90;
@@ -16,11 +17,10 @@ const demandIsFresh = (demand: SearchDemand) => {
 function unavailable(keyword: string): SearchDemand { return { query: keyword, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable", checkedAt: "" }; }
 
 /** Reads cached demand for the requested DataForSEO location only. It never calls DataForSEO. */
-export async function fetchSearchDemand(input: { supabase: SupabaseClient; keywords: string[]; countryCode?: string; languageCode?: string; locationCode?: number; locationName?: string }): Promise<SearchDemand[]> {
+export async function fetchSearchDemand(input: { supabase: SupabaseClient; keywords: string[]; countryCode?: string; languageCode?: string; googleAdsLocation: GoogleAdsLocation }): Promise<SearchDemand[]> {
   const keywords = [...new Set(input.keywords.map(normalizeIntent).filter(Boolean))];
   if (!keywords.length) return [];
-  const locationCode = input.locationCode ?? 2840;
-  const { data, error } = await input.supabase.from("search_intent_demand").select("normalized_intent, display_intent, monthly_search_volume, demand_level, competition, competition_index, cpc, checked_at").in("normalized_intent", keywords).eq("country_code", input.countryCode ?? "US").eq("language_code", input.languageCode ?? "en").eq("location_code", locationCode);
+  const { data, error } = await input.supabase.from("search_intent_demand").select("normalized_intent, display_intent, monthly_search_volume, demand_level, competition, competition_index, cpc, checked_at").in("normalized_intent", keywords).eq("country_code", input.countryCode ?? "US").eq("language_code", input.languageCode ?? "en").eq("location_code", input.googleAdsLocation.locationCode);
   if (error) throw new Error(error.message);
   const rows = new Map((data ?? []).map((row) => [row.normalized_intent, row]));
   return keywords.map((keyword) => {
@@ -43,8 +43,7 @@ export async function ensureSearchDemand(input: {
   auditId?: string;
   countryCode?: string;
   languageCode?: string;
-  locationCode?: number;
-  locationName?: string;
+  googleAdsLocation: GoogleAdsLocation;
 }): Promise<Map<string, SearchDemand>> {
   const intents = [...new Set(input.intents.map(normalizeIntent).filter(Boolean))];
   const result = new Map<string, SearchDemand>();
@@ -57,8 +56,7 @@ export async function ensureSearchDemand(input: {
       keywords: intents,
       countryCode: input.countryCode,
       languageCode: input.languageCode,
-      locationCode: input.locationCode,
-      locationName: input.locationName,
+      googleAdsLocation: input.googleAdsLocation,
     });
   } catch (error) {
     console.warn("[audit/search-demand] cache lookup failed", {
@@ -92,8 +90,7 @@ export async function ensureSearchDemand(input: {
         intents: staleOrMissing,
         countryCode: input.countryCode,
         languageCode: input.languageCode,
-        locationCode: input.locationCode,
-        locationName: input.locationName,
+        googleAdsLocation: input.googleAdsLocation,
       });
       refreshed.forEach((demand, index) => {
         const intent = staleOrMissing[index] ?? normalizeIntent(demand.query);
@@ -123,13 +120,13 @@ export async function ensureSearchDemand(input: {
 }
 
 /** Explicit platform/admin refresh. Visitor audits must not call this. */
-export async function refreshSearchIntentDemand(input: { supabase: SupabaseClient; intents: string[]; countryCode?: string; languageCode?: string; locationCode?: number; locationName?: string }): Promise<SearchDemand[]> {
+export async function refreshSearchIntentDemand(input: { supabase: SupabaseClient; intents: string[]; countryCode?: string; languageCode?: string; googleAdsLocation: GoogleAdsLocation }): Promise<SearchDemand[]> {
   const keywords = [...new Set(input.intents.map(normalizeIntent).filter(Boolean))];
   if (!keywords.length) return [];
   const login = process.env.DATAFORSEO_LOGIN?.trim();
   const password = process.env.DATAFORSEO_PASSWORD?.trim();
   if (!login || !password) throw new Error("DataForSEO credentials are not configured.");
-  const locationCode = input.locationCode ?? 2840;
+  const locationCode = input.googleAdsLocation.locationCode;
   const response = await fetch("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", { method: "POST", headers: { Authorization: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`, "Content-Type": "application/json" }, body: JSON.stringify([{ keywords, location_code: locationCode, language_code: input.languageCode ?? "en", search_partners: false }]), signal: AbortSignal.timeout(45_000) });
   if (!response.ok) throw new Error(`DataForSEO demand HTTP ${response.status}`);
   const payload = (await response.json()) as DemandResponse;
@@ -142,13 +139,13 @@ export async function refreshSearchIntentDemand(input: { supabase: SupabaseClien
     resultCount: task.result_count ?? providerResults.length,
     measured: providerResults.filter((result) => result.search_volume != null).length,
     omitted: keywords.filter((keyword) => !providerResults.some((result) => normalizeIntent(result.keyword ?? "") === keyword)),
-    locationCode: providerResults[0]?.location_code ?? 2840,
-    locationName: input.locationName ?? (locationCode === 2840 ? "United States" : null),
+    locationCode: providerResults[0]?.location_code ?? locationCode,
+    locationName: input.googleAdsLocation.locationName,
     languageCode: providerResults[0]?.language_code ?? input.languageCode ?? "en",
   });
   const checkedAt = new Date().toISOString();
   const measured = new Map(providerResults.map((result) => { const normalized = normalizeIntent(result.keyword ?? ""); return [normalized, normalizeDemand({ query: result.keyword ?? normalized, searchVolume: result.search_volume, competition: result.competition_index ?? result.competition, cpc: result.cpc, checkedAt })]; }));
-  const rows = keywords.map((keyword) => { const item = measured.get(keyword) ?? unavailable(keyword); return { normalized_intent: keyword, display_intent: item.query, country_code: input.countryCode ?? "US", language_code: input.languageCode ?? "en", location_code: locationCode, location_name: input.locationName ?? (locationCode === 2840 ? "United States" : null), monthly_search_volume: item.monthlySearchVolume, demand_level: item.demandLevel, competition: item.competition, competition_index: item.competition, cpc: item.cpc, source: "dataforseo_google_ads", confidence: item.demandLevel === "unavailable" ? "unavailable" : "measured", checked_at: checkedAt, updated_at: checkedAt }; });
+  const rows = keywords.map((keyword) => { const item = measured.get(keyword) ?? unavailable(keyword); return { normalized_intent: keyword, display_intent: item.query, country_code: input.countryCode ?? "US", language_code: input.languageCode ?? "en", location_code: locationCode, location_name: input.googleAdsLocation.locationName, monthly_search_volume: item.monthlySearchVolume, demand_level: item.demandLevel, competition: item.competition, competition_index: item.competition, cpc: item.cpc, source: "dataforseo_google_ads", confidence: item.demandLevel === "unavailable" ? "unavailable" : "measured", checked_at: checkedAt, updated_at: checkedAt }; });
   const { error } = await input.supabase.from("search_intent_demand").upsert(rows, { onConflict: "normalized_intent,country_code,language_code,location_code" });
   if (error) throw new Error(error.message);
   return keywords.map((keyword) => measured.get(keyword) ?? unavailable(keyword));

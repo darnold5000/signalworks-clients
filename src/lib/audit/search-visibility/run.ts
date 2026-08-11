@@ -4,6 +4,7 @@ import { fetchGoogleOrganicResults, resolveDataForSeoLocation } from "./client";
 import { generateDiscoveryCandidates, generateSearchQueries } from "./query-generation";
 import { scoreSearchVisibility, scoreSearchVisibilityTypes } from "./scoring";
 import { ensureSearchDemand } from "@/lib/audit/search-demand/client";
+import { resolveGoogleAdsLocation } from "@/lib/audit/search-demand/location";
 import { opportunityForQuery } from "@/lib/audit/search-demand/opportunity";
 import type { SearchVisibilityQuery, SearchVisibilityResult, SearchVisibilitySnapshot } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -71,13 +72,17 @@ export async function runSearchVisibility(input: {
 
   const candidates = generateDiscoveryCandidates({ businessName: input.businessName, city: city ?? null, state: state ?? null, services });
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
-  const resolvedLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
-  const demandByQuery = await ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId, locationCode: resolvedLocation.locationCode, locationName: resolvedLocation.locationName });
+  const serpLocation = await resolveDataForSeoLocation({ city: city ?? null, state: state ?? null });
+  const googleAdsLocation = await resolveGoogleAdsLocation({ city: city ?? null, state: state ?? null, auditId: input.auditId });
+  const demandByQuery = googleAdsLocation
+    ? await ensureSearchDemand({ supabase: input.supabase, intents: demandIntents, auditId: input.auditId, googleAdsLocation })
+    : new Map(demandIntents.map((intent) => [intent.trim().toLowerCase(), { query: intent, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable" as const, checkedAt: "" }]));
+  console.info("[audit/search-visibility] endpoint locations", { auditId: input.auditId, serpLocation, googleAdsLocation });
   console.info("[audit/search-visibility] location resolved", {
     auditId: input.auditId,
     detectedLocation: detectedLocationName,
-    resolvedLocation: resolvedLocation.locationName,
-    locationCode: resolvedLocation.locationCode,
+    resolvedLocation: serpLocation.locationName,
+    locationCode: serpLocation.locationCode,
   });
   let selectedDiscovery = fallbackQueries.filter((query) => query.type === "discovery");
   if (candidates.length > 0) {
@@ -91,8 +96,8 @@ export async function runSearchVisibility(input: {
   const queries = [...fallbackQueries.filter((query) => query.type === "branded"), ...selectedDiscovery].slice(0, 10);
   const targetDomain = normalizeHostname(input.normalizedUrl);
   const results = await Promise.all(queries.map(async (query): Promise<SearchVisibilityResult> => {
-    console.info("[audit/search-visibility] query", { auditId: input.auditId, query: query.query, type: query.type, location: resolvedLocation.locationName, locationCode: resolvedLocation.locationCode });
-    const response = await fetchGoogleOrganicResults({ keyword: query.query, locationCode: resolvedLocation.locationCode, locationName: resolvedLocation.locationName });
+    console.info("[audit/search-visibility] query", { auditId: input.auditId, query: query.query, type: query.type, location: serpLocation.locationName, locationCode: serpLocation.locationCode });
+    const response = await fetchGoogleOrganicResults({ keyword: query.query, locationCode: serpLocation.locationCode, locationName: serpLocation.locationName });
     const organicItems = response.items.filter((item) => item.type === "organic");
     const usableItems = organicItems.length > 0 ? organicItems : response.items.filter((item) => item.url && (item.rank_absolute != null || item.rank_group != null));
     const match = usableItems.find((item) => item.url && domainMatches(item.url, targetDomain));
@@ -110,7 +115,7 @@ export async function runSearchVisibility(input: {
       matched: Boolean(match),
       matchedPosition,
     });
-    const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: resolvedLocation.locationName, enteredMarket, resolvedLocationName: resolvedLocation.locationName, locationCode: resolvedLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId };
+    const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: serpLocation.locationName, enteredMarket, resolvedLocationName: serpLocation.locationName, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId };
     const demand = demandByQuery.get((query.service ?? query.query).trim().toLowerCase());
     const opportunity = query.type === "discovery" ? opportunityForQuery(baseResult, demand) : null;
     return { ...baseResult, monthlySearchVolume: demand?.monthlySearchVolume ?? null, competition: demand?.competition ?? null, cpc: demand?.cpc ?? null, demandLevel: demand?.demandLevel ?? "unavailable", demandCheckedAt: demand?.checkedAt ?? null, opportunityScore: opportunity?.score ?? null, opportunityLabel: opportunity?.label ?? null };
@@ -118,5 +123,5 @@ export async function runSearchVisibility(input: {
   const summary = scoreSearchVisibility(results);
   const typeScores = scoreSearchVisibilityTypes(results);
   console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
-  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: resolvedLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: resolvedLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
+  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google" };
 }

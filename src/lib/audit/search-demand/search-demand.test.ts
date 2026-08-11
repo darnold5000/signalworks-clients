@@ -3,7 +3,14 @@ import { demandLevelForVolume, normalizeDemand } from "./normalize";
 import { opportunityForQuery } from "./opportunity";
 import { ensureSearchDemand } from "./client";
 
-function demandRow(intent: string, checkedAt: string, volume: number | null) {
+const indianapolisGoogleAdsLocation = {
+  locationCode: 2001001,
+  locationName: "Indianapolis, Indiana, United States",
+  countryIsoCode: "US",
+  locationType: "City",
+};
+
+function demandRow(intent: string, checkedAt: string, volume: number | null, locationCode = 2001001, locationName = indianapolisGoogleAdsLocation.locationName) {
   return {
     normalized_intent: intent,
     display_intent: intent,
@@ -13,16 +20,20 @@ function demandRow(intent: string, checkedAt: string, volume: number | null) {
     competition_index: null,
     cpc: null,
     checked_at: checkedAt,
+    location_code: locationCode,
+    location_name: locationName,
+    country_code: "US",
+    language_code: "en",
   };
 }
 
 function supabaseForDemand(rows: unknown[]) {
-  const selectResult = Promise.resolve({ data: rows, error: null });
+  const filters = new Map<string, unknown>();
   const table = {
     select: () => table,
     in: () => table,
-    eq: () => table,
-    then: selectResult.then.bind(selectResult),
+    eq: (key: string, value: unknown) => { filters.set(key, value); return table; },
+    then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve({ data: rows.filter((row) => [...filters.entries()].every(([key, value]) => (row as Record<string, unknown>)[key] === value)), error: null }).then(resolve, reject),
     upsert: () => Promise.resolve({ error: null }),
   };
   return { from: () => table } as never;
@@ -76,6 +87,7 @@ describe("search demand and opportunities", () => {
       supabase: supabaseForDemand([demandRow("financial advisor", new Date().toISOString(), 500)]),
       intents: ["financial advisor"],
       auditId: "audit-cache-hit",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
     });
     expect(result.get("financial advisor")?.monthlySearchVolume).toBe(500);
     expect(fetch).not.toHaveBeenCalled();
@@ -91,6 +103,7 @@ describe("search demand and opportunities", () => {
       supabase: supabaseForDemand([demandRow("financial advisor", "2020-01-01T00:00:00.000Z", 50)]),
       intents: ["financial advisor"],
       auditId: "audit-stale",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
     });
     expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -106,6 +119,7 @@ describe("search demand and opportunities", () => {
       supabase: supabaseForDemand([]),
       intents: ["financial advisor", "retirement planning"],
       auditId: "audit-mixed",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
     });
     expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(result.get("retirement planning")?.demandLevel).toBe("unavailable");
@@ -119,7 +133,25 @@ describe("search demand and opportunities", () => {
       supabase: supabaseForDemand([]),
       intents: ["financial advisor"],
       auditId: "audit-provider-failure",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
     });
     expect(result.get("financial advisor")?.demandLevel).toBe("unavailable");
+  });
+
+  it("does not use a legacy US row for a city demand lookup", async () => {
+    process.env.DATAFORSEO_LOGIN = "login";
+    process.env.DATAFORSEO_PASSWORD = "password";
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(providerResponse([
+      { keyword: "financial advisor", search_volume: 250, competition: 0.2, cpc: 3, location_code: indianapolisGoogleAdsLocation.locationCode },
+    ]) as Response);
+    const result = await ensureSearchDemand({
+      supabase: supabaseForDemand([demandRow("financial advisor", new Date().toISOString(), 201000, 2840, "United States")]),
+      intents: ["financial advisor"],
+      auditId: "audit-city-not-us",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
+    });
+    expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))[0].location_code).toBe(indianapolisGoogleAdsLocation.locationCode);
   });
 });
