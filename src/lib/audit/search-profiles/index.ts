@@ -5,7 +5,7 @@ export type SearchProfile = {
 };
 
 const PROFILES: Array<SearchProfile & { signals: RegExp }> = [
-  { key: "financial_advisor", signals: /wealth|financial|retirement|investment|fiduciary|portfolio/i, applicable: true, baseTerms: ["financial advisor", "wealth management", "financial planner", "retirement planning", "wealth advisor"] },
+  { key: "financial_advisor", signals: /wealth|financial|retirement|investment|fiduciary|portfolio/i, applicable: true, baseTerms: ["financial advisor", "financial planner", "wealth management", "wealth advisor", "retirement planning", "retirement advisor", "investment management", "investment advisor", "financial planning", "401k advisor", "business retirement plans", "retirement income planning", "wealth planning"] },
   { key: "dentist", signals: /dentist|dental|invisalign/i, applicable: true, baseTerms: ["dentist", "family dentist", "cosmetic dentist", "dental office", "emergency dentist"] },
   { key: "fitness_gym", signals: /gym|fitness|personal training|strength training/i, applicable: true, baseTerms: ["gym", "fitness center", "personal trainer", "strength training", "fitness classes"] },
   { key: "sports_training", signals: /sports performance|athletic|speed and agility|youth sports/i, applicable: true, baseTerms: ["sports performance training", "athletic training", "speed and agility training", "youth sports training", "strength training"] },

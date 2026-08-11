@@ -1,4 +1,5 @@
 import type { SearchVisibilityQuery } from "./types";
+import { selectSearchProfile } from "@/lib/audit/search-profiles";
 
 const NON_COMMERCIAL_PATTERNS = [
   /^home$/i,
@@ -93,6 +94,20 @@ export function generateSearchQueries(input: {
   }
 
   return queries.slice(0, 10);
+}
+
+export function generateDiscoveryCandidates(input: { businessName: string | null; city: string | null; state?: string | null; services: string[] }): SearchVisibilityQuery[] {
+  const location = normalizeLocation(input.city, input.state);
+  const profile = selectSearchProfile({ businessName: input.businessName, services: input.services });
+  const terms = [...profile.baseTerms, ...input.services.map(cleanPhrase).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase)];
+  const seen = new Set<string>();
+  return terms.map((term) => term.replace(/\s+/g, " ").trim()).filter((term) => {
+    const query = `${term} ${location}`.trim();
+    const key = query.toLowerCase();
+    if (!location || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((term) => ({ query: `${term} ${location}`.trim(), type: "discovery" as const, service: term }));
 }
 
 export { cleanPhrase as cleanSearchIntentPhrase };
