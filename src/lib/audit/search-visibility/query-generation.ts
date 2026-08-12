@@ -93,21 +93,8 @@ export function generateSearchQueries(input: {
     if (location) add(`${input.businessName} ${location}`, "branded", null);
   }
 
-  const validServices = [...new Set(input.services.map((value) => cleanPhrase(value, input.businessName)).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase))];
-  const profile = input.profile ?? selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
-  if (looksFinancial(validServices) || profile.key === "financial_advisor") {
-    for (const [phrase, service] of FINANCIAL_DISCOVERY_QUERIES) {
-      if (location) add(`${phrase} ${location}`, "discovery", service, 3, "profile_default");
-    }
-  } else {
-    const discoveryTerms = validServices.length >= 2 ? validServices : [...profile.baseTerms, ...validServices];
-    const primaryVariants = profile.primaryServiceVariants ?? [];
-    for (const service of [...new Set(primaryVariants)]) {
-      if (location) add(`${service} ${location}`, "discovery", service, primaryVariants.indexOf(service) === 0 ? 1 : 2, "primary_service");
-    }
-    for (const service of [...new Set(discoveryTerms)].filter((term) => !primaryVariants.includes(term)).slice(0, 8)) {
-      if (location) add(`${service} ${location}`, "discovery", service, validServices.includes(service) ? 3 : 4, validServices.includes(service) ? "website_evidence" : "profile_default");
-    }
+  for (const candidate of generateDiscoveryCandidates(input)) {
+    add(candidate.query, candidate.type, candidate.service, candidate.relevanceTier, candidate.relevanceSource);
   }
 
   return queries.slice(0, 10);
@@ -116,9 +103,20 @@ export function generateSearchQueries(input: {
 export function generateDiscoveryCandidates(input: { businessName: string | null; businessTypeHint?: string | null; city: string | null; state?: string | null; services: string[]; profile?: SearchProfile }): SearchVisibilityQuery[] {
   const location = normalizeLocation(input.city, input.state);
   const profile = input.profile ?? selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
-  const validServices = input.services.map((value) => cleanPhrase(value, input.businessName)).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase);
-  const primaryVariants = profile.primaryServiceVariants ?? [];
-  const terms = [...primaryVariants, ...validServices.filter((term) => !primaryVariants.includes(term)).map((term) => term), ...profile.baseTerms.filter((term) => !primaryVariants.includes(term))];
+  const validServices = input.services.map((value) => cleanPhrase(value, input.businessName)).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase).map((value) => value.toLowerCase());
+  // Financial discovery has a dedicated service-intent set; keep it from
+  // being reshaped by the generic primary-service variant path.
+  const primaryVariants = profile.key === "financial_advisor" ? [] : profile.primaryServiceVariants ?? [];
+  const explicitBusinessHint = Boolean(input.businessTypeHint?.trim());
+  const supportedProfileDefaults = profile.baseTerms.filter((term) => validServices.some((service) => service.toLowerCase() === term.toLowerCase() || service.toLowerCase().includes(term.toLowerCase())));
+  const profileTerms = explicitBusinessHint
+    ? profile.baseTerms.filter((term) => !primaryVariants.includes(term))
+    : supportedProfileDefaults.filter((term) => !primaryVariants.includes(term));
+  const financialTerms = profile.key === "financial_advisor" && (explicitBusinessHint || looksFinancial(validServices))
+    ? FINANCIAL_DISCOVERY_QUERIES.map(([phrase]) => phrase)
+    : [];
+  const evidenceTerms = validServices.filter((term) => !primaryVariants.some((variant) => term.includes(variant) || variant.includes(term)) && !supportedProfileDefaults.includes(term));
+  const terms = [...primaryVariants, ...evidenceTerms, ...financialTerms.filter((term) => !primaryVariants.includes(term)), ...profileTerms.filter((term) => !financialTerms.includes(term))];
   const seen = new Set<string>();
   return terms.map((term) => term.replace(/\s+/g, " ").trim()).filter((term) => {
     const query = `${term} ${location}`.trim();
@@ -126,7 +124,12 @@ export function generateDiscoveryCandidates(input: { businessName: string | null
     if (!location || seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).map((term, index) => ({ query: `${term} ${location}`.trim(), type: "discovery" as const, service: term, relevanceTier: index < primaryVariants.length ? (index === 0 ? 1 : 2) : validServices.includes(term) ? 3 : 4, relevanceSource: index < primaryVariants.length ? "primary_service" as const : validServices.includes(term) ? "website_evidence" as const : "profile_default" as const }));
+  }).map((term, index) => {
+    const isPrimary = index < primaryVariants.length;
+    const isWebsiteEvidence = validServices.includes(term) || supportedProfileDefaults.includes(term);
+    const isBusinessHint = explicitBusinessHint && !isWebsiteEvidence;
+    return { query: `${term} ${location}`.trim(), type: "discovery" as const, service: term, relevanceTier: isPrimary ? (index === 0 ? 1 : 2) : isWebsiteEvidence || isBusinessHint ? 3 : 4, relevanceSource: isPrimary ? "primary_service" as const : isWebsiteEvidence ? "website_evidence" as const : isBusinessHint ? "business_hint" as const : "profile_default" as const };
+  });
 }
 
 export { cleanPhrase as cleanSearchIntentPhrase };

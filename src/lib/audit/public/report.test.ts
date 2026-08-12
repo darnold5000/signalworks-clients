@@ -35,6 +35,17 @@ describe("search-demand recommendation copy", () => {
     expect(copy?.customerDescription).toContain("~110 monthly searches around Indianapolis, Indiana");
   });
 
+  it("promotes measurable primary-service demand even below high-demand thresholds", () => {
+    const copy = searchDemandRecommendation(
+      { category: "seo", title: "Help Google understand your business", description: "Improve service signals." },
+      [result({ query: "basketball training Indianapolis Indiana", monthlySearchVolume: 30, demandLevel: "low", relevanceTier: 1, relevanceSource: "primary_service" })],
+    );
+
+    expect(copy?.customerTitle).toBe("Improve visibility for customer searches");
+    expect(copy?.customerDescription).toContain("measurable local search demand");
+    expect(copy?.customerDescription).toContain("~30 monthly searches");
+  });
+
   it("falls back when demand is unavailable and does not invent volume", () => {
     const copy = searchDemandRecommendation(
       { category: "seo", title: "Help Google understand your business", description: "Improve service signals." },

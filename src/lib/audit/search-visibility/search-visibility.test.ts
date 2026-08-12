@@ -9,14 +9,15 @@ describe("search visibility phase 1", () => {
   it("generates distinct branded and discovery queries", () => {
     const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Plainfield", state: "IN", services: ["Personal Training", "Personal Training", "Our Services"] });
     expect(queries.filter((query) => query.type === "branded")).toHaveLength(2);
-    expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(6);
+    expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(3);
     expect(new Set(queries.map((query) => query.query.toLowerCase())).size).toBe(queries.length);
   });
 
   it("derives multiple sports-training intents from basketball evidence", () => {
     const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training in Indiana"] });
     expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(3);
-    expect(queries.some((query) => query.service === "sports performance training")).toBe(true);
+    expect(queries.some((query) => query.service === "sports performance training")).toBe(false);
+    expect(queries.filter((query) => query.type === "discovery")).toHaveLength(5);
     expect(queries.slice(2, 7).map((query) => query.service)).toEqual([
       "basketball training",
       "basketball trainer",
@@ -41,6 +42,12 @@ describe("search visibility phase 1", () => {
     const queries = generateSearchQueries({ businessName: "Peak Performance", city: "Plainfield", state: "IN", services: ["Sports Performance Training"] });
     expect(queries.slice(2).some((query) => query.service === "sports performance training")).toBe(true);
     expect(queries.some((query) => query.service === "basketball training")).toBe(false);
+  });
+
+  it("does not measure unsupported profile defaults just to reach eight queries", () => {
+    const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training in Indiana"] });
+    expect(queries.filter((query) => query.type === "discovery").every((query) => query.relevanceSource !== "profile_default")).toBe(true);
+    expect(queries.filter((query) => query.type === "discovery").map((query) => query.service)).not.toContain("strength training");
   });
 
   it("rejects page-title brand contamination from discovery candidates", () => {

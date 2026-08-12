@@ -67,7 +67,7 @@ export function searchDemandRecommendation(
   const lower = `${recommendation.category} ${recommendation.title} ${recommendation.description}`.toLowerCase();
   const relevant = lower.includes("seo") || lower.includes("google") || lower.includes("business") || lower.includes("service") || lower.includes("question") || lower.includes("faq");
   if (!relevant) return null;
-  const candidate = results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed" && result.monthlySearchVolume != null && (result.demandLevel === "high" || result.demandLevel === "moderate")).sort((a, b) => {
+  const candidate = results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed" && result.monthlySearchVolume != null && result.monthlySearchVolume > 0 && (result.position == null || result.position > 10)).sort((a, b) => {
     const aTier = a.relevanceTier ?? 99;
     const bTier = b.relevanceTier ?? 99;
     if (aTier !== bTier) return aTier - bTier;
@@ -78,9 +78,26 @@ export function searchDemandRecommendation(
   const displayedQuery = formatSearchQuery(candidate.query, candidate.resolvedLocationName ?? candidate.location);
   const keyword = displayedQuery.split(" — ")[0] ?? candidate.query;
   const volume = `~${candidate.monthlySearchVolume!.toLocaleString()}`;
-  if (candidate.position == null) return { customerTitle: "Improve visibility for high-demand services", customerDescription: `Your site was not found in the top 30 for “${keyword},” despite an estimated ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
+  if (candidate.position == null) return { customerTitle: candidate.demandLevel === "high" || candidate.demandLevel === "moderate" ? "Improve visibility for high-demand services" : "Improve visibility for customer searches", customerDescription: `Your site was not found in the top 30 for “${keyword},” despite measurable local search demand of about ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
   if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} monthly searches around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
   return null;
+}
+
+function reportRecommendations(detail: PublicAuditDetail) {
+  const demandEvidence = detail.searchVisibility?.status === "completed"
+    ? searchDemandRecommendation({ category: "seo", title: "Help Google understand your business", description: "Improve visibility for the services customers are searching for." }, detail.searchVisibility.results)
+    : null;
+  const demandRecommendation = demandEvidence ? {
+    title: demandEvidence.customerTitle,
+    description: demandEvidence.customerDescription,
+    priority: "high",
+    impact: "High business impact",
+    effort: "Review and improve",
+    category: "search_visibility",
+    recommendationKey: "search.demand_visibility",
+    signalworksServiceKey: null,
+  } : null;
+  return demandRecommendation ? [demandRecommendation, ...detail.recommendations] : detail.recommendations;
 }
 
 function plainSummary(detail: PublicAuditDetail) {
@@ -91,7 +108,7 @@ function plainSummary(detail: PublicAuditDetail) {
   const localWeak = local && local.queriesAnalyzed > 0 && local.foundCount / local.queriesAnalyzed <= 0.2;
   if ((discovery != null && discovery <= 40) || localWeak) {
     const brandedStrong = (detail.searchVisibility?.summary?.brandedScore ?? 0) >= 75;
-    const demandContext = localizedDemand ? ` We found meaningful local search demand around ${market ?? "the selected market"}, which makes these visibility gaps especially important.` : "";
+    const demandContext = localizedDemand ? ` We found measurable local search demand around ${market ?? "the selected market"}, which makes these visibility gaps especially important.` : "";
     return `Your website has a solid technical foundation, but that isn't translating into strong search visibility. ${brandedStrong ? "People searching specifically for your business can find you easily, but " : ""}the site has limited visibility when new customers search for the services you provide${localWeak ? ", and the business was rarely found in the local results we checked" : ""}.${demandContext}`;
   }
   if ((detail.aeoReadiness?.score ?? 100) < 40) return "Your website has a workable foundation, but important business information and customer answers could be structured more clearly for search engines and answer-oriented systems. Strong technical SEO alone does not guarantee visibility or useful answers.";
@@ -152,7 +169,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
       <section style="margin-bottom: 3rem;">
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Your biggest opportunities</p>
         <h2 style="font-size: 28px; font-weight: 500;">Improvements worth prioritizing</h2>
-        ${detail.recommendations.slice(0, 5).map((rec, index) => { const presentation = presentCustomerRecommendation(rec); const evidenceCopy = !searchDemandCopyUsed && detail.searchVisibility?.status === "completed" ? searchDemandRecommendation(rec, detail.searchVisibility.results) : null; if (evidenceCopy) searchDemandCopyUsed = true; const displayed = evidenceCopy ? { ...presentation, ...evidenceCopy } : presentation; return `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(displayed.customerTitle)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(displayed.customerDescription)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(displayed.customerCategory)}</p><p style="font-size: 12px; color: #666;">Technical details: ${escapeHtml(displayed.technicalTitle)}${displayed.technicalValue ? ` · ${escapeHtml(displayed.technicalValue)}` : ""}</p></div></div></div>`; }).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
+        ${reportRecommendations(detail).slice(0, 5).map((rec, index) => { const presentation = presentCustomerRecommendation(rec); const evidenceCopy = !searchDemandCopyUsed && detail.searchVisibility?.status === "completed" ? searchDemandRecommendation(rec, detail.searchVisibility.results) : null; if (evidenceCopy) searchDemandCopyUsed = true; const displayed = evidenceCopy ? { ...presentation, ...evidenceCopy } : presentation; return `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(displayed.customerTitle)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(displayed.customerDescription)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(displayed.customerCategory)}</p><p style="font-size: 12px; color: #666;">Technical details: ${escapeHtml(displayed.technicalTitle)}${displayed.technicalValue ? ` · ${escapeHtml(displayed.technicalValue)}` : ""}</p></div></div></div>`; }).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
       </section>
 
       <section style="margin-bottom: 3rem; border: 1px solid #e2e0da; border-radius: 12px; padding: 1.5rem;">
