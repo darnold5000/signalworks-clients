@@ -169,6 +169,21 @@ describe("search demand and opportunities", () => {
     expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))[0].location_code).toBe(indianapolisGoogleAdsLocation.locationCode);
   });
 
+  it("reuses the exact city row when national and city rows share an intent", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    const result = await ensureSearchDemand({
+      supabase: supabaseForDemand([
+        demandRow("financial advisor", new Date().toISOString(), 201000, 2840, "United States"),
+        demandRow("financial advisor", new Date().toISOString(), 250, indianapolisGoogleAdsLocation.locationCode, indianapolisGoogleAdsLocation.locationName),
+      ]),
+      intents: ["financial advisor"],
+      auditId: "audit-city-and-national",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
+    });
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBe(250);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects a provider response that reports a different location", async () => {
     process.env.DATAFORSEO_LOGIN = "login";
     process.env.DATAFORSEO_PASSWORD = "password";
