@@ -59,6 +59,50 @@ describe("Search Visibility failure isolation", () => {
     expect(result.errorMessage).toBe(reason);
   });
 
+  it("persists SERP location timeout diagnostics before any organic query runs", async () => {
+    vi.mocked(resolveDataForSeoLocation).mockResolvedValue({
+      status: "unavailable",
+      reason: "The operation was aborted due to timeout",
+      diagnostics: {
+        failurePhase: "serp_location_resolution",
+        failureCode: "serp_location_resolution_timeout",
+        failureMessage: "The operation was aborted due to timeout",
+      },
+    });
+
+    const result = await runAudit();
+
+    expect(result.status).toBe("unavailable");
+    expect(result.diagnostics).toMatchObject({
+      failurePhase: "serp_location_resolution",
+      failureCode: "serp_location_resolution_timeout",
+      successfulQueryCount: 0,
+      failedQueryCount: 0,
+    });
+    expect(fetchGoogleOrganicResults).not.toHaveBeenCalled();
+  });
+
+  it("preserves a distinct diagnostic for non-timeout SERP location failures", async () => {
+    vi.mocked(resolveDataForSeoLocation).mockResolvedValue({
+      status: "unavailable",
+      reason: "DataForSEO locations HTTP 500",
+      diagnostics: {
+        failurePhase: "serp_location_resolution",
+        failureCode: "serp_location_resolution_failed",
+        failureMessage: "DataForSEO locations HTTP 500",
+      },
+    });
+
+    const result = await runAudit();
+
+    expect(result.diagnostics).toMatchObject({
+      failurePhase: "serp_location_resolution",
+      failureCode: "serp_location_resolution_failed",
+      failureMessage: "DataForSEO locations HTTP 500",
+    });
+    expect(fetchGoogleOrganicResults).not.toHaveBeenCalled();
+  });
+
   it("keeps successful organic results when one SERP query fails", async () => {
     vi.mocked(fetchGoogleOrganicResults).mockImplementation(async ({ keyword }) => {
       if (keyword.toLowerCase() === "web design indianapolis indiana") throw new Error("DataForSEO HTTP 500");

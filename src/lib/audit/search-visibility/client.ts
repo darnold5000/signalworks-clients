@@ -29,7 +29,7 @@ export type DataForSeoLocation = {
   locationName: string;
   locationType: string;
 };
-export type DataForSeoLocationResolution = { status: "resolved"; location: DataForSeoLocation } | { status: "ambiguous"; city: string; candidates: string[] } | { status: "unavailable"; reason: string };
+export type DataForSeoLocationResolution = { status: "resolved"; location: DataForSeoLocation } | { status: "ambiguous"; city: string; candidates: string[] } | { status: "unavailable"; reason: string; diagnostics?: { failurePhase: "serp_location_resolution"; failureCode: "serp_location_resolution_timeout" | "serp_location_resolution_failed"; failureMessage: string } };
 
 type DataForSeoLocationRecord = {
   location_code?: number;
@@ -93,19 +93,23 @@ async function fetchUsLocations(): Promise<DataForSeoLocationRecord[] | undefine
   return payload.tasks?.[0]?.result ?? [];
 }
 
-export async function resolveDataForSeoLocation(input: { city: string | null; state: string | null }): Promise<DataForSeoLocationResolution> {
-  if (!input.city) return { status: "unavailable", reason: "A primary city is required." };
+export async function resolveDataForSeoLocation(input: { city: string | null; state: string | null; auditId?: string }): Promise<DataForSeoLocationResolution> {
+  if (!input.city) return { status: "unavailable", reason: "A primary city is required.", diagnostics: { failurePhase: "serp_location_resolution", failureCode: "serp_location_resolution_failed", failureMessage: "A primary city is required." } };
   usLocationsPromise ??= fetchUsLocations();
   try {
     const matches = matchUsLocations(await usLocationsPromise, input);
     if (matches.length === 1) return { status: "resolved", location: matches[0] };
     if (matches.length > 1 && !input.state) return { status: "ambiguous", city: input.city, candidates: matches.map((match) => match.locationName) };
-    console.warn("[audit/search-visibility] DataForSEO city not found", input);
-    return { status: "unavailable", reason: `No clear DataForSEO city match was found for ${input.city}.` };
+    const reason = `No clear DataForSEO city match was found for ${input.city}.`;
+    console.warn("[audit/search-visibility] DataForSEO city not found", { auditId: input.auditId ?? null, phase: "serp_location_resolution", failureCode: "serp_location_resolution_failed", locationRequested: [input.city, input.state].filter(Boolean).join(", ") });
+    return { status: "unavailable", reason, diagnostics: { failurePhase: "serp_location_resolution", failureCode: "serp_location_resolution_failed", failureMessage: reason } };
   } catch (error) {
     usLocationsPromise = null;
-    console.warn("[audit/search-visibility] DataForSEO city location lookup failed", error instanceof Error ? error.message : error);
-    return { status: "unavailable", reason: error instanceof Error ? error.message : "DataForSEO location lookup failed." };
+    const failureMessage = error instanceof Error ? error.message : "DataForSEO location lookup failed.";
+    const isTimeout = /abort|timeout/i.test(failureMessage) || (error instanceof DOMException && error.name === "TimeoutError");
+    const failureCode = isTimeout ? "serp_location_resolution_timeout" : "serp_location_resolution_failed";
+    console.warn("[audit/search-visibility] DataForSEO city location lookup failed", { auditId: input.auditId ?? null, phase: "serp_location_resolution", failureCode, locationRequested: [input.city, input.state].filter(Boolean).join(", "), failureMessage });
+    return { status: "unavailable", reason: failureMessage, diagnostics: { failurePhase: "serp_location_resolution", failureCode, failureMessage } };
   }
 }
 

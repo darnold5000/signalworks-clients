@@ -26,6 +26,12 @@ export function reportOpportunityResults(results: NonNullable<PublicAuditDetail[
   return selectOpportunityResults(results, 3);
 }
 
+export function searchVisibilityFailureMessage(visibility: NonNullable<PublicAuditDetail["searchVisibility"]>) {
+  return visibility.diagnostics?.failureCode === "insufficient_discovery_coverage"
+    ? "We couldn't identify enough reliable customer search queries from the website to measure Google Search Visibility for this report."
+    : "Search Visibility could not be measured during this report.";
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   accessibility: "Accessibility",
   aeo: "AI & Answer Readiness",
@@ -137,6 +143,9 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const localInterpretation = detail.localSearch?.status === "completed" && detail.localSearch.summary
     ? localSearchInterpretation(detail.localSearch.summary)
     : null;
+  const searchVisibilityFailureCopy = detail.searchVisibility
+    ? searchVisibilityFailureMessage(detail.searchVisibility)
+    : "Search Visibility could not be measured during this report.";
   const body = `
     <article style="max-width: 820px; margin: 0 auto; font-family: Arial, sans-serif; color: #121212;">
       <header style="margin-bottom: 3rem; border-bottom: 1px solid #e2e0da; padding-bottom: 2rem;">
@@ -193,7 +202,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   `;
 
   return wrapSowForPrintDocument(
-    body,
+    body.replace("Search visibility could not be measured for this report.", searchVisibilityFailureCopy),
     `Website Health Score — ${detail.businessName ?? detail.normalizedDomain}`,
   );
 }

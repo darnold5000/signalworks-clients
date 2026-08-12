@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { localSearchInterpretation, searchDemandRecommendation } from "./report";
+import { localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
+import type { PublicAuditDetail } from "./types";
 
 const result = (overrides: Record<string, unknown> = {}) => ({
   query: "financial advisor Indianapolis Indiana",
   type: "discovery" as const,
+  service: null,
   position: null,
+  found: false,
+  rankingUrl: null,
+  checkedAt: "2026-08-12T00:00:00.000Z",
+  searchEngine: "google" as const,
   monthlySearchVolume: 590,
   demandLevel: "high" as const,
   location: "Indianapolis, Indiana, United States",
@@ -76,5 +82,31 @@ describe("local search interpretation", () => {
 
   it("recognizes strong visibility from repeated top-three results", () => {
     expect(localSearchInterpretation({ foundCount: 5, queriesAnalyzed: 5, topThreeCount: 3 })).toContain("strong local visibility");
+  });
+});
+
+describe("search visibility failure messaging", () => {
+  const visibility = (failureCode: string | null) => ({
+    diagnostics: {
+      failurePhase: failureCode ? "runtime" : null,
+      failureCode,
+      failureMessage: null,
+      successfulQueryCount: 0,
+      failedQueryCount: 0,
+    },
+  } as unknown as NonNullable<PublicAuditDetail["searchVisibility"]>);
+
+  it("uses the insufficient-coverage copy only for insufficient coverage", () => {
+    expect(searchVisibilityFailureMessage(visibility("insufficient_discovery_coverage"))).toContain("couldn't identify enough reliable customer search queries");
+  });
+
+  it("uses neutral copy for timeout and runtime failures", () => {
+    expect(searchVisibilityFailureMessage(visibility("serp_location_resolution_timeout"))).toBe("Search Visibility could not be measured during this report.");
+    expect(searchVisibilityFailureMessage(visibility("search_visibility_persistence_failed"))).toBe("Search Visibility could not be measured during this report.");
+  });
+
+  it("uses the same diagnostic-aware message for printable and interactive report callers", () => {
+    expect(searchVisibilityFailureMessage(visibility("insufficient_discovery_coverage"))).toBe("We couldn't identify enough reliable customer search queries from the website to measure Google Search Visibility for this report.");
+    expect(searchVisibilityFailureMessage(visibility("serp_location_resolution_timeout"))).toBe("Search Visibility could not be measured during this report.");
   });
 });

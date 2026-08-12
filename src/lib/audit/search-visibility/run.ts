@@ -111,10 +111,10 @@ export async function runSearchVisibility(input: {
     return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Not enough validated customer search intents were available to measure Search Visibility.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key };
   }
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
-  const serpResolution = await resolveDataForSeoLocation({ city, state });
+  const serpResolution = await resolveDataForSeoLocation({ city, state, auditId: input.auditId });
   if (serpResolution.status !== "resolved") {
     const message = serpResolution.status === "ambiguous" ? `Please enter city and state. Multiple locations matched ${serpResolution.city}: ${serpResolution.candidates.join("; ")}.` : serpResolution.reason;
-    return { status: "unavailable", score: null, businessName: input.businessName, city, state, locationName: detectedLocationName, results: [], summary: null, errorMessage: message, checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key };
+    return { status: "unavailable", score: null, businessName: input.businessName, city, state, locationName: detectedLocationName, results: [], summary: null, errorMessage: message, checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key, diagnostics: serpResolution.status === "unavailable" && serpResolution.diagnostics ? { ...serpResolution.diagnostics, successfulQueryCount: 0, failedQueryCount: 0 } : undefined };
   }
   const serpLocation = serpResolution.location;
   const canonicalMarket = parseCanonicalLocationName(serpLocation.locationName);

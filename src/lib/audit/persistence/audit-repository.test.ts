@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { saveSearchVisibilitySnapshot } from "./audit-repository";
+import { saveLocalSearchSnapshot, saveSearchVisibilitySnapshot } from "./audit-repository";
 
 describe("Search Visibility diagnostic persistence", () => {
   it("persists phase, code, message, and query counts", async () => {
@@ -63,6 +63,35 @@ describe("Search Visibility diagnostic persistence", () => {
       demand_failure_phase: "provider_response",
       demand_failure_code: "demand_provider_http_error",
       demand_failure_message: "DataForSEO demand HTTP 401",
+    }), { onConflict: "audit_run_id" });
+  });
+});
+
+describe("Local Search status persistence", () => {
+  it("passes not_measured through to the database row", async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const supabase = { from: vi.fn(() => ({ upsert })) } as never;
+
+    await saveLocalSearchSnapshot(supabase, "run-local-status", {
+      status: "not_measured",
+      score: null,
+      profileKey: "sports_training",
+      enteredMarket: "Indianapolis, Indiana",
+      normalizedMarket: "Indianapolis, Indiana, United States",
+      locationName: "Indianapolis, Indiana, United States",
+      locationCode: 1017146,
+      results: [],
+      summary: null,
+      errorMessage: "Not enough validated local searches were available.",
+      checkedAt: null,
+      auditedDomain: "example.com",
+      resultDepth: 20,
+      searchEngine: "google",
+    });
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      audit_run_id: "run-local-status",
+      status: "not_measured",
     }), { onConflict: "audit_run_id" });
   });
 });
