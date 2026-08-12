@@ -112,7 +112,7 @@ export function generateDiscoveryCandidates(input: { businessName: string | null
   const profileTerms = explicitBusinessHint
     ? profile.baseTerms.filter((term) => !primaryVariants.includes(term))
     : supportedProfileDefaults.filter((term) => !primaryVariants.includes(term));
-  const financialTerms = profile.key === "financial_advisor" && (explicitBusinessHint || looksFinancial(validServices))
+  const financialTerms: readonly string[] = profile.key === "financial_advisor" && (explicitBusinessHint || looksFinancial(validServices))
     ? FINANCIAL_DISCOVERY_QUERIES.map(([phrase]) => phrase)
     : [];
   const evidenceTerms = validServices.filter((term) => !primaryVariants.some((variant) => term.includes(variant) || variant.includes(term)) && !supportedProfileDefaults.includes(term));
