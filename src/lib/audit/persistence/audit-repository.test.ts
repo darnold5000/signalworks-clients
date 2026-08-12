@@ -29,6 +29,19 @@ describe("Search Visibility diagnostic persistence", () => {
         successfulQueryCount: 2,
         failedQueryCount: 6,
       },
+      searchDemandDiagnostics: {
+        providerRequestAttempted: true,
+        providerHttpStatus: 401,
+        providerTaskStatus: null,
+        responseStatus: "failed",
+        parseStatus: "not_attempted",
+        resultCount: null,
+        persistenceAttempted: false,
+        persistenceStatus: "not_attempted",
+        failurePhase: "provider_response",
+        failureCode: "demand_provider_http_error",
+        failureMessage: "DataForSEO demand HTTP 401",
+      },
     });
 
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -39,6 +52,17 @@ describe("Search Visibility diagnostic persistence", () => {
       failure_message: "Only 2 of 8 discovery queries succeeded.",
       successful_query_count: 2,
       failed_query_count: 6,
+      demand_provider_request_attempted: true,
+      demand_provider_http_status: 401,
+      demand_provider_task_status: null,
+      demand_response_status: "failed",
+      demand_parse_status: "not_attempted",
+      demand_result_count: null,
+      demand_persistence_attempted: false,
+      demand_persistence_status: "not_attempted",
+      demand_failure_phase: "provider_response",
+      demand_failure_code: "demand_provider_http_error",
+      demand_failure_message: "DataForSEO demand HTTP 401",
     }), { onConflict: "audit_run_id" });
   });
 });

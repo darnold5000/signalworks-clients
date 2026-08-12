@@ -62,7 +62,7 @@ export async function getPublicAuditByToken(
     ]);
   const { data: searchVisibility, error: searchVisibilityError } = await supabase
     .from("audit_search_visibility")
-    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position, error_message, demand_location_requested, demand_location_canonical, demand_google_ads_location_code, demand_google_ads_location_name, demand_location_status, demand_location_error, failure_phase, failure_code, failure_message, successful_query_count, failed_query_count")
+    .select("status, score, location_name, results_json, queries_analyzed, first_page_count, top_three_count, positions_11_20_count, positions_21_30_count, not_found_count, best_discovery_query, best_discovery_position, error_message, demand_location_requested, demand_location_canonical, demand_google_ads_location_code, demand_google_ads_location_name, demand_location_status, demand_location_error, demand_provider_request_attempted, demand_provider_http_status, demand_provider_task_status, demand_response_status, demand_parse_status, demand_result_count, demand_persistence_attempted, demand_persistence_status, demand_failure_phase, demand_failure_code, demand_failure_message, failure_phase, failure_code, failure_message, successful_query_count, failed_query_count")
     .eq("audit_run_id", run.id)
     .maybeSingle();
   if (searchVisibilityError) {
@@ -170,6 +170,19 @@ export async function getPublicAuditByToken(
             error: searchVisibility.demand_location_error,
           },
           errorMessage: searchVisibility.error_message,
+          searchDemandDiagnostics: {
+            providerRequestAttempted: searchVisibility.demand_provider_request_attempted ?? false,
+            providerHttpStatus: searchVisibility.demand_provider_http_status,
+            providerTaskStatus: searchVisibility.demand_provider_task_status,
+            responseStatus: searchVisibility.demand_response_status ?? "not_attempted",
+            parseStatus: searchVisibility.demand_parse_status ?? "not_attempted",
+            resultCount: searchVisibility.demand_result_count,
+            persistenceAttempted: searchVisibility.demand_persistence_attempted ?? false,
+            persistenceStatus: searchVisibility.demand_persistence_status ?? "not_attempted",
+            failurePhase: searchVisibility.demand_failure_phase,
+            failureCode: searchVisibility.demand_failure_code,
+            failureMessage: searchVisibility.demand_failure_message,
+          },
           diagnostics: {
             failurePhase: searchVisibility.failure_phase,
             failureCode: searchVisibility.failure_code,

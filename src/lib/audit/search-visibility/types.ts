@@ -1,3 +1,5 @@
+import type { SearchDemandDiagnostics } from "@/lib/audit/search-demand/types";
+
 export type SearchQueryType = "branded" | "discovery";
 
 export type SearchVisibilityQuery = {
@@ -78,6 +80,7 @@ export type SearchVisibilitySnapshot = {
     googleAdsLocationName: string | null;
     error: string | null;
   };
+  searchDemandDiagnostics?: SearchDemandDiagnostics;
   diagnostics?: {
     failurePhase: string | null;
     failureCode: string | null;

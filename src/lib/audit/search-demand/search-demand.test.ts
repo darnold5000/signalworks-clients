@@ -27,14 +27,14 @@ function demandRow(intent: string, checkedAt: string, volume: number | null, loc
   };
 }
 
-function supabaseForDemand(rows: unknown[]) {
+function supabaseForDemand(rows: unknown[], upsertError: { message: string } | null = null) {
   const filters = new Map<string, unknown>();
   const table = {
     select: () => table,
     in: () => table,
     eq: (key: string, value: unknown) => { filters.set(key, value); return table; },
     then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve({ data: rows.filter((row) => [...filters.entries()].every(([key, value]) => (row as Record<string, unknown>)[key] === value)), error: null }).then(resolve, reject),
-    upsert: () => Promise.resolve({ error: null }),
+    upsert: () => Promise.resolve({ error: upsertError }),
   };
   return { from: () => table } as never;
 }
@@ -42,6 +42,7 @@ function supabaseForDemand(rows: unknown[]) {
 function providerResponse(results: Array<Record<string, unknown>>) {
   return {
     ok: true,
+    status: 200,
     json: async () => ({
       status_code: 20000,
       tasks: [{ status_code: 20000, result: results }],
@@ -98,7 +99,8 @@ describe("search demand and opportunities", () => {
       auditId: "audit-cache-hit",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.monthlySearchVolume).toBe(500);
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBe(500);
+    expect(result.diagnostics).toMatchObject({ providerRequestAttempted: false, responseStatus: "not_attempted", persistenceAttempted: false });
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -114,8 +116,9 @@ describe("search demand and opportunities", () => {
       auditId: "audit-stale",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result.diagnostics).toMatchObject({ providerRequestAttempted: true, providerHttpStatus: 200, responseStatus: "received", parseStatus: "succeeded", persistenceAttempted: true, persistenceStatus: "succeeded", failurePhase: null });
     expect(fetch.mock.calls[0]?.[1]?.headers).toEqual(expect.objectContaining({ Authorization: `Basic ${Buffer.from("login:password").toString("base64")}` }));
   });
 
@@ -131,8 +134,8 @@ describe("search demand and opportunities", () => {
       auditId: "audit-mixed",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
-    expect(result.get("retirement planning")?.demandLevel).toBe("unavailable");
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBe(250);
+    expect(result.demandByIntent.get("retirement planning")?.demandLevel).toBe("unavailable");
   });
 
   it("degrades safely when the demand provider fails", async () => {
@@ -145,7 +148,8 @@ describe("search demand and opportunities", () => {
       auditId: "audit-provider-failure",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.demandLevel).toBe("unavailable");
+    expect(result.demandByIntent.get("financial advisor")?.demandLevel).toBe("unavailable");
+    expect(result.diagnostics).toMatchObject({ providerRequestAttempted: true, responseStatus: "not_attempted", failurePhase: "provider_request", failureCode: "demand_provider_request_failed" });
   });
 
   it("does not use a legacy US row for a city demand lookup", async () => {
@@ -160,7 +164,7 @@ describe("search demand and opportunities", () => {
       auditId: "audit-city-not-us",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.monthlySearchVolume).toBe(250);
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBe(250);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))[0].location_code).toBe(indianapolisGoogleAdsLocation.locationCode);
   });
@@ -177,7 +181,23 @@ describe("search demand and opportunities", () => {
       auditId: "audit-location-mismatch",
       googleAdsLocation: indianapolisGoogleAdsLocation,
     });
-    expect(result.get("financial advisor")?.monthlySearchVolume).toBeNull();
-    expect(result.get("financial advisor")?.demandLevel).toBe("unavailable");
+    expect(result.demandByIntent.get("financial advisor")?.monthlySearchVolume).toBeNull();
+    expect(result.demandByIntent.get("financial advisor")?.demandLevel).toBe("unavailable");
+  });
+
+  it("preserves demand persistence diagnostics when the cache upsert fails", async () => {
+    process.env.DATAFORSEO_LOGIN = "login";
+    process.env.DATAFORSEO_PASSWORD = "password";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(providerResponse([
+      { keyword: "financial advisor", search_volume: 250, competition: 0.2, cpc: 3 },
+    ]) as Response);
+    const result = await ensureSearchDemand({
+      supabase: supabaseForDemand([], { message: "database unavailable" }),
+      intents: ["financial advisor"],
+      auditId: "audit-demand-persist-failure",
+      googleAdsLocation: indianapolisGoogleAdsLocation,
+    });
+    expect(result.demandByIntent.get("financial advisor")?.demandLevel).toBe("unavailable");
+    expect(result.diagnostics).toMatchObject({ providerRequestAttempted: true, responseStatus: "received", parseStatus: "succeeded", persistenceAttempted: true, persistenceStatus: "failed", failurePhase: "demand_persistence", failureCode: "demand_persistence_failed", failureMessage: "database unavailable" });
   });
 });

@@ -16,7 +16,7 @@ const serpLocation = { status: "resolved" as const, location: { locationCode: 10
 const googleAdsLocation = { status: "resolved" as const, location: { locationCode: 2001001, locationName: "Indianapolis, Indiana, United States", countryIsoCode: "US", locationType: "City" }, error: null };
 
 function demandMap(intents: string[]) {
-  return new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 500, competition: null, cpc: null, demandLevel: "high" as const, checkedAt: new Date().toISOString() }]));
+  return { demandByIntent: new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 500, competition: null, cpc: null, demandLevel: "high" as const, checkedAt: new Date().toISOString() }])), diagnostics: { providerRequestAttempted: true, providerHttpStatus: 200, providerTaskStatus: 20000, responseStatus: "received" as const, parseStatus: "succeeded" as const, resultCount: intents.length, persistenceAttempted: true, persistenceStatus: "succeeded" as const, failurePhase: null, failureCode: null, failureMessage: null } };
 }
 
 async function runAudit() {
@@ -107,7 +107,7 @@ describe("Search Visibility failure isolation", () => {
   });
 
   it("preserves measured zero-volume demand without treating it as unavailable", async () => {
-    vi.mocked(ensureSearchDemand).mockImplementation(async ({ intents }) => new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 0, competition: null, cpc: null, demandLevel: "very_low" as const, checkedAt: new Date().toISOString() }])));
+    vi.mocked(ensureSearchDemand).mockImplementation(async ({ intents }) => ({ ...demandMap(intents), demandByIntent: new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 0, competition: null, cpc: null, demandLevel: "very_low" as const, checkedAt: new Date().toISOString() }])) }));
 
     const result = await runAudit();
 

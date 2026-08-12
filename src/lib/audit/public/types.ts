@@ -2,6 +2,7 @@ import type { AuditRunProgress } from "@/lib/audit/types";
 import type { SearchVisibilityResult, SearchVisibilitySummary } from "@/lib/audit/search-visibility/types";
 import type { LocalSearchResult, LocalSearchSummary } from "@/lib/audit/local-search/types";
 import type { AeoSnapshot } from "@/lib/audit/aeo/types";
+import type { SearchDemandDiagnostics } from "@/lib/audit/search-demand/types";
 
 export type PublicAuditFinding = {
   category: string;
@@ -51,6 +52,7 @@ export type PublicAuditDetail = {
     score: number | null;
     locationName: string | null;
     errorMessage?: string | null;
+    searchDemandDiagnostics?: SearchDemandDiagnostics | null;
     diagnostics?: {
       failurePhase: string | null;
       failureCode: string | null;
