@@ -224,8 +224,6 @@ export async function executeAuditSynchronously(
           (saveError) => console.error("[audit/search-visibility] persistence failure diagnostic could not be persisted", { auditId: created.runId, phase: "search_visibility_persistence", failureCode: "search_visibility_persistence_failed", error: saveError instanceof Error ? saveError.message : saveError }),
         );
       }
-      const screenshotRetentionDays = input.auditType === "public" ? FREE_SCREENSHOT_RETENTION_DAYS : CLIENT_SCREENSHOT_RETENTION_DAYS;
-      await captureSearchScreenshots(supabase, created.runId, organicSnapshot, screenshotRetentionDays).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     }
 
     try {
@@ -245,7 +243,10 @@ export async function executeAuditSynchronously(
         locationCode: location.locationCode,
         locationName: location.locationName,
         homepageText: homepage?.bodyText ?? "",
-        discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery").map((result) => ({ query: result.query, relevanceTier: result.relevanceTier })) ?? [],
+        // Local Search needs validated intent terms, not successful organic
+        // rankings for every term. Failed organic queries remain visible as
+        // unable to measure, but must not consume a local-query slot.
+        discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed").map((result) => ({ query: result.query, relevanceTier: result.relevanceTier })) ?? [],
         profileKey: organicSnapshot?.profileKey,
       });
       console.info("[audit/local-search] database persistence attempted", { auditId: created.runId });
@@ -254,6 +255,14 @@ export async function executeAuditSynchronously(
     } catch (error) {
       console.error("[audit/local-search] measurement failed", { auditId: created.runId, error: error instanceof Error ? error.message : error });
       await saveLocalSearchSnapshot(supabase, created.runId, { status: "failed", score: null, profileKey: null, enteredMarket: input.city ?? null, normalizedMarket: null, locationName: null, locationCode: null, results: [], summary: null, errorMessage: error instanceof Error ? error.message : "Local search failed.", checkedAt: null, auditedDomain: url.normalizedDomain, resultDepth: 20, searchEngine: "google" }).catch((saveError) => console.error("[audit/local-search] persistence failed", saveError));
+    }
+
+    // Screenshots are optional evidence enrichment. Run them only after the
+    // critical organic and local measurements have been persisted so a slow or
+    // failed screenshot request cannot consume the Local Search budget.
+    if (organicSnapshot) {
+      const screenshotRetentionDays = input.auditType === "public" ? FREE_SCREENSHOT_RETENTION_DAYS : CLIENT_SCREENSHOT_RETENTION_DAYS;
+      await captureSearchScreenshots(supabase, created.runId, organicSnapshot, screenshotRetentionDays).catch((error) => console.error("[audit/search-screenshot] preparation failed", { auditId: created.runId, error: error instanceof Error ? error.message : error }));
     }
   }
 
