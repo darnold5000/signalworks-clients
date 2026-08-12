@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { generateSearchQueries } from "@/lib/audit/search-visibility/query-generation";
+import { generateDiscoveryCandidates, generateSearchQueries } from "@/lib/audit/search-visibility/query-generation";
 import { hasSufficientDiscoveryCoverage, scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
 import { selectLocalQueryTerms, selectSearchProfile } from "@/lib/audit/search-profiles";
-import { domainMatches } from "@/lib/audit/search-visibility/run";
+import { domainMatches, selectRelevantDiscovery } from "@/lib/audit/search-visibility/run";
 import { matchUsLocation } from "@/lib/audit/search-visibility/client";
 
 describe("search visibility phase 1", () => {
   it("generates distinct branded and discovery queries", () => {
     const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Plainfield", state: "IN", services: ["Personal Training", "Personal Training", "Our Services"] });
     expect(queries.filter((query) => query.type === "branded")).toHaveLength(2);
-    expect(queries.filter((query) => query.type === "discovery")).toHaveLength(6);
+    expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(6);
     expect(new Set(queries.map((query) => query.query.toLowerCase())).size).toBe(queries.length);
   });
 
@@ -17,6 +17,43 @@ describe("search visibility phase 1", () => {
     const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training in Indiana"] });
     expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(3);
     expect(queries.some((query) => query.service === "sports performance training")).toBe(true);
+    expect(queries.slice(2, 7).map((query) => query.service)).toEqual([
+      "basketball training",
+      "basketball trainer",
+      "basketball skills training",
+      "youth basketball training",
+      "basketball lessons",
+    ]);
+  });
+
+  it("prioritizes baseball intent before generic athletic terms", () => {
+    const queries = generateSearchQueries({ businessName: "Baseball Academy", city: "Plainfield", state: "IN", services: ["Baseball Training and Development"] });
+    expect(queries.slice(2, 7).map((query) => query.service)).toEqual([
+      "baseball training",
+      "baseball trainer",
+      "baseball skills training",
+      "youth baseball training",
+      "baseball lessons",
+    ]);
+  });
+
+  it("keeps generic sports terms when no specific sport is supported", () => {
+    const queries = generateSearchQueries({ businessName: "Peak Performance", city: "Plainfield", state: "IN", services: ["Sports Performance Training"] });
+    expect(queries.slice(2).some((query) => query.service === "sports performance training")).toBe(true);
+    expect(queries.some((query) => query.service === "basketball training")).toBe(false);
+  });
+
+  it("rejects page-title brand contamination from discovery candidates", () => {
+    const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training in Indiana | Refined Indiana"] });
+    expect(queries.some((query) => query.query.includes("Basketball Training in Indiana Refined Indiana"))).toBe(false);
+    expect(queries.filter((query) => query.type === "branded").map((query) => query.query)).toEqual(["Refined Indiana", "Refined Indiana Indianapolis IN"]);
+  });
+
+  it("keeps primary-service coverage when a secondary term has more demand", () => {
+    const candidates = generateDiscoveryCandidates({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training", "Strength Training"] });
+    const demand = new Map(candidates.map((candidate) => [candidate.service!, { query: candidate.service!, monthlySearchVolume: candidate.service === "strength training" ? 10000 : 1, competition: null, cpc: null, demandLevel: "high" as const, checkedAt: "now" }]));
+    const selected = selectRelevantDiscovery(candidates, demand, 3);
+    expect(selected.slice(0, 2).map((candidate) => candidate.service)).toEqual(["basketball training", "basketball trainer"]);
   });
 
   it("rejects homepage marketing copy and supplies realistic web-service discovery queries", () => {

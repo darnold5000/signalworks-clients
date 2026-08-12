@@ -10,6 +10,7 @@ import type { SearchDemand, SearchDemandDiagnostics } from "@/lib/audit/search-d
 import type { SearchVisibilityQuery, SearchVisibilityResult, SearchVisibilitySnapshot } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseMarketInput, parseCanonicalLocationName } from "@/lib/audit/location-input";
+import { selectSearchProfile } from "@/lib/audit/search-profiles";
 
 function normalizeHostname(value: string) {
   return normalizeAuditUrl(value).normalizedDomain;
@@ -23,6 +24,15 @@ function hostnameForLog(value: string | undefined, stripWww = false) {
   } catch {
     return null;
   }
+}
+
+export function selectRelevantDiscovery(candidates: SearchVisibilityQuery[], demandByQuery: Map<string, SearchDemand>, limit: number) {
+  // Demand ranks opportunities only after primary-service coverage is held
+  // aside. It must not decide what the business primarily does.
+  const demandRank = (query: SearchVisibilityQuery) => demandByQuery.get((query.service ?? query.query).trim().toLowerCase())?.monthlySearchVolume ?? -1;
+  const primary = candidates.filter((query) => query.relevanceTier === 1 || query.relevanceTier === 2).slice(0, limit);
+  const remaining = candidates.filter((query) => !primary.includes(query)).sort((a, b) => demandRank(b) - demandRank(a));
+  return [...primary, ...remaining].slice(0, limit);
 }
 
 export function domainMatches(rankingUrl: string, targetDomain: string) {
@@ -62,7 +72,8 @@ export async function runSearchVisibility(input: {
   const state = parsedMarket.state;
   const detectedLocationName = city ? `${city}${state ? `, ${state}` : ""}, United States` : "United States";
   const enteredMarket = input.city;
-  const fallbackQueries = generateSearchQueries({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services });
+  const profile = selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services });
+  const fallbackQueries = generateSearchQueries({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services, profile });
   console.info("[audit/search-visibility] started", {
     auditId: input.auditId,
     normalizedDomain: normalizeHostname(input.normalizedUrl),
@@ -70,22 +81,24 @@ export async function runSearchVisibility(input: {
     city: city ?? null,
     state: state ?? null,
     generatedQueries: fallbackQueries.length,
+    profile: profile.key,
+    primaryService: profile.primaryService ?? null,
   });
   if (fallbackQueries.length === 0) {
-    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Location or relevant services were not available.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key };
   }
 
-  const candidates = generateDiscoveryCandidates({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services });
+  const candidates = generateDiscoveryCandidates({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, city: city ?? null, state: state ?? null, services, profile });
   const plannedQueries = [...fallbackQueries.filter((query) => query.type === "branded"), ...candidates].slice(0, 10);
   if (plannedQueries.filter((query) => query.type === "discovery").length < 3) {
     console.warn("[audit/search-visibility] insufficient discovery coverage", { auditId: input.auditId, generatedQueries: plannedQueries.length, discoveryQueries: plannedQueries.filter((query) => query.type === "discovery").length });
-    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Not enough validated customer search intents were available to measure Search Visibility.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: detectedLocationName, results: [], summary: null, errorMessage: "Not enough validated customer search intents were available to measure Search Visibility.", checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key };
   }
   const demandIntents = candidates.map((candidate) => candidate.service ?? candidate.query);
   const serpResolution = await resolveDataForSeoLocation({ city, state });
   if (serpResolution.status !== "resolved") {
     const message = serpResolution.status === "ambiguous" ? `Please enter city and state. Multiple locations matched ${serpResolution.city}: ${serpResolution.candidates.join("; ")}.` : serpResolution.reason;
-    return { status: "unavailable", score: null, businessName: input.businessName, city, state, locationName: detectedLocationName, results: [], summary: null, errorMessage: message, checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google" };
+    return { status: "unavailable", score: null, businessName: input.businessName, city, state, locationName: detectedLocationName, results: [], summary: null, errorMessage: message, checkedAt: null, enteredMarket, locationCode: null, auditedDomain: normalizeHostname(input.normalizedUrl), resultDepth: 30, searchEngine: "google", profileKey: profile.key };
   }
   const serpLocation = serpResolution.location;
   const canonicalMarket = parseCanonicalLocationName(serpLocation.locationName);
@@ -118,11 +131,7 @@ export async function runSearchVisibility(input: {
   });
   let selectedDiscovery = fallbackQueries.filter((query) => query.type === "discovery");
   if (candidates.length > 0) {
-    const demandRank = (query: SearchVisibilityQuery) => {
-      const item = demandByQuery.get((query.service ?? query.query).trim().toLowerCase());
-      return item?.monthlySearchVolume ?? -1;
-    };
-    selectedDiscovery = [...candidates].sort((a, b) => demandRank(b) - demandRank(a)).slice(0, 8);
+    selectedDiscovery = selectRelevantDiscovery(candidates, demandByQuery, 8);
     console.info("[audit/search-visibility] demand selected", { auditId: input.auditId, candidates: candidates.length, selected: selectedDiscovery.length });
   }
   const queries = [...fallbackQueries.filter((query) => query.type === "branded"), ...selectedDiscovery].slice(0, 10);
@@ -196,9 +205,9 @@ export async function runSearchVisibility(input: {
     failedQueryCount,
   };
   if (!hasSufficientDiscoveryCoverage(results)) {
-    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary: null, errorMessage: "Not enough validated customer search intents were measured.", checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", demandLocation, searchDemandDiagnostics, diagnostics: { ...diagnostics, failurePhase: failedQueryCount > 0 ? "organic_serp" : "search_visibility", failureCode: failedQueryCount > 0 ? "organic_insufficient_coverage" : "insufficient_discovery_coverage", failureMessage: failedQueryCount > 0 ? `${failedQueryCount} organic search quer${failedQueryCount === 1 ? "y" : "ies"} failed; only ${successfulQueryCount} succeeded.` : "The audit did not produce enough validated discovery searches." } };
+    return { status: "unavailable", score: null, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary: null, errorMessage: "Not enough validated customer search intents were measured.", checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", profileKey: profile.key, demandLocation, searchDemandDiagnostics, diagnostics: { ...diagnostics, failurePhase: failedQueryCount > 0 ? "organic_serp" : "search_visibility", failureCode: failedQueryCount > 0 ? "organic_insufficient_coverage" : "insufficient_discovery_coverage", failureMessage: failedQueryCount > 0 ? `${failedQueryCount} organic search quer${failedQueryCount === 1 ? "y" : "ies"} failed; only ${successfulQueryCount} succeeded.` : "The audit did not produce enough validated discovery searches." } };
   }
   const typeScores = scoreSearchVisibilityTypes(results);
   console.info("[audit/search-visibility] completed", { auditId: input.auditId, normalizedRankingCount: results.filter((result) => result.found).length, searchVisibilityScore: summary.score, brandedScore: typeScores.branded, discoveryScore: typeScores.discovery });
-  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", demandLocation, searchDemandDiagnostics, diagnostics };
+  return { status: "completed", score: summary.score, businessName: input.businessName, city: city ?? null, state: state ?? null, locationName: serpLocation.locationName, results, summary, checkedAt, enteredMarket, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, resultDepth: 30, searchEngine: "google", profileKey: profile.key, demandLocation, searchDemandDiagnostics, diagnostics };
 }

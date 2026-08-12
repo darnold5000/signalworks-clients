@@ -6,6 +6,7 @@ export type SearchVisibilityQuery = {
   query: string;
   type: SearchQueryType;
   service: string | null;
+  relevanceTier?: 1 | 2 | 3 | 4;
 };
 
 export type SearchVisibilityResult = SearchVisibilityQuery & {
@@ -72,6 +73,7 @@ export type SearchVisibilitySnapshot = {
   auditedDomain?: string | null;
   resultDepth?: number;
   searchEngine?: "google";
+  profileKey?: string | null;
   demandLocation?: {
     requested: string | null;
     canonical: string | null;

@@ -1,5 +1,5 @@
 import { normalizeAuditUrl } from "@/lib/audit/url/normalize";
-import { selectLocalQueryTerms, selectSearchProfile } from "@/lib/audit/search-profiles";
+import { getSearchProfileByKey, selectLocalQueryTerms, selectSearchProfile, type SearchProfile } from "@/lib/audit/search-profiles";
 import { fetchGoogleLocalResults } from "./client";
 import { localBusinessMatches } from "./matching";
 import { scoreLocalSearch } from "./scoring";
@@ -17,11 +17,13 @@ export async function runLocalSearch(input: {
   locationName: string;
   homepageText: string;
   discoveryQueries: string[];
+  profile?: SearchProfile | null;
+  profileKey?: string | null;
 }): Promise<LocalSearchSnapshot> {
   // Local intent must come from this audit's validated discovery queries. Do
   // not classify the business from arbitrary homepage copy: marketing text
   // can mention unrelated industries and must never import profile terms.
-  const profile = selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.discoveryQueries });
+  const profile = input.profile ?? getSearchProfileByKey(input.profileKey) ?? selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.discoveryQueries });
   console.info("[audit/local-search] started", { auditId: input.auditId, applicable: profile.applicable, profile: profile.key });
   if (!profile.applicable) return { status: "not_applicable", score: null, profileKey: profile.key, enteredMarket: input.enteredMarket, normalizedMarket: input.locationName, locationName: input.locationName, locationCode: input.locationCode, results: [], summary: null, checkedAt: null, auditedDomain: normalizeAuditUrl(input.normalizedUrl).normalizedDomain, resultDepth: 20, searchEngine: "google" };
   if (input.discoveryQueries.length === 0) {

@@ -246,6 +246,7 @@ export async function executeAuditSynchronously(
         locationName: location.locationName,
         homepageText: homepage?.bodyText ?? "",
         discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery").map((result) => result.query) ?? [],
+        profileKey: organicSnapshot?.profileKey,
       });
       console.info("[audit/local-search] database persistence attempted", { auditId: created.runId });
       await saveLocalSearchSnapshot(supabase, created.runId, localSnapshot);

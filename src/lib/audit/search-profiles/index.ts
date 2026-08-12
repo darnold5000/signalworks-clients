@@ -2,14 +2,16 @@ export type SearchProfile = {
   key: string;
   applicable: boolean;
   baseTerms: string[];
+  primaryService?: string | null;
+  primaryServiceVariants?: string[];
   hintDisagreed?: boolean;
 };
 
 const PROFILES: Array<SearchProfile & { signals: RegExp }> = [
   { key: "financial_advisor", signals: /wealth|financial|retirement|investment|fiduciary|portfolio/i, applicable: true, baseTerms: ["financial advisor", "financial planner", "wealth management", "wealth advisor", "retirement planning", "retirement advisor", "investment management", "investment advisor", "financial planning", "401k advisor", "business retirement plans", "retirement income planning", "wealth planning"] },
   { key: "dentist", signals: /dentist|dental|invisalign/i, applicable: true, baseTerms: ["dentist", "family dentist", "cosmetic dentist", "dental office", "emergency dentist"] },
+  { key: "sports_training", signals: /basketball|baseball|soccer|football|volleyball|tennis|softball|hockey|golf|lacrosse|wrestling|swimming|track|sports performance|athletic|speed and agility|youth sports/i, applicable: true, baseTerms: ["sports performance training", "athletic training", "speed and agility training", "youth sports training", "strength training"] },
   { key: "fitness_gym", signals: /gym|fitness|personal training|strength training/i, applicable: true, baseTerms: ["gym", "fitness center", "personal trainer", "strength training", "fitness classes"] },
-  { key: "sports_training", signals: /basketball|sports performance|athletic|speed and agility|youth sports/i, applicable: true, baseTerms: ["sports performance training", "athletic training", "speed and agility training", "youth sports training", "strength training"] },
   { key: "coffee_shop", signals: /coffee|cafe|espresso/i, applicable: true, baseTerms: ["coffee shop", "coffee", "cafe", "espresso"] },
   { key: "restaurant", signals: /restaurant|menu|dining|cuisine/i, applicable: true, baseTerms: ["restaurant", "restaurant near me", "local dining"] },
   { key: "salon", signals: /salon|hair|nail|barber/i, applicable: true, baseTerms: ["hair salon", "hair stylist", "nail salon", "barber"] },
@@ -22,12 +24,43 @@ function profileForSource(source: string) {
   return PROFILES.find((profile) => profile.signals.test(source)) ?? null;
 }
 
+const SPECIFIC_SPORTS = ["basketball", "baseball", "soccer", "football", "volleyball", "tennis", "softball", "hockey", "golf", "lacrosse", "wrestling", "swimming", "track"];
+
+function derivePrimaryService(source: string, profileKey: string): { primaryService: string | null; variants: string[] } {
+  const normalized = source.replace(/[|•·]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  if (profileKey === "sports_training") {
+    const sport = SPECIFIC_SPORTS.find((candidate) => new RegExp(`\\b${candidate}\\b`, "i").test(normalized));
+    if (sport) {
+      return {
+        primaryService: `${sport} training`,
+        variants: [`${sport} training`, `${sport} trainer`, `${sport} skills training`, `youth ${sport} training`, `${sport} lessons`],
+      };
+    }
+  }
+  if (profileKey === "dentist" && /dentist|dental/i.test(normalized)) return { primaryService: "dentist", variants: ["dentist", "family dentist", "cosmetic dentist"] };
+  if (profileKey === "fitness_gym" && /personal training/i.test(normalized)) return { primaryService: "personal training", variants: ["personal training", "personal trainer", "fitness training"] };
+  if (profileKey === "web_services" && /web ?design/i.test(normalized)) return { primaryService: "web design", variants: ["web design", "website designer", "web design company"] };
+  if (profileKey === "financial_advisor" && /financial planning|financial advisor|wealth management/i.test(normalized)) return { primaryService: "financial planning", variants: ["financial planning", "financial advisor", "wealth management"] };
+  return { primaryService: null, variants: [] };
+}
+
+function enrichProfile(profile: SearchProfile, source: string): SearchProfile {
+  const primary = derivePrimaryService(source, profile.key);
+  return { ...profile, primaryService: primary.primaryService, primaryServiceVariants: primary.variants };
+}
+
 function normalizeHint(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/[&/,]+/g, " ").replace(/\s+/g, " ") ?? "";
 }
 
 export function normalizeBusinessTypeHint(value: string | null | undefined) {
   return normalizeHint(value);
+}
+
+export function getSearchProfileByKey(key: string | null | undefined): SearchProfile | null {
+  if (!key) return null;
+  const profile = PROFILES.find((candidate) => candidate.key === key);
+  return profile ? enrichProfile(profile, "") : key === "generic_local_business" ? { key, applicable: true, baseTerms: [], primaryService: null, primaryServiceVariants: [] } : key === "not_applicable" ? { key, applicable: false, baseTerms: [], primaryService: null, primaryServiceVariants: [] } : null;
 }
 
 export function selectSearchProfile(input: { businessName: string | null; services: string[]; businessTypeHint?: string | null; content?: string }): SearchProfile {
@@ -39,12 +72,12 @@ export function selectSearchProfile(input: { businessName: string | null; servic
   const hintProfile = profileForSource(normalizeHint(input.businessTypeHint));
   if (websiteProfile && hintProfile && websiteProfile.key !== hintProfile.key) {
     console.warn("[audit/search-profile] business type disagrees with website services", { websiteProfile: websiteProfile.key, hintProfile: hintProfile.key });
-    return { ...websiteProfile, hintDisagreed: true };
+    return { ...enrichProfile(websiteProfile, serviceSource), hintDisagreed: true };
   }
   const selected = websiteProfile ?? hintProfile;
-  if (selected) return { key: selected.key, applicable: selected.applicable, baseTerms: selected.baseTerms };
-  if (input.services.length > 0) return { key: "generic_local_business", applicable: true, baseTerms: [] };
-  return { key: "not_applicable", applicable: false, baseTerms: [] };
+  if (selected) return enrichProfile({ key: selected.key, applicable: selected.applicable, baseTerms: selected.baseTerms }, serviceSource || normalizeHint(input.businessTypeHint));
+  if (input.services.length > 0) return { key: "generic_local_business", applicable: true, baseTerms: [], primaryService: null, primaryServiceVariants: [] };
+  return { key: "not_applicable", applicable: false, baseTerms: [], primaryService: null, primaryServiceVariants: [] };
 }
 
 export function selectLocalQueryTerms(input: { discoveryQueries: string[]; profile: SearchProfile }): string[] {
