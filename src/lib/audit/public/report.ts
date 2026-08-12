@@ -43,6 +43,24 @@ function statusForScore(score: number | null) {
   return "Poor";
 }
 
+export function searchDemandRecommendation(
+  recommendation: { category: string; title: string; description: string },
+  results: NonNullable<PublicAuditDetail["searchVisibility"]>["results"],
+) {
+  const lower = `${recommendation.category} ${recommendation.title} ${recommendation.description}`.toLowerCase();
+  const relevant = lower.includes("seo") || lower.includes("google") || lower.includes("business") || lower.includes("service") || lower.includes("question") || lower.includes("faq");
+  if (!relevant) return null;
+  const candidate = results.filter((result) => result.type === "discovery" && result.monthlySearchVolume != null && (result.demandLevel === "high" || result.demandLevel === "moderate")).sort((a, b) => (b.monthlySearchVolume ?? 0) - (a.monthlySearchVolume ?? 0))[0];
+  if (!candidate) return null;
+  const market = formatLocationName(candidate.resolvedLocationName ?? candidate.location)?.replace(/, United States$/, "") ?? "the selected market";
+  const displayedQuery = formatSearchQuery(candidate.query, candidate.resolvedLocationName ?? candidate.location);
+  const keyword = displayedQuery.split(" — ")[0] ?? candidate.query;
+  const volume = `~${candidate.monthlySearchVolume!.toLocaleString()}`;
+  if (candidate.position == null) return { customerTitle: "Improve visibility for high-demand services", customerDescription: `Your site was not found in the top 30 for “${keyword},” despite an estimated ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
+  if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} monthly searches around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
+  return null;
+}
+
 function plainSummary(detail: PublicAuditDetail) {
   const discovery = detail.searchVisibility?.summary?.discoveryScore;
   const localizedDemand = detail.searchVisibility?.results.some((result) => result.type === "discovery" && result.monthlySearchVolume != null && result.demandLevel !== "unavailable");
@@ -75,6 +93,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const brandedCount = detail.searchVisibility?.summary?.brandedQueriesAnalyzed ?? 0;
   const discoveryResults = detail.searchVisibility?.results.filter((result) => result.type === "discovery") ?? [];
   const brandedResults = detail.searchVisibility?.results.filter((result) => result.type === "branded") ?? [];
+  let searchDemandCopyUsed = false;
   const body = `
     <article style="max-width: 820px; margin: 0 auto; font-family: Arial, sans-serif; color: #121212;">
       <header style="margin-bottom: 3rem; border-bottom: 1px solid #e2e0da; padding-bottom: 2rem;">
@@ -107,7 +126,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
       <section style="margin-bottom: 3rem;">
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Your biggest opportunities</p>
         <h2 style="font-size: 28px; font-weight: 500;">Improvements worth prioritizing</h2>
-        ${detail.recommendations.slice(0, 5).map((rec, index) => { const presentation = presentCustomerRecommendation(rec); return `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(presentation.customerTitle)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(presentation.customerDescription)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(presentation.customerCategory)}</p><p style="font-size: 12px; color: #666;">Technical details: ${escapeHtml(presentation.technicalTitle)}${presentation.technicalValue ? ` · ${escapeHtml(presentation.technicalValue)}` : ""}</p></div></div></div>`; }).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
+        ${detail.recommendations.slice(0, 5).map((rec, index) => { const presentation = presentCustomerRecommendation(rec); const evidenceCopy = !searchDemandCopyUsed && detail.searchVisibility?.status === "completed" ? searchDemandRecommendation(rec, detail.searchVisibility.results) : null; if (evidenceCopy) searchDemandCopyUsed = true; const displayed = evidenceCopy ? { ...presentation, ...evidenceCopy } : presentation; return `<div style="border-bottom: 1px solid #e2e0da; padding: 1rem 0;"><div style="display: flex; gap: 1rem;"><strong style="font-size: 22px; color: #666;">${index + 1}</strong><div><strong>${escapeHtml(displayed.customerTitle)}</strong><p style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(rec.priority)} priority · ${escapeHtml(rec.impact ?? "Impact varies")} · ${escapeHtml(rec.effort ?? "Review effort")}</p><p style="color: #555; line-height: 1.6;">${escapeHtml(displayed.customerDescription)}</p><p style="font-size: 12px; color: #666;">Category: ${escapeHtml(displayed.customerCategory)}</p><p style="font-size: 12px; color: #666;">Technical details: ${escapeHtml(displayed.technicalTitle)}${displayed.technicalValue ? ` · ${escapeHtml(displayed.technicalValue)}` : ""}</p></div></div></div>`; }).join("") || `<p style="color: #666;">No recommendations were recorded for this report.</p>`}
       </section>
 
       <section style="margin-bottom: 3rem; border: 1px solid #e2e0da; border-radius: 12px; padding: 1.5rem;">
