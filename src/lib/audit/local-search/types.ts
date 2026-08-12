@@ -32,7 +32,7 @@ export type LocalSearchSummary = {
 };
 
 export type LocalSearchSnapshot = {
-  status: "completed" | "not_applicable" | "failed";
+  status: "completed" | "not_applicable" | "not_measured" | "failed";
   score: number | null;
   profileKey: string | null;
   enteredMarket: string | null;

@@ -88,7 +88,7 @@ export async function getPublicAuditByToken(
   const calculatedSearchSummary = scoreSearchVisibility(searchResults);
   const { data: localSearch, error: localSearchError } = await supabase
     .from("audit_local_search_visibility")
-    .select("status, score, profile_key, entered_market, normalized_market, location_name, location_code, results_json, queries_analyzed, found_count, top_three_count, top_ten_count, not_found_count, best_position, average_position, checked_at")
+    .select("status, score, profile_key, entered_market, normalized_market, location_name, location_code, results_json, queries_analyzed, found_count, top_three_count, top_ten_count, not_found_count, best_position, average_position, error_message, checked_at")
     .eq("audit_run_id", run.id)
     .maybeSingle();
   if (localSearchError) console.error("[audit/local-search] public read failed", { auditId: run.id, message: localSearchError.message, code: localSearchError.code });
@@ -219,6 +219,7 @@ export async function getPublicAuditByToken(
           locationCode: localSearch.location_code,
           results: localResults,
           summary: localSearch.status === "completed" ? calculatedLocalSummary : null,
+          errorMessage: localSearch.error_message,
         }
       : null,
     aeoReadiness: aeoReadiness ? {

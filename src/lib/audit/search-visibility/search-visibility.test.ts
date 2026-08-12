@@ -13,6 +13,12 @@ describe("search visibility phase 1", () => {
     expect(new Set(queries.map((query) => query.query.toLowerCase())).size).toBe(queries.length);
   });
 
+  it("derives multiple sports-training intents from basketball evidence", () => {
+    const queries = generateSearchQueries({ businessName: "Refined Indiana", city: "Indianapolis", state: "IN", services: ["Basketball Training in Indiana"] });
+    expect(queries.filter((query) => query.type === "discovery").length).toBeGreaterThanOrEqual(3);
+    expect(queries.some((query) => query.service === "sports performance training")).toBe(true);
+  });
+
   it("rejects homepage marketing copy and supplies realistic web-service discovery queries", () => {
     const queries = generateSearchQueries({ businessName: "Signal Works", businessTypeHint: "Web design & software development", city: "Plainfield", state: "IN", services: ["Websites, software, and AI — without agency pricing."] });
     const discovery = queries.filter((query) => query.type === "discovery");
@@ -103,6 +109,12 @@ describe("search visibility phase 1", () => {
       locationName: "Indianapolis,Indiana,United States",
       locationType: "City",
     });
+  });
+
+  it("recognizes basketball training as a sports-training profile", () => {
+    const profile = selectSearchProfile({ businessName: "Refined Indiana", services: ["Basketball Training in Indiana"] });
+    expect(profile.key).toBe("sports_training");
+    expect(profile.baseTerms.length).toBeGreaterThan(2);
   });
 
   it("normalizes explicit city and state inputs", () => {

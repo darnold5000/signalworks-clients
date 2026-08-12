@@ -24,6 +24,9 @@ export async function runLocalSearch(input: {
   const profile = selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.discoveryQueries });
   console.info("[audit/local-search] started", { auditId: input.auditId, applicable: profile.applicable, profile: profile.key });
   if (!profile.applicable) return { status: "not_applicable", score: null, profileKey: profile.key, enteredMarket: input.enteredMarket, normalizedMarket: input.locationName, locationName: input.locationName, locationCode: input.locationCode, results: [], summary: null, checkedAt: null, auditedDomain: normalizeAuditUrl(input.normalizedUrl).normalizedDomain, resultDepth: 20, searchEngine: "google" };
+  if (input.discoveryQueries.length === 0) {
+    return { status: "not_measured", score: null, profileKey: profile.key, enteredMarket: input.enteredMarket, normalizedMarket: input.locationName, locationName: input.locationName, locationCode: input.locationCode, results: [], summary: null, errorMessage: "We couldn't identify enough reliable local customer searches to measure Google Maps visibility for this report.", checkedAt: null, auditedDomain: normalizeAuditUrl(input.normalizedUrl).normalizedDomain, resultDepth: 20, searchEngine: "google" };
+  }
   const market = [input.city, input.state].filter(Boolean).join(" ").trim();
   const queries = [...new Set(selectLocalQueryTerms({ discoveryQueries: input.discoveryQueries, profile }).map((term) => term.toLowerCase().includes((input.city ?? "").toLowerCase()) || !market ? term : `${term} ${market}`))].slice(0, 5);
   const checkedAt = new Date().toISOString();

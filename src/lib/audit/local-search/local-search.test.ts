@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { selectSearchProfile, selectLocalQueryTerms } from "@/lib/audit/search-profiles";
 import { localBusinessMatches } from "@/lib/audit/local-search/matching";
 import { scoreLocalSearch } from "@/lib/audit/local-search/scoring";
+import { runLocalSearch } from "@/lib/audit/local-search/run";
 
 describe("local search phase 2", () => {
   it("selects local profiles and rejects SaaS applicability", () => {
@@ -26,5 +27,17 @@ describe("local search phase 2", () => {
     const summary = scoreLocalSearch([{ query: "dentist Indianapolis", position: null, found: false, businessName: null, websiteDomain: null, resultUrl: null, location: "Indianapolis,Indiana,United States", checkedAt: "now" }]);
     expect(summary.score).toBe(0);
     expect(summary.notFoundCount).toBe(1);
+  });
+
+  it("marks a local-capable audit as not measured when discovery evidence is missing", async () => {
+    const result = await runLocalSearch({ auditId: "run-1", normalizedUrl: "https://example.com", businessName: "Example", businessTypeHint: "basketball", enteredMarket: "Indianapolis, IN", city: "Indianapolis", state: "Indiana", locationCode: 1017146, locationName: "Indianapolis, Indiana, United States", homepageText: "", discoveryQueries: [] });
+    expect(result.status).toBe("not_measured");
+    expect(result.score).toBeNull();
+  });
+
+  it("preserves not applicable for a clearly non-local business", async () => {
+    const result = await runLocalSearch({ auditId: "run-2", normalizedUrl: "https://example.com", businessName: "Cloud Platform", businessTypeHint: "software platform", enteredMarket: "Indianapolis, IN", city: "Indianapolis", state: "Indiana", locationCode: 1017146, locationName: "Indianapolis, Indiana, United States", homepageText: "", discoveryQueries: [] });
+    expect(result.status).toBe("not_applicable");
+    expect(result.score).toBeNull();
   });
 });

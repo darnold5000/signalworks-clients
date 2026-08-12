@@ -72,7 +72,7 @@ export type PublicAuditDetail = {
     summary: SearchVisibilitySummary | null;
   } | null;
   localSearch?: {
-    status: "completed" | "not_applicable" | "failed";
+    status: "completed" | "not_applicable" | "not_measured" | "failed";
     score: number | null;
     profileKey: string | null;
     enteredMarket: string | null;
@@ -81,6 +81,7 @@ export type PublicAuditDetail = {
     locationCode: number | null;
     results: LocalSearchResult[];
     summary: LocalSearchSummary | null;
+    errorMessage?: string | null;
   } | null;
   aeoReadiness?: AeoSnapshot | null;
 };
