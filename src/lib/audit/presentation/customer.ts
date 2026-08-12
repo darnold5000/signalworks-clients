@@ -117,7 +117,7 @@ export function presentCustomerRecommendation(input: { category: string; title: 
   if (input.category === "local_seo" && /improve visibility for customer searches|improve visibility/i.test(`${input.title} ${input.description}`)) {
     return {
       customerTitle: "Improve your Google Maps & local visibility",
-      customerDescription: "Your business is not appearing prominently enough in the Google Maps and local results we checked. Improve your local business presence so nearby customers can find you more often.",
+      customerDescription: input.description,
       customerCategory: "Google Maps & Local Search",
       technicalTitle: input.title,
       technicalValue: null,

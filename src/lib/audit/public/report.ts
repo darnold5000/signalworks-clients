@@ -32,6 +32,16 @@ export function searchVisibilityFailureMessage(visibility: NonNullable<PublicAud
     : "Search Visibility could not be measured during this report.";
 }
 
+export function discoveryMeasurementCopy(results: NonNullable<PublicAuditDetail["searchVisibility"]>["results"]) {
+  const discovery = results.filter((result) => result.type === "discovery");
+  const attempted = discovery.length;
+  const measured = discovery.filter((result) => result.collectionStatus !== "failed").length;
+  const failed = attempted - measured;
+  return failed > 0
+    ? `We successfully measured ${measured} of ${attempted} non-branded customer ${attempted === 1 ? "search" : "searches"}. ${failed} additional ${failed === 1 ? "search could" : "searches could"} not be measured and ${failed === 1 ? "was" : "were"} excluded from the score.`
+    : `We checked ${measured} non-branded discovery ${measured === 1 ? "search" : "searches"} potential customers may use when looking for the services you offer.`;
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   accessibility: "Accessibility",
   aeo: "AI & Answer Readiness",
@@ -70,6 +80,7 @@ export function searchDemandRecommendation(
   recommendation: { category: string; title: string; description: string },
   results: NonNullable<PublicAuditDetail["searchVisibility"]>["results"],
 ) {
+  if (recommendation.category === "local_seo") return null;
   const lower = `${recommendation.category} ${recommendation.title} ${recommendation.description}`.toLowerCase();
   const relevant = lower.includes("seo") || lower.includes("google") || lower.includes("business") || lower.includes("service") || lower.includes("question") || lower.includes("faq");
   if (!relevant) return null;
@@ -83,9 +94,9 @@ export function searchDemandRecommendation(
   const market = formatLocationName(candidate.resolvedLocationName ?? candidate.location)?.replace(/, United States$/, "") ?? "the selected market";
   const displayedQuery = formatSearchQuery(candidate.query, candidate.resolvedLocationName ?? candidate.location);
   const keyword = displayedQuery.split(" — ")[0] ?? candidate.query;
-  const volume = `~${candidate.monthlySearchVolume!.toLocaleString()}`;
-  if (candidate.position == null) return { customerTitle: candidate.demandLevel === "high" || candidate.demandLevel === "moderate" ? "Improve visibility in Google search results" : "Improve visibility in Google search results", customerDescription: `Your site was not found in the top 30 Google search results for “${keyword},” despite measurable local search demand of about ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
-  if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} monthly searches around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
+  const volume = candidate.monthlySearchVolume!.toLocaleString();
+  if (candidate.position == null) return { customerTitle: "Improve visibility in Google search results", customerDescription: `Your site was not found in the top 30 Google search results for “${keyword},” despite measurable local search demand of about ${volume} searches per month around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
+  if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} searches per month around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
   return null;
 }
 
@@ -152,6 +163,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const discoveryResults = detail.searchVisibility?.results.filter((result) => result.type === "discovery") ?? [];
   const brandedResults = detail.searchVisibility?.results.filter((result) => result.type === "branded") ?? [];
   const confirmedNotFoundCount = discoveryResults.filter((result) => result.collectionStatus !== "failed" && (result.position == null || result.position > 30)).length;
+  const discoveryMeasurementCopyText = discoveryMeasurementCopy(discoveryResults);
   let searchDemandCopyUsed = false;
   const localInterpretation = detail.localSearch?.status === "completed" && detail.localSearch.summary
     ? localSearchInterpretation(detail.localSearch.summary)
@@ -171,13 +183,14 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
       <section style="margin-bottom: 3rem;">
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Executive summary</p>
         <h2 style="font-size: 28px; font-weight: 500;">Is your website healthy?</h2>
+        <p style="font-size: 22px; line-height: 1.4; margin-top: 1.5rem;"><strong>${escapeHtml(executiveHeadline(detail))}</strong></p>
         <div style="background: #121212; color: white; border-radius: 12px; padding: 2rem; margin-top: 1rem;">
           <p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #aaa;">Website health</p>
           <p style="font-size: 64px; line-height: 1; margin: 1.5rem 0 0.75rem;">${detail.overallScore == null ? "—" : Math.round(detail.overallScore)} <span style="font-size: 14px; color: #aaa;">/ 100</span></p>
           <p style="font-weight: 600;">${statusForScore(detail.overallScore)}</p>
           <p style="color: #ccc; line-height: 1.6;">${escapeHtml(detail.summary ?? "Your website has a strong foundation, with several opportunities to improve performance and search visibility.")}</p>
         </div>
-        <p style="font-size: 22px; line-height: 1.4; margin-top: 2rem;"><strong>${escapeHtml(executiveHeadline(detail))}</strong></p><p style="font-size: 18px; line-height: 1.7; margin-top: 1rem;"><strong>What this means:</strong> ${escapeHtml(plainSummary(detail))}</p>
+        <p style="font-size: 18px; line-height: 1.7; margin-top: 2rem;"><strong>What this means:</strong> ${escapeHtml(plainSummary(detail))}</p>
       </section>
 
       <section style="margin-bottom: 3rem;">
@@ -214,8 +227,15 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
     </article>
   `;
 
+  const printableBody = body
+    .replace(
+      `We checked ${discoveryCount} non-branded discovery ${discoveryCount === 1 ? "search" : "searches"} potential customers may use when looking for the services you offer.`,
+      discoveryMeasurementCopyText,
+    )
+    .replace("Search visibility could not be measured for this report.", searchVisibilityFailureCopy);
+
   return wrapSowForPrintDocument(
-    body.replace("Search visibility could not be measured for this report.", searchVisibilityFailureCopy),
+    printableBody,
     `Website Health Score — ${detail.businessName ?? detail.normalizedDomain}`,
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { executiveHeadline, localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
+import { discoveryMeasurementCopy, executiveHeadline, localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
 import type { PublicAuditDetail } from "./types";
 
 const result = (overrides: Record<string, unknown> = {}) => ({
@@ -26,7 +26,7 @@ describe("search-demand recommendation copy", () => {
     );
 
     expect(copy?.customerTitle).toBe("Improve visibility in Google search results");
-    expect(copy?.customerDescription).toContain("~590 monthly searches around Indianapolis, Indiana");
+    expect(copy?.customerDescription).toContain("590 searches per month around Indianapolis, Indiana");
     expect(copy?.customerDescription).not.toContain("Indianapolis, United States");
   });
 
@@ -38,7 +38,7 @@ describe("search-demand recommendation copy", () => {
 
     expect(copy?.customerTitle).toBe("Strengthen an existing search position");
     expect(copy?.customerDescription).toContain("rank #18");
-    expect(copy?.customerDescription).toContain("~110 monthly searches around Indianapolis, Indiana");
+    expect(copy?.customerDescription).toContain("110 searches per month around Indianapolis, Indiana");
   });
 
   it("promotes measurable primary-service demand even below high-demand thresholds", () => {
@@ -49,7 +49,7 @@ describe("search-demand recommendation copy", () => {
 
     expect(copy?.customerTitle).toBe("Improve visibility in Google search results");
     expect(copy?.customerDescription).toContain("measurable local search demand");
-    expect(copy?.customerDescription).toContain("~30 monthly searches");
+    expect(copy?.customerDescription).toContain("30 searches per month");
   });
 
   it("falls back when demand is unavailable and does not invent volume", () => {
@@ -68,6 +68,23 @@ describe("search-demand recommendation copy", () => {
     );
 
     expect(copy).toBeNull();
+  });
+
+  it("does not apply organic evidence to Maps recommendations", () => {
+    const copy = searchDemandRecommendation(
+      { category: "local_seo", title: "Improve your Google Maps & local visibility", description: "Local results evidence." },
+      [result()],
+    );
+    expect(copy).toBeNull();
+  });
+
+  it("separates successful and failed discovery measurements", () => {
+    const base = result({ collectionStatus: "succeeded" as const });
+    expect(discoveryMeasurementCopy([
+      base,
+      { ...base, query: "basketball trainer Indianapolis", collectionStatus: "failed" as const },
+      { ...base, query: "basketball lessons Indianapolis", collectionStatus: "failed" as const },
+    ])).toBe("We successfully measured 1 of 3 non-branded customer searches. 2 additional searches could not be measured and were excluded from the score.");
   });
 });
 
