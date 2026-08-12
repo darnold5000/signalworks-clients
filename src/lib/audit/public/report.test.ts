@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchDemandRecommendation } from "./report";
+import { localSearchInterpretation, searchDemandRecommendation } from "./report";
 
 const result = (overrides: Record<string, unknown> = {}) => ({
   query: "financial advisor Indianapolis Indiana",
@@ -51,5 +51,19 @@ describe("search-demand recommendation copy", () => {
     );
 
     expect(copy).toBeNull();
+  });
+});
+
+describe("local search interpretation", () => {
+  it("explains visibility without prominence", () => {
+    expect(localSearchInterpretation({ foundCount: 4, queriesAnalyzed: 5, topThreeCount: 0 })).toContain("not yet prominently");
+  });
+
+  it("handles no local visibility", () => {
+    expect(localSearchInterpretation({ foundCount: 0, queriesAnalyzed: 5, topThreeCount: 0 })).toContain("was not found");
+  });
+
+  it("recognizes strong visibility from repeated top-three results", () => {
+    expect(localSearchInterpretation({ foundCount: 5, queriesAnalyzed: 5, topThreeCount: 3 })).toContain("strong local visibility");
   });
 });
