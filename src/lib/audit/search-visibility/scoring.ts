@@ -19,8 +19,8 @@ function visibilityValue(position: number | null) {
 }
 
 export function scoreSearchVisibilityTypes(results: SearchVisibilityResult[]) {
-  const average = (items: SearchVisibilityResult[]) => items.length
-    ? items.reduce((sum, item) => sum + visibilityValue(item.position), 0) / items.length
+  const average = (items: SearchVisibilityResult[]) => items.filter((item) => item.collectionStatus !== "failed").length
+    ? items.filter((item) => item.collectionStatus !== "failed").reduce((sum, item) => sum + visibilityValue(item.position), 0) / items.filter((item) => item.collectionStatus !== "failed").length
     : null;
   return {
     branded: average(results.filter((result) => result.type === "branded")),
@@ -29,7 +29,7 @@ export function scoreSearchVisibilityTypes(results: SearchVisibilityResult[]) {
 }
 
 export function scoreSearchVisibility(results: SearchVisibilityResult[]): SearchVisibilitySummary {
-  const discovery = results.filter((result) => result.type === "discovery");
+  const discovery = results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed");
   const branded = results.filter((result) => result.type === "branded");
   const { discovery: discoveryScore, branded: brandedScore } = scoreSearchVisibilityTypes(results);
   // Search visibility measures acquisition/search intent. Branded rankings are
@@ -48,7 +48,7 @@ export function scoreSearchVisibility(results: SearchVisibilityResult[]): Search
     firstPageCount: found.filter((result) => result.position! <= 10).length,
     positions11To20Count: found.filter((result) => result.position! >= 11 && result.position! <= 20).length,
     positions21To30Count: found.filter((result) => result.position! >= 21 && result.position! <= 30).length,
-    notFoundCount: results.filter((result) => result.position == null || result.position > 30).length,
+    notFoundCount: results.filter((result) => result.collectionStatus !== "failed" && (result.position == null || result.position > 30)).length,
     bestDiscoveryQuery: bestDiscovery?.query ?? null,
     bestDiscoveryPosition: bestDiscovery?.position ?? null,
   };

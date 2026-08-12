@@ -245,7 +245,7 @@ export async function executeAuditSynchronously(
         locationCode: location.locationCode,
         locationName: location.locationName,
         homepageText: homepage?.bodyText ?? "",
-        discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery").map((result) => result.query) ?? [],
+        discoveryQueries: organicSnapshot?.results.filter((result) => result.type === "discovery").map((result) => ({ query: result.query, relevanceTier: result.relevanceTier })) ?? [],
         profileKey: organicSnapshot?.profileKey,
       });
       console.info("[audit/local-search] database persistence attempted", { auditId: created.runId });

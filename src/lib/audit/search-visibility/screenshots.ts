@@ -12,7 +12,18 @@ function selectScreenshotResults(results: SearchVisibilityResult[]): SearchVisib
   const discovery = results.filter((result) => result.type === "discovery" && result.taskId);
   const candidates = discovery.length ? discovery : results.filter((result) => result.taskId);
   if (!candidates.length) return [];
-  const byOpportunity = [...candidates].sort((a, b) => (b.opportunityScore ?? -1) - (a.opportunityScore ?? -1));
+  const byOpportunity = [...candidates].sort((a, b) => {
+    const aFailed = a.collectionStatus === "failed" ? 1 : 0;
+    const bFailed = b.collectionStatus === "failed" ? 1 : 0;
+    if (aFailed !== bFailed) return aFailed - bFailed;
+    const aAuthority = a.relevanceSource === "profile_default" ? 1 : 0;
+    const bAuthority = b.relevanceSource === "profile_default" ? 1 : 0;
+    if (aAuthority !== bAuthority) return aAuthority - bAuthority;
+    const aTier = a.relevanceTier ?? 99;
+    const bTier = b.relevanceTier ?? 99;
+    if (aTier !== bTier) return aTier - bTier;
+    return (b.opportunityScore ?? -1) - (a.opportunityScore ?? -1);
+  });
   const selected: SearchVisibilityResult[] = [];
   const add = (result: SearchVisibilityResult | undefined) => { if (result && !selected.some((item) => item.query === result.query)) selected.push(result); };
   add(byOpportunity[0]);

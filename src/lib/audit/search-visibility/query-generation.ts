@@ -80,12 +80,12 @@ export function generateSearchQueries(input: {
   const location = normalizeLocation(input.city, input.state);
   const queries: SearchVisibilityQuery[] = [];
   const seen = new Set<string>();
-  const add = (query: string, type: SearchVisibilityQuery["type"], service: string | null, relevanceTier?: 1 | 2 | 3 | 4) => {
+  const add = (query: string, type: SearchVisibilityQuery["type"], service: string | null, relevanceTier?: 1 | 2 | 3 | 4, relevanceSource?: SearchVisibilityQuery["relevanceSource"]) => {
     const normalized = query.replace(/\s+/g, " ").trim();
     const key = normalized.toLowerCase();
     if (!normalized || seen.has(key) || normalized.length > 100) return;
     seen.add(key);
-    queries.push({ query: normalized, type, service, relevanceTier });
+    queries.push({ query: normalized, type, service, relevanceTier, relevanceSource });
   };
 
   if (input.businessName) {
@@ -97,16 +97,16 @@ export function generateSearchQueries(input: {
   const profile = input.profile ?? selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
   if (looksFinancial(validServices) || profile.key === "financial_advisor") {
     for (const [phrase, service] of FINANCIAL_DISCOVERY_QUERIES) {
-      if (location) add(`${phrase} ${location}`, "discovery", service);
+      if (location) add(`${phrase} ${location}`, "discovery", service, 3, "profile_default");
     }
   } else {
     const discoveryTerms = validServices.length >= 2 ? validServices : [...profile.baseTerms, ...validServices];
     const primaryVariants = profile.primaryServiceVariants ?? [];
     for (const service of [...new Set(primaryVariants)]) {
-      if (location) add(`${service} ${location}`, "discovery", service, primaryVariants.indexOf(service) === 0 ? 1 : 2);
+      if (location) add(`${service} ${location}`, "discovery", service, primaryVariants.indexOf(service) === 0 ? 1 : 2, "primary_service");
     }
     for (const service of [...new Set(discoveryTerms)].filter((term) => !primaryVariants.includes(term)).slice(0, 8)) {
-      if (location) add(`${service} ${location}`, "discovery", service, validServices.includes(service) ? 3 : 4);
+      if (location) add(`${service} ${location}`, "discovery", service, validServices.includes(service) ? 3 : 4, validServices.includes(service) ? "website_evidence" : "profile_default");
     }
   }
 
@@ -126,7 +126,7 @@ export function generateDiscoveryCandidates(input: { businessName: string | null
     if (!location || seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).map((term, index) => ({ query: `${term} ${location}`.trim(), type: "discovery" as const, service: term, relevanceTier: index < primaryVariants.length ? (index === 0 ? 1 : 2) : validServices.includes(term) ? 3 : 4 }));
+  }).map((term, index) => ({ query: `${term} ${location}`.trim(), type: "discovery" as const, service: term, relevanceTier: index < primaryVariants.length ? (index === 0 ? 1 : 2) : validServices.includes(term) ? 3 : 4, relevanceSource: index < primaryVariants.length ? "primary_service" as const : validServices.includes(term) ? "website_evidence" as const : "profile_default" as const }));
 }
 
 export { cleanPhrase as cleanSearchIntentPhrase };

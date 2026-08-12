@@ -35,6 +35,22 @@ export function selectRelevantDiscovery(candidates: SearchVisibilityQuery[], dem
   return [...primary, ...remaining].slice(0, limit);
 }
 
+export function selectOpportunityResults(results: SearchVisibilityResult[], limit: number) {
+  const eligible = results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed" && result.opportunityScore != null);
+  const rank = (result: SearchVisibilityResult) => {
+    const tier = result.relevanceTier ?? 99;
+    const authority = result.relevanceSource === "profile_default" ? 1 : 0;
+    return { tier, authority, score: result.opportunityScore ?? -1 };
+  };
+  return [...eligible].sort((a, b) => {
+    const left = rank(a);
+    const right = rank(b);
+    if (left.authority !== right.authority) return left.authority - right.authority;
+    if (left.tier !== right.tier) return left.tier - right.tier;
+    return right.score - left.score;
+  }).slice(0, limit);
+}
+
 export function domainMatches(rankingUrl: string, targetDomain: string) {
   try {
     const host = new URL(rankingUrl).hostname.toLowerCase().replace(/^www\./, "");
@@ -158,7 +174,7 @@ export async function runSearchVisibility(input: {
         matched: Boolean(match),
         matchedPosition,
       });
-      const baseResult = { query: query.query, type: query.type, service: query.service, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: serpLocation.locationName, enteredMarket, resolvedLocationName: serpLocation.locationName, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId, collectionStatus: "succeeded" as const };
+      const baseResult = { query: query.query, type: query.type, service: query.service, relevanceTier: query.relevanceTier, relevanceSource: query.relevanceSource, position: matchedPosition && matchedPosition <= 30 ? matchedPosition : null, found: Boolean(matchedPosition && matchedPosition <= 30), rankingUrl: match?.url ?? null, checkedAt, searchEngine: "google" as const, location: serpLocation.locationName, enteredMarket, resolvedLocationName: serpLocation.locationName, locationCode: serpLocation.locationCode, auditedDomain: targetDomain, auditedBusinessName: input.businessName, resultDepth: response.resultDepth, taskId: response.taskId, collectionStatus: "succeeded" as const };
       const opportunity = query.type === "discovery" ? opportunityForQuery(baseResult, demand) : null;
       return { ...baseResult, monthlySearchVolume: demand?.monthlySearchVolume ?? null, competition: demand?.competition ?? null, cpc: demand?.cpc ?? null, demandLevel: demand?.demandLevel ?? "unavailable", demandCheckedAt: demand?.checkedAt ?? null, opportunityScore: opportunity?.score ?? null, opportunityLabel: opportunity?.label ?? null };
     } catch (error) {
@@ -168,6 +184,8 @@ export async function runSearchVisibility(input: {
         query: query.query,
         type: query.type,
         service: query.service,
+        relevanceTier: query.relevanceTier,
+        relevanceSource: query.relevanceSource,
         position: null,
         found: false,
         rankingUrl: null,

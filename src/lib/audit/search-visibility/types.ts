@@ -7,6 +7,7 @@ export type SearchVisibilityQuery = {
   type: SearchQueryType;
   service: string | null;
   relevanceTier?: 1 | 2 | 3 | 4;
+  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "legacy_unknown";
 };
 
 export type SearchVisibilityResult = SearchVisibilityQuery & {
@@ -39,6 +40,8 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   collectionStatus?: "succeeded" | "failed";
   collectionErrorCode?: string | null;
   collectionErrorMessage?: string | null;
+  relevanceTier?: 1 | 2 | 3 | 4;
+  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "legacy_unknown";
 };
 
 export type SearchVisibilitySummary = {

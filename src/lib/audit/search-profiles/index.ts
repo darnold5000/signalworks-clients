@@ -80,12 +80,16 @@ export function selectSearchProfile(input: { businessName: string | null; servic
   return { key: "not_applicable", applicable: false, baseTerms: [], primaryService: null, primaryServiceVariants: [] };
 }
 
-export function selectLocalQueryTerms(input: { discoveryQueries: string[]; profile: SearchProfile }): string[] {
-  const normalized = input.discoveryQueries.map((query) => query.trim()).filter(Boolean);
+export function selectLocalQueryTerms(input: { discoveryQueries: Array<string | { query: string; relevanceTier?: 1 | 2 | 3 | 4 }>; profile: SearchProfile }): string[] {
+  const normalized = input.discoveryQueries
+    .map((item) => typeof item === "string" ? { query: item, relevanceTier: 99 } : { query: item.query, relevanceTier: item.relevanceTier ?? 99 })
+    .map((item) => ({ ...item, query: item.query.trim() }))
+    .filter((item) => item.query)
+    .sort((a, b) => a.relevanceTier - b.relevanceTier);
   const base = input.profile.baseTerms;
   return [...new Set([
-    ...base.filter((term) => normalized.some((query) => query.toLowerCase().startsWith(term.toLowerCase()))),
-    ...normalized,
+    ...normalized.map((item) => item.query),
+    ...base.filter((term) => normalized.some((item) => item.query.toLowerCase().startsWith(term.toLowerCase()))),
     ...base,
   ])].slice(0, 5);
 }

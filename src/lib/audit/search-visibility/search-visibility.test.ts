@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateDiscoveryCandidates, generateSearchQueries } from "@/lib/audit/search-visibility/query-generation";
 import { hasSufficientDiscoveryCoverage, scoreSearchVisibility } from "@/lib/audit/search-visibility/scoring";
 import { selectLocalQueryTerms, selectSearchProfile } from "@/lib/audit/search-profiles";
-import { domainMatches, selectRelevantDiscovery } from "@/lib/audit/search-visibility/run";
+import { domainMatches, selectOpportunityResults, selectRelevantDiscovery } from "@/lib/audit/search-visibility/run";
 import { matchUsLocation } from "@/lib/audit/search-visibility/client";
 
 describe("search visibility phase 1", () => {
@@ -54,6 +54,20 @@ describe("search visibility phase 1", () => {
     const demand = new Map(candidates.map((candidate) => [candidate.service!, { query: candidate.service!, monthlySearchVolume: candidate.service === "strength training" ? 10000 : 1, competition: null, cpc: null, demandLevel: "high" as const, checkedAt: "now" }]));
     const selected = selectRelevantDiscovery(candidates, demand, 3);
     expect(selected.slice(0, 2).map((candidate) => candidate.service)).toEqual(["basketball training", "basketball trainer"]);
+  });
+
+  it("does not let unsupported profile demand displace primary opportunity", () => {
+    const results = [
+      { query: "basketball training Indianapolis", type: "discovery" as const, service: "basketball training", relevanceTier: 1 as const, relevanceSource: "primary_service" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 68, collectionStatus: "succeeded" as const },
+      { query: "strength training Indianapolis", type: "discovery" as const, service: "strength training", relevanceTier: 4 as const, relevanceSource: "profile_default" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 83, collectionStatus: "succeeded" as const },
+    ];
+    expect(selectOpportunityResults(results, 1)[0].service).toBe("basketball training");
+  });
+
+  it("keeps failed queries out of confirmed not-visible counts and opportunities", () => {
+    const failed = { query: "basketball trainer Indianapolis", type: "discovery" as const, service: "basketball trainer", position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", collectionStatus: "failed" as const };
+    expect(scoreSearchVisibility([failed]).notFoundCount).toBe(0);
+    expect(selectOpportunityResults([{ ...failed, opportunityScore: null }], 3)).toHaveLength(0);
   });
 
   it("rejects homepage marketing copy and supplies realistic web-service discovery queries", () => {
