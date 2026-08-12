@@ -64,6 +64,14 @@ function statusForScore(score: number | null) {
   return "Poor";
 }
 
+function visibilityStatusForScore(score: number | null) {
+  if (score == null) return "Not measured yet";
+  if (score >= 90) return "High visibility";
+  if (score >= 75) return "Good visibility";
+  if (score >= 60) return "Moderate visibility";
+  return "Low visibility";
+}
+
 export function localSearchInterpretation(summary: { foundCount: number; queriesAnalyzed: number; topThreeCount: number }) {
   const total = Math.max(0, summary.queriesAnalyzed);
   const found = Math.max(0, summary.foundCount);
@@ -91,12 +99,12 @@ export function searchDemandRecommendation(
     return (b.monthlySearchVolume ?? 0) - (a.monthlySearchVolume ?? 0);
   })[0];
   if (!candidate) return null;
-  const market = formatLocationName(candidate.resolvedLocationName ?? candidate.location)?.replace(/, United States$/, "") ?? "the selected market";
+  const market = formatLocationName(candidate.resolvedLocationName ?? candidate.location)?.replace(/, United States$/, "") ?? null;
   const displayedQuery = formatSearchQuery(candidate.query, candidate.resolvedLocationName ?? candidate.location);
   const keyword = displayedQuery.split(" — ")[0] ?? candidate.query;
   const volume = candidate.monthlySearchVolume!.toLocaleString();
-  if (candidate.position == null) return { customerTitle: "Improve visibility in Google search results", customerDescription: `Your site was not found in the top 30 Google search results for “${keyword},” despite measurable local search demand of about ${volume} searches per month around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
-  if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} searches per month around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
+  if (candidate.position == null) return { customerTitle: "Improve visibility in Google search results", customerDescription: `Your site was not found in the top 30 Google search results for “${keyword},” despite measurable local search demand of about ${volume} searches per month${market ? ` around ${market}` : ""}. Strengthen your content around ${keyword}${market ? ` and clearly connect those services with ${market}` : ""}.` };
+  if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} searches per month${market ? ` around ${market}` : ""}. Improving this page could help turn an existing position into stronger visibility.` };
   return null;
 }
 
@@ -126,7 +134,15 @@ function plainSummary(detail: PublicAuditDetail) {
   if ((discovery != null && discovery <= 40) || localWeak) {
     const brandedStrong = (detail.searchVisibility?.summary?.brandedScore ?? 0) >= 75;
     const demandContext = localizedDemand ? ` We found measurable local search demand around ${market ?? "the selected market"}, which makes these visibility gaps especially important.` : "";
-    return `Your website has a solid technical foundation, but that isn't translating into strong search visibility. ${brandedStrong ? "People searching specifically for your business can find you easily, but " : ""}the site has limited visibility when new customers search for the services you provide${localWeak ? ", and the business was rarely found in the local results we checked" : ""}.${demandContext}`;
+    const measuredDiscovery = detail.searchVisibility?.results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed") ?? [];
+    const notVisible = measuredDiscovery.filter((result) => result.position == null || result.position > 30).length;
+    const organicEvidence = measuredDiscovery.length > 0
+      ? notVisible === measuredDiscovery.length
+        ? `Your website was not found in the top 30 Google results for any of the ${measuredDiscovery.length} customer searches we successfully measured.`
+        : `Your website was found in the top 30 Google results for ${measuredDiscovery.length - notVisible} of the ${measuredDiscovery.length} customer searches we successfully measured.`
+      : "Search Visibility could not be measured during this report.";
+    const localEvidence = localWeak && local ? ` Your business did not appear in Google's local results for ${local.foundCount === 0 ? "any of the" : `${local.foundCount} of the`} ${local.queriesAnalyzed} searches we checked.` : "";
+    return `Your website has a solid technical foundation, but new customers are having difficulty finding the business. ${brandedStrong ? "People searching specifically for your business can find you easily. " : ""}${discovery != null && discovery <= 40 ? organicEvidence : ""}${localEvidence}${demandContext} Improving search visibility and making key business information easier for search engines and AI systems to understand should be the first priorities.`;
   }
   if ((detail.aeoReadiness?.score ?? 100) < 40) return "Your website has a workable foundation, but important business information and customer answers could be structured more clearly for search engines and answer-oriented systems. Strong technical SEO alone does not guarantee visibility or useful answers.";
   const sorted = [...detail.scores].sort((a, b) => a.score - b.score);
@@ -228,6 +244,10 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   `;
 
   const printableBody = body
+    .replace(
+      `<p style="font-size: 32px; margin: 1rem 0 0;"><strong>${Math.round(detail.searchVisibility?.score ?? 0)}/100</strong></p>`,
+      `<p style="font-size: 32px; margin: 1rem 0 0;"><strong>${Math.round(detail.searchVisibility?.score ?? 0)}/100</strong></p><p style="color: #555;">${visibilityStatusForScore(detail.searchVisibility?.score ?? null)}</p>`,
+    )
     .replace(
       `We checked ${discoveryCount} non-branded discovery ${discoveryCount === 1 ? "search" : "searches"} potential customers may use when looking for the services you offer.`,
       discoveryMeasurementCopyText,
