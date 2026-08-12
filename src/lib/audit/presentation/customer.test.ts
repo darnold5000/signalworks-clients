@@ -28,6 +28,10 @@ describe("customer audit presentation", () => {
     expect(h1.customerTitle).not.toContain("H1");
   });
 
+  it("keeps Maps recommendations distinct from organic search recommendations", () => {
+    expect(presentCustomerRecommendation({ category: "local_seo", title: "Improve visibility for customer searches", description: "Local results need attention." }).customerTitle).toBe("Improve your Google Maps & local visibility");
+  });
+
   it("deduplicates recommendations that share customer-facing copy", () => {
     const recommendations = [
       {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
+import { executiveHeadline, localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
 import type { PublicAuditDetail } from "./types";
 
 const result = (overrides: Record<string, unknown> = {}) => ({
@@ -25,7 +25,7 @@ describe("search-demand recommendation copy", () => {
       [result()],
     );
 
-    expect(copy?.customerTitle).toBe("Improve visibility for high-demand services");
+    expect(copy?.customerTitle).toBe("Improve visibility in Google search results");
     expect(copy?.customerDescription).toContain("~590 monthly searches around Indianapolis, Indiana");
     expect(copy?.customerDescription).not.toContain("Indianapolis, United States");
   });
@@ -47,7 +47,7 @@ describe("search-demand recommendation copy", () => {
       [result({ query: "basketball training Indianapolis Indiana", monthlySearchVolume: 30, demandLevel: "low", relevanceTier: 1, relevanceSource: "primary_service" })],
     );
 
-    expect(copy?.customerTitle).toBe("Improve visibility for customer searches");
+    expect(copy?.customerTitle).toBe("Improve visibility in Google search results");
     expect(copy?.customerDescription).toContain("measurable local search demand");
     expect(copy?.customerDescription).toContain("~30 monthly searches");
   });
@@ -68,6 +68,23 @@ describe("search-demand recommendation copy", () => {
     );
 
     expect(copy).toBeNull();
+  });
+});
+
+describe("executive headline", () => {
+  const detail = (overrides: Record<string, unknown> = {}) => ({
+    overallScore: 88,
+    searchVisibility: { status: "completed", score: 0, summary: { discoveryScore: 0 }, results: [] },
+    localSearch: { status: "completed", summary: { queriesAnalyzed: 5, foundCount: 0 } },
+    ...overrides,
+  } as unknown as PublicAuditDetail);
+
+  it("connects a strong foundation to poor measured visibility", () => {
+    expect(executiveHeadline(detail())).toBe("Your website is built well — but new customers aren't finding it.");
+  });
+
+  it("handles unavailable visibility without inventing a score", () => {
+    expect(executiveHeadline(detail({ searchVisibility: { status: "unavailable", score: null, summary: null, results: [] } }))).toContain("not available");
   });
 });
 

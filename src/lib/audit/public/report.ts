@@ -84,7 +84,7 @@ export function searchDemandRecommendation(
   const displayedQuery = formatSearchQuery(candidate.query, candidate.resolvedLocationName ?? candidate.location);
   const keyword = displayedQuery.split(" — ")[0] ?? candidate.query;
   const volume = `~${candidate.monthlySearchVolume!.toLocaleString()}`;
-  if (candidate.position == null) return { customerTitle: candidate.demandLevel === "high" || candidate.demandLevel === "moderate" ? "Improve visibility for high-demand services" : "Improve visibility for customer searches", customerDescription: `Your site was not found in the top 30 for “${keyword},” despite measurable local search demand of about ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
+  if (candidate.position == null) return { customerTitle: candidate.demandLevel === "high" || candidate.demandLevel === "moderate" ? "Improve visibility in Google search results" : "Improve visibility in Google search results", customerDescription: `Your site was not found in the top 30 Google search results for “${keyword},” despite measurable local search demand of about ${volume} monthly searches around ${market}. Strengthen service and location signals around the services customers are actively searching for.` };
   if (candidate.position > 10) return { customerTitle: "Strengthen an existing search position", customerDescription: `You already rank #${candidate.position} for “${keyword},” a term with about ${volume} monthly searches around ${market}. Improving this page could help turn an existing position into stronger visibility.` };
   return null;
 }
@@ -122,6 +122,19 @@ function plainSummary(detail: PublicAuditDetail) {
   const weakest = sorted[0] ? categoryLabel(sorted[0].category).toLowerCase() : "your website";
   const strongest = sorted.at(-1) ? categoryLabel(sorted.at(-1)!.category).toLowerCase() : "your website";
   return `Your website has a strong foundation, especially in ${strongest}. The biggest opportunity is improving ${weakest} so visitors and search engines can understand and use your business more easily.`;
+}
+
+export function executiveHeadline(detail: PublicAuditDetail) {
+  const foundationStrong = detail.overallScore != null && detail.overallScore >= 75;
+  const searchUnavailable = detail.searchVisibility?.status !== "completed";
+  const searchPoor = detail.searchVisibility?.status === "completed" && (detail.searchVisibility.score ?? 100) <= 40;
+  const localUnavailable = detail.localSearch?.status !== "completed";
+  const localPoor = detail.localSearch?.status === "completed" && detail.localSearch.summary != null && detail.localSearch.summary.queriesAnalyzed > 0 && detail.localSearch.summary.foundCount / detail.localSearch.summary.queriesAnalyzed <= 0.2;
+  if (searchUnavailable || localUnavailable) return "Your website foundation is measured, but some customer visibility results are not available.";
+  if (foundationStrong && (searchPoor || localPoor)) return "Your website is built well — but new customers aren't finding it.";
+  if (foundationStrong && !searchPoor && !localPoor) return "Your website is built well — and customers can find you.";
+  if (!foundationStrong && (searchPoor || localPoor)) return "Your website needs stronger foundations and better customer visibility.";
+  return "Your website is building a foundation for customer visibility.";
 }
 
 export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
@@ -164,7 +177,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
           <p style="font-weight: 600;">${statusForScore(detail.overallScore)}</p>
           <p style="color: #ccc; line-height: 1.6;">${escapeHtml(detail.summary ?? "Your website has a strong foundation, with several opportunities to improve performance and search visibility.")}</p>
         </div>
-        <p style="font-size: 18px; line-height: 1.7; margin-top: 2rem;"><strong>What this means:</strong> ${escapeHtml(plainSummary(detail))}</p>
+        <p style="font-size: 22px; line-height: 1.4; margin-top: 2rem;"><strong>${escapeHtml(executiveHeadline(detail))}</strong></p><p style="font-size: 18px; line-height: 1.7; margin-top: 1rem;"><strong>What this means:</strong> ${escapeHtml(plainSummary(detail))}</p>
       </section>
 
       <section style="margin-bottom: 3rem;">

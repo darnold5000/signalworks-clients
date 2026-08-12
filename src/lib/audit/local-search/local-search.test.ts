@@ -35,6 +35,18 @@ describe("local search phase 2", () => {
     ]);
   });
 
+  it("does not add unsupported Tier-4 profile defaults to fill local queries", () => {
+    const terms = selectLocalQueryTerms({
+      profile: { key: "sports_training", applicable: true, baseTerms: ["sports performance training"] },
+      discoveryQueries: [
+        { query: "basketball training Indianapolis", relevanceTier: 1 },
+        { query: "basketball trainer Indianapolis", relevanceTier: 2 },
+        { query: "sports performance training Indianapolis", relevanceTier: 4 },
+      ],
+    });
+    expect(terms).toEqual(["basketball training Indianapolis", "basketball trainer Indianapolis"]);
+  });
+
   it("prefers domain and rejects similarly named businesses", () => {
     expect(localBusinessMatches({ item: { title: "Market Street Wealth", domain: "marketstreetwealth.com" }, businessName: "Market Street Wealth", targetDomain: "marketstreetwealth.com" })).toBe(true);
     expect(localBusinessMatches({ item: { title: "Market Street Wealth Advisors", domain: "other.example" }, businessName: "Market Street Wealth", targetDomain: "marketstreetwealth.com" })).toBe(false);

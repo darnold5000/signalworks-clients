@@ -84,12 +84,7 @@ export function selectLocalQueryTerms(input: { discoveryQueries: Array<string | 
   const normalized = input.discoveryQueries
     .map((item) => typeof item === "string" ? { query: item, relevanceTier: 99 } : { query: item.query, relevanceTier: item.relevanceTier ?? 99 })
     .map((item) => ({ ...item, query: item.query.trim() }))
-    .filter((item) => item.query)
+    .filter((item) => item.query && item.relevanceTier !== 4)
     .sort((a, b) => a.relevanceTier - b.relevanceTier);
-  const base = input.profile.baseTerms;
-  return [...new Set([
-    ...normalized.map((item) => item.query),
-    ...base.filter((term) => normalized.some((item) => item.query.toLowerCase().startsWith(term.toLowerCase()))),
-    ...base,
-  ])].slice(0, 5);
+  return [...new Set(normalized.map((item) => item.query))].slice(0, 5);
 }

@@ -114,5 +114,14 @@ export function presentCustomerFinding(input: {
 }
 
 export function presentCustomerRecommendation(input: { category: string; title: string; description: string; recommendationKey?: string }): CustomerAuditPresentation {
+  if (input.category === "local_seo" && /improve visibility for customer searches|improve visibility/i.test(`${input.title} ${input.description}`)) {
+    return {
+      customerTitle: "Improve your Google Maps & local visibility",
+      customerDescription: "Your business is not appearing prominently enough in the Google Maps and local results we checked. Improve your local business presence so nearby customers can find you more often.",
+      customerCategory: "Google Maps & Local Search",
+      technicalTitle: input.title,
+      technicalValue: null,
+    };
+  }
   return presentCustomerFinding({ checkKey: input.recommendationKey ?? "", category: input.category, title: input.title, summary: input.description });
 }
