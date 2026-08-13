@@ -178,9 +178,6 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const brandedCount = detail.searchVisibility?.summary?.brandedQueriesAnalyzed ?? 0;
   const discoveryResults = detail.searchVisibility?.results.filter((result) => result.type === "discovery") ?? [];
   const brandedResults = detail.searchVisibility?.results.filter((result) => result.type === "branded") ?? [];
-  const measuredOrganicCount = detail.searchVisibility?.results.filter((result) => result.type === "discovery" && result.collectionStatus !== "failed").length ?? 0;
-  const measuredLocalCount = detail.localSearch?.status === "completed" ? detail.localSearch.results.length : 0;
-  const screenshotCount = detail.searchVisibility?.results.filter((result) => result.type === "discovery" && Boolean(result.screenshotUrl)).length ?? 0;
   const confirmedNotFoundCount = discoveryResults.filter((result) => result.collectionStatus !== "failed" && (result.position == null || result.position > 30)).length;
   const discoveryMeasurementCopyText = discoveryMeasurementCopy(discoveryResults);
   const searchArea = formatSearchArea(detail.searchVisibility?.locationName ?? null) ?? "the selected search area";
@@ -213,7 +210,6 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Executive summary</p>
         <h2 style="font-size: 28px; font-weight: 500;">Is your website healthy?</h2>
         <p style="font-size: 22px; line-height: 1.4; margin-top: 1.5rem;"><strong>${escapeHtml(executiveHeadline(detail))}</strong></p>
-        <section style="margin-top: 1.5rem; border: 1px solid #e2e0da; border-radius: 10px; padding: 1rem 1.25rem;"><p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #666; margin: 0;">Audit evidence</p><p style="color: #555; line-height: 1.6; margin-bottom: 0;">See the searches, rankings, local results, and website findings used to build this report.</p><p style="color: #555; line-height: 1.6; margin-bottom: 0;">Google Search Evidence: ${measuredOrganicCount} searches measured${screenshotCount > 0 ? ` · ${screenshotCount} snapshots available` : ""}. Google Maps &amp; Local Evidence: ${measuredLocalCount} local searches measured. Website Evidence: ${detail.findings.length} findings recorded.</p></section>
         <p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #666; margin-top: 2rem;">Customer Discovery</p>
         <p style="color: #555;">Can new customers find you?</p>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 1rem;">
