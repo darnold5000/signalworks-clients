@@ -16,6 +16,15 @@ export function formatSearchQuery(query: string, location: string | null | undef
   return base ? `${base} — ${displayLocation}` : query;
 }
 
+export function formatSearchArea(location: string | null | undefined): string | null {
+  return formatLocationName(location)?.replace(/,\s*United States$/i, "") ?? null;
+}
+
+export function formatCustomerSearch(query: string, service: string | null | undefined, location: string | null | undefined): string {
+  const cleanService = service?.trim();
+  return cleanService || formatSearchQuery(query, location);
+}
+
 export function formatSearchDemand(level: string | undefined, monthlySearchVolume: number | null | undefined): string {
   const label = level === "high" ? "High demand" : level === "moderate" ? "Moderate demand" : level === "low" ? "Low demand" : level === "very_low" ? "Very low demand" : "Not available";
   return monthlySearchVolume == null ? label : `${label} · ${monthlySearchVolume === 0 ? "0" : `~${monthlySearchVolume.toLocaleString()}`} searches/month`;

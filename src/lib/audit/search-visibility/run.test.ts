@@ -105,7 +105,7 @@ describe("Search Visibility failure isolation", () => {
 
   it("keeps successful organic results when one SERP query fails", async () => {
     vi.mocked(fetchGoogleOrganicResults).mockImplementation(async ({ keyword }) => {
-      if (keyword.toLowerCase() === "web design indianapolis indiana") throw new Error("DataForSEO HTTP 500");
+      if (keyword.toLowerCase() === "web design") throw new Error("DataForSEO HTTP 500");
       return { items: [{ type: "organic", url: "https://example.com/services", rank_absolute: 12 }], resultCount: 1, itemTypes: { organic: 1 }, taskId: "task-1", resultDepth: 30 };
     });
 
@@ -164,5 +164,11 @@ describe("Search Visibility failure isolation", () => {
 
     expect(result.status).toBe("completed");
     expect(result.diagnostics).toEqual({ failurePhase: null, failureCode: null, failureMessage: null, successfulQueryCount: 10, failedQueryCount: 0 });
+  });
+
+  it("passes clean discovery keywords with the resolved location separately", async () => {
+    await runAudit();
+
+    expect(vi.mocked(fetchGoogleOrganicResults).mock.calls.filter(([input]) => input.keyword !== "Example Web" && input.keyword !== "Example Web Indianapolis Indiana").every(([input]) => !/indianapolis|indiana/i.test(input.keyword) && input.locationCode === 1017146)).toBe(true);
   });
 });

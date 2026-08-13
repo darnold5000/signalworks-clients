@@ -65,14 +65,14 @@ describe("search visibility phase 1", () => {
 
   it("does not let unsupported profile demand displace primary opportunity", () => {
     const results = [
-      { query: "basketball training Indianapolis", type: "discovery" as const, service: "basketball training", relevanceTier: 1 as const, relevanceSource: "primary_service" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 68, collectionStatus: "succeeded" as const },
-      { query: "strength training Indianapolis", type: "discovery" as const, service: "strength training", relevanceTier: 4 as const, relevanceSource: "profile_default" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 83, collectionStatus: "succeeded" as const },
+      { query: "basketball training", type: "discovery" as const, service: "basketball training", relevanceTier: 1 as const, relevanceSource: "primary_service" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 68, collectionStatus: "succeeded" as const },
+      { query: "strength training", type: "discovery" as const, service: "strength training", relevanceTier: 4 as const, relevanceSource: "profile_default" as const, position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", opportunityScore: 83, collectionStatus: "succeeded" as const },
     ];
     expect(selectOpportunityResults(results, 1)[0].service).toBe("basketball training");
   });
 
   it("keeps failed queries out of confirmed not-visible counts and opportunities", () => {
-    const failed = { query: "basketball trainer Indianapolis", type: "discovery" as const, service: "basketball trainer", position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", collectionStatus: "failed" as const };
+    const failed = { query: "basketball trainer", type: "discovery" as const, service: "basketball trainer", position: null, found: false, rankingUrl: null, checkedAt: "now", searchEngine: "google" as const, location: "Indianapolis", collectionStatus: "failed" as const };
     expect(scoreSearchVisibility([failed]).notFoundCount).toBe(0);
     expect(selectOpportunityResults([{ ...failed, opportunityScore: null }], 3)).toHaveLength(0);
   });
@@ -87,7 +87,7 @@ describe("search visibility phase 1", () => {
 
   it("uses a business type hint when website evidence is not specific", () => {
     const queries = generateSearchQueries({ businessName: "Example Advisors", businessTypeHint: "Financial advisor", city: "Plainfield", state: "IN", services: ["Welcome to our business"] });
-    expect(queries.filter((query) => query.type === "discovery").map((query) => query.query)).toContain("financial advisor Plainfield IN");
+    expect(queries.filter((query) => query.type === "discovery").map((query) => query.query)).toContain("financial advisor");
   });
 
   it("does not let a contradictory hint override strong website evidence", () => {
@@ -147,14 +147,14 @@ describe("search visibility phase 1", () => {
     expect(queries.filter((query) => query.type === "branded")).toHaveLength(2);
     expect(queries.filter((query) => query.type === "discovery")).toHaveLength(8);
     expect(queries.filter((query) => query.type === "discovery").map((query) => query.query)).toEqual([
-      "wealth management Indianapolis IN",
-      "financial advisor Indianapolis IN",
-      "financial planner Indianapolis IN",
-      "retirement planning Indianapolis IN",
-      "retirement advisor Indianapolis IN",
-      "investment management Indianapolis IN",
-      "business retirement plans Indianapolis IN",
-      "wealth advisor Indianapolis IN",
+      "wealth management",
+      "financial advisor",
+      "financial planner",
+      "retirement planning",
+      "retirement advisor",
+      "investment management",
+      "business retirement plans",
+      "wealth advisor",
     ]);
     expect(queries.some((query) => /disclosure|foundations|fees|people|meet|careers/i.test(query.query))).toBe(false);
   });

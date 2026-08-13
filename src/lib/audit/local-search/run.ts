@@ -29,9 +29,8 @@ export async function runLocalSearch(input: {
   if (input.discoveryQueries.length === 0) {
     return { status: "not_measured", score: null, profileKey: profile.key, enteredMarket: input.enteredMarket, normalizedMarket: input.locationName, locationName: input.locationName, locationCode: input.locationCode, results: [], summary: null, errorMessage: "We couldn't identify enough reliable local customer searches to measure Google Maps visibility for this report.", checkedAt: null, auditedDomain: normalizeAuditUrl(input.normalizedUrl).normalizedDomain, resultDepth: 20, searchEngine: "google" };
   }
-  const market = [input.city, input.state].filter(Boolean).join(" ").trim();
   const orderedTerms = selectLocalQueryTerms({ discoveryQueries: input.discoveryQueries, profile });
-  const queries = [...new Set(orderedTerms.map((term) => term.toLowerCase().includes((input.city ?? "").toLowerCase()) || !market ? term : `${term} ${market}`))].slice(0, 5);
+  const queries = [...new Set(orderedTerms)].slice(0, 5);
   const checkedAt = new Date().toISOString();
   const targetDomain = normalizeAuditUrl(input.normalizedUrl).normalizedDomain;
   const results = await Promise.all(queries.map(async (query) => {

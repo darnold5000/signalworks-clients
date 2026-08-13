@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { discoveryMeasurementCopy, executiveHeadline, localSearchInterpretation, searchDemandRecommendation, searchVisibilityFailureMessage } from "./report";
+import { formatCustomerSearch, formatSearchArea } from "@/lib/audit/presentation/location";
 import type { PublicAuditDetail } from "./types";
 
 const result = (overrides: Record<string, unknown> = {}) => ({
@@ -19,6 +20,10 @@ const result = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("search-demand recommendation copy", () => {
+  it("uses the clean customer phrase and separate search area in report presentation", () => {
+    expect(formatCustomerSearch("basketball training", "basketball training", "Sheridan,Indiana,United States")).toBe("basketball training");
+    expect(formatSearchArea("Sheridan,Indiana,United States")).toBe("Sheridan, Indiana");
+  });
   it("connects a high-demand missing ranking to the selected market", () => {
     const copy = searchDemandRecommendation(
       { category: "seo", title: "Help Google understand your business", description: "Improve service signals." },

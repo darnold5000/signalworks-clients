@@ -119,8 +119,7 @@ export function generateDiscoveryCandidates(input: { businessName: string | null
   const terms = [...primaryVariants, ...evidenceTerms, ...financialTerms.filter((term) => !primaryVariants.includes(term)), ...profileTerms.filter((term) => !financialTerms.includes(term))];
   const seen = new Set<string>();
   return terms.map((term) => term.replace(/\s+/g, " ").trim()).filter((term) => {
-    const query = `${term} ${location}`.trim();
-    const key = query.toLowerCase();
+    const key = term.toLowerCase();
     if (!location || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -128,7 +127,7 @@ export function generateDiscoveryCandidates(input: { businessName: string | null
     const isPrimary = index < primaryVariants.length;
     const isWebsiteEvidence = validServices.includes(term) || supportedProfileDefaults.includes(term);
     const isBusinessHint = explicitBusinessHint && !isWebsiteEvidence;
-    return { query: `${term} ${location}`.trim(), type: "discovery" as const, service: term, relevanceTier: isPrimary ? (index === 0 ? 1 : 2) : isWebsiteEvidence || isBusinessHint ? 3 : 4, relevanceSource: isPrimary ? "primary_service" as const : isWebsiteEvidence ? "website_evidence" as const : isBusinessHint ? "business_hint" as const : "profile_default" as const };
+    return { query: term, type: "discovery" as const, service: term, relevanceTier: isPrimary ? (index === 0 ? 1 : 2) : isWebsiteEvidence || isBusinessHint ? 3 : 4, relevanceSource: isPrimary ? "primary_service" as const : isWebsiteEvidence ? "website_evidence" as const : isBusinessHint ? "business_hint" as const : "profile_default" as const };
   });
 }
 
