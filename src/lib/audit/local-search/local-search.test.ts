@@ -70,11 +70,45 @@ describe("local search phase 2", () => {
       ],
     });
 
-    const requests = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)) as Array<{ keyword: string; location_code: number }>);
+    const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo, RequestInit]>;
+    const requests = calls.map(([, init]) => JSON.parse(String(init.body)) as Array<{ keyword: string; location_code: number }>);
     expect(requests.map((request) => request[0])).toMatchObject([
       { keyword: "basketball training", location_code: 1234 },
       { keyword: "basketball trainer", location_code: 1234 },
     ]);
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("completes five valid zero-result searches with metadata preserved", async () => {
+    vi.stubEnv("DATAFORSEO_LOGIN", "test-login");
+    vi.stubEnv("DATAFORSEO_PASSWORD", "test-password");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ status_code: 20000, tasks: [{ status_code: 40102, status_message: "No Search Results.", result: null }] }), { status: 200 })));
+
+    const result = await runLocalSearch({
+      auditId: "run-zero-results",
+      normalizedUrl: "https://refined-indiana.com",
+      businessName: "Refined Indiana",
+      businessTypeHint: "basketball training",
+      enteredMarket: "Sheridan, IN",
+      city: "Sheridan",
+      state: "Indiana",
+      locationCode: 1017305,
+      locationName: "Sheridan,Indiana,United States",
+      homepageText: "",
+      discoveryQueries: [
+        { query: "basketball training", relevanceTier: 1 },
+        { query: "basketball trainer", relevanceTier: 2 },
+        { query: "basketball skills training", relevanceTier: 2 },
+        { query: "youth basketball training", relevanceTier: 2 },
+        { query: "basketball lessons", relevanceTier: 2 },
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "completed", score: 0, profileKey: "sports_training", normalizedMarket: "Sheridan,Indiana,United States", locationName: "Sheridan,Indiana,United States", locationCode: 1017305 });
+    expect(result.summary).toMatchObject({ foundCount: 0, queriesAnalyzed: 5, score: 0 });
+    expect(result.results).toHaveLength(5);
+    expect(result.results.every((item) => item.found === false && item.position === null)).toBe(true);
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
