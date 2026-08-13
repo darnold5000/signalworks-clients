@@ -1,8 +1,4 @@
-import {
-  formatConfidenceLabel,
-  formatCoverageShort,
-  getScoreConfidence,
-} from "@/lib/audit/presentation/health-score";
+import { formatCoverageShort } from "@/lib/audit/presentation/health-score";
 import { formatScoreCoverageLabel } from "@/lib/audit/history/compare";
 import { presentCustomerRecommendation } from "@/lib/audit/presentation/customer";
 import { formatCustomerSearch, formatLocationName, formatSearchArea, formatSearchDemand, formatSearchQuery } from "@/lib/audit/presentation/location";
@@ -172,8 +168,6 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
     scoredCount != null && eligibleCount != null
       ? formatScoreCoverageLabel(scoredCount, eligibleCount)
       : null;
-  const confidence =
-    scoredCount != null ? formatConfidenceLabel(getScoreConfidence(scoredCount)) : null;
   const discoveryCount = detail.searchVisibility?.summary?.discoveryQueriesAnalyzed ?? 0;
   const brandedCount = detail.searchVisibility?.summary?.brandedQueriesAnalyzed ?? 0;
   const discoveryResults = detail.searchVisibility?.results.filter((result) => result.type === "discovery") ?? [];
@@ -254,7 +248,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
 
       ${detail.aeoReadiness ? `<section style="margin-bottom: 3rem; border: 1px solid #e2e0da; border-radius: 12px; padding: 1.5rem;"><p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">AI &amp; answer readiness</p><h2 style="font-size: 24px; font-weight: 500;">Can search engines and AI systems understand your business?</h2><p style="font-size: 32px; margin: 1rem 0 0;"><strong>${Math.round(detail.aeoReadiness.score)}/100</strong></p><p style="color: #555; line-height: 1.6;">Answered clearly: ${detail.aeoReadiness.questionCoverage.answered} of ${detail.aeoReadiness.questionCoverage.total} common customer questions. This measures website readiness, not AI recommendations or rankings.</p><h3 style="font-size: 18px;">Readiness categories</h3><ul>${detail.aeoReadiness.categories.slice(0, 6).map((category) => `<li>${escapeHtml(category.label)}: ${category.score}</li>`).join("")}</ul><h3 style="font-size: 18px;">Top opportunities</h3><ul>${detail.aeoReadiness.recommendations.slice(0, 3).map((item) => `<li>${escapeHtml(item.title)} — ${escapeHtml(item.description)}</li>`).join("")}</ul></section>` : ""}
 
-      <section style="font-size: 13px; color: #666;"><p><strong>Report details:</strong> Last checked ${escapeHtml(detail.completedAt ?? detail.createdAt)}${coverage ? ` · ${escapeHtml(formatCoverageShort(scoredCount!, eligibleCount!))}` : ""}${confidence ? ` · Confidence: ${escapeHtml(confidence)}` : ""}</p><p>This is not a penetration test or accessibility certification. Unavailable categories are excluded from the overall score.</p></section>
+      <section style="font-size: 13px; color: #666;"><p><strong>Report details:</strong> Last checked ${escapeHtml(detail.completedAt ?? detail.createdAt)}${coverage ? ` · ${escapeHtml(formatCoverageShort(scoredCount!, eligibleCount!))} measured` : ""}</p><p>This is not a penetration test or accessibility certification. Unavailable categories are excluded from the overall score.</p></section>
     </article>
   `;
 

@@ -113,7 +113,8 @@ describe("buildPublicAuditReportHtml", () => {
     });
 
     expect(html).toContain("Website Health Score");
-    expect(html).toContain("Confidence");
+    expect(html).toContain("7 of 10 categories measured");
+    expect(html).not.toContain("Confidence");
     expect(html.indexOf("Customer Discovery")).toBeLessThan(html.indexOf("Website Readiness"));
     expect(html.indexOf("Google Search Visibility")).toBeLessThan(html.indexOf("Website Foundation"));
   });
