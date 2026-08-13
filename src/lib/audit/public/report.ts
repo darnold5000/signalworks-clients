@@ -187,6 +187,15 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const searchVisibilityFailureCopy = detail.searchVisibility
     ? searchVisibilityFailureMessage(detail.searchVisibility)
     : "Search Visibility could not be measured during this report.";
+  const printableSearchScore = detail.searchVisibility?.status === "completed" ? `${Math.round(detail.searchVisibility.score ?? 0)} / 100` : "—";
+  const printableSearchStatus = detail.searchVisibility?.status === "completed" ? visibilityStatusForScore(detail.searchVisibility.score) : "Not measured yet";
+  const printableLocalValue = detail.localSearch?.status === "not_applicable" ? "N/A" : detail.localSearch?.summary ? `${detail.localSearch.summary.foundCount} of ${detail.localSearch.summary.queriesAnalyzed}` : "—";
+  const printableLocalStatus = detail.localSearch?.status === "completed" && detail.localSearch.summary ? detail.localSearch.summary.foundCount === 0 ? "Poor visibility" : "Measured" : detail.localSearch?.status === "failed" ? "Unable to measure" : detail.localSearch?.status === "not_applicable" ? "Not applicable" : "Not measured yet";
+  const printableReadinessCards = [
+    ["Website Foundation", detail.overallScore == null ? "—" : `${Math.round(detail.overallScore)} / 100`, statusForScore(detail.overallScore)],
+    ["AI & Answer Readiness", detail.aeoReadiness ? `${Math.round(detail.aeoReadiness.score)} / 100` : "—", detail.aeoReadiness ? statusForScore(detail.aeoReadiness.score) : "Not measured yet"],
+    ["Conversion Readiness", (() => { const score = detail.scores.find((row) => row.category === "conversion")?.score; return score == null ? "—" : `${Math.round(score)} / 100`; })(), statusForScore(detail.scores.find((row) => row.category === "conversion")?.score ?? null)],
+  ];
   const body = `
     <article style="max-width: 820px; margin: 0 auto; font-family: Arial, sans-serif; color: #121212;">
       <header style="margin-bottom: 3rem; border-bottom: 1px solid #e2e0da; padding-bottom: 2rem;">
@@ -200,11 +209,16 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
         <p style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #666;">Executive summary</p>
         <h2 style="font-size: 28px; font-weight: 500;">Is your website healthy?</h2>
         <p style="font-size: 22px; line-height: 1.4; margin-top: 1.5rem;"><strong>${escapeHtml(executiveHeadline(detail))}</strong></p>
-        <div style="background: #121212; color: white; border-radius: 12px; padding: 2rem; margin-top: 1rem;">
-          <p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #aaa;">Website health</p>
-          <p style="font-size: 64px; line-height: 1; margin: 1.5rem 0 0.75rem;">${detail.overallScore == null ? "—" : Math.round(detail.overallScore)} <span style="font-size: 14px; color: #aaa;">/ 100</span></p>
-          <p style="font-weight: 600;">${statusForScore(detail.overallScore)}</p>
-          <p style="color: #ccc; line-height: 1.6;">${escapeHtml(detail.summary ?? "Your website has a strong foundation, with several opportunities to improve performance and search visibility.")}</p>
+        <p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #666; margin-top: 2rem;">Customer Discovery</p>
+        <p style="color: #555;">Can new customers find you?</p>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 1rem;">
+          <div style="border: 1px solid #e2e0da; border-radius: 10px; padding: 1rem 1.25rem;"><strong>Google Search Visibility</strong><p style="font-size: 28px; margin: 0.75rem 0 0.25rem;">${printableSearchScore}</p><p style="margin: 0; color: #555;">${printableSearchStatus}</p></div>
+          <div style="border: 1px solid #e2e0da; border-radius: 10px; padding: 1rem 1.25rem;"><strong>Google Maps &amp; Local</strong><p style="font-size: 28px; margin: 0.75rem 0 0.25rem;">${printableLocalValue}</p><p style="margin: 0; color: #555;">${printableLocalStatus}</p></div>
+        </div>
+        <p style="text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px; color: #666; margin-top: 2rem;">Website Readiness</p>
+        <p style="color: #555;">Is the website prepared to support customers when they arrive?</p>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 1rem;">
+          ${printableReadinessCards.map(([label, value, status]) => `<div style="border: 1px solid #e2e0da; border-radius: 10px; padding: 1rem 1.25rem;"><strong>${label}</strong><p style="font-size: 28px; margin: 0.75rem 0 0.25rem;">${value}</p><p style="margin: 0; color: #555;">${status}</p></div>`).join("")}
         </div>
         <p style="font-size: 18px; line-height: 1.7; margin-top: 2rem;"><strong>What this means:</strong> ${escapeHtml(plainSummary(detail))}</p>
       </section>
