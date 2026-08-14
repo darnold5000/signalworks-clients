@@ -130,6 +130,37 @@ describe("local search phase 2", () => {
     expect(result.score).toBeNull();
   });
 
+  it("uses the upstream discovery set without reclassifying from the query list", async () => {
+    vi.stubEnv("DATAFORSEO_LOGIN", "test-login");
+    vi.stubEnv("DATAFORSEO_PASSWORD", "test-password");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ status_code: 20000, tasks: [{ status_code: 40102, status_message: "No Search Results.", result: null }] }), { status: 200 })));
+
+    const discoveryQueries = [
+      { query: "gymnastics classes", relevanceTier: 1 as const },
+      { query: "kids gymnastics", relevanceTier: 2 as const },
+      { query: "tumbling classes", relevanceTier: 3 as const },
+    ];
+    const result = await runLocalSearch({
+      auditId: "run-upstream-discovery",
+      normalizedUrl: "https://theflipzone.com",
+      businessName: "Flip Zone",
+      enteredMarket: "Indianapolis, IN",
+      city: "Indianapolis",
+      state: "Indiana",
+      locationCode: 1017146,
+      locationName: "Indianapolis,Indiana,United States",
+      homepageText: "",
+      discoveryQueries,
+      profileKey: "generic_local_business",
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.profileKey).toBe("generic_local_business");
+    expect(result.results.map((item) => item.query)).toEqual(["gymnastics classes", "kids gymnastics", "tumbling classes"]);
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
   it("preserves not applicable for a clearly non-local business", async () => {
     const result = await runLocalSearch({ auditId: "run-2", normalizedUrl: "https://example.com", businessName: "Cloud Platform", businessTypeHint: "software platform", enteredMarket: "Indianapolis, IN", city: "Indianapolis", state: "Indiana", locationCode: 1017146, locationName: "Indianapolis, Indiana, United States", homepageText: "", discoveryQueries: [] });
     expect(result.status).toBe("not_applicable");

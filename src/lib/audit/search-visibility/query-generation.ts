@@ -24,9 +24,9 @@ const NON_COMMERCIAL_PATTERNS = [
   /^services?$/i,
   /^(?:learn|read) more$/i,
   /^(?:get started|book now|contact us|call now)$/i,
+  /^complimentary\b/i,
 ];
 
-const COMMERCIAL_INTENT = /\b(?:advisor|advisory|accounting|agency|attorney|consulting|counseling|financial|insurance|investment|law|management|marketing|mortgage|planning|retirement|therapy|training|wealth)\b/i;
 const MARKETING_COPY = /(?:\bwithout\b|\bpricing\b|\bsolutions?\b|\bfor your\b|\bwe\b|\byour\b|\bwe believe\b|[,.;:!?])/i;
 
 const FINANCIAL_DISCOVERY_QUERIES = [
@@ -40,10 +40,19 @@ const FINANCIAL_DISCOVERY_QUERIES = [
   ["wealth advisor", null],
 ] as const;
 
-function containsBusinessName(value: string, businessName: string | null | undefined) {
+export function containsBusinessName(value: string, businessName: string | null | undefined) {
   const brandTokens = businessName?.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((token) => token.length > 2) ?? [];
   const normalized = value.toLowerCase().replace(/[^a-z0-9 ]/g, " ");
   return brandTokens.length > 0 && brandTokens.every((token) => normalized.includes(token));
+}
+
+function containsPhrase(haystack: string, needle: string) {
+  const normalizedHaystack = haystack.toLowerCase();
+  const normalizedNeedle = needle.toLowerCase().trim();
+  if (!normalizedNeedle) return false;
+  if (normalizedHaystack === normalizedNeedle) return true;
+  const escaped = normalizedNeedle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(normalizedHaystack);
 }
 
 function cleanPhrase(value: string, businessName?: string | null): string | null {
@@ -57,16 +66,30 @@ function cleanPhrase(value: string, businessName?: string | null): string | null
   return cleaned;
 }
 
-function isCommercialPhrase(value: string) {
-  return COMMERCIAL_INTENT.test(value) && !/\b(?:information|page|overview|resources?)\b/i.test(value);
-}
-
 function looksFinancial(values: string[]) {
   return /\b(?:wealth|financial|retirement|investment|401\s*k|fiduciary|portfolio|asset management)\b/i.test(values.join(" "));
 }
 
 function normalizeLocation(city: string | null, state?: string | null) {
   return [city, state].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
+export function generateBrandedQueries(input: { businessName: string | null; city: string | null; state?: string | null }): SearchVisibilityQuery[] {
+  const location = normalizeLocation(input.city, input.state);
+  const queries: SearchVisibilityQuery[] = [];
+  const seen = new Set<string>();
+  const add = (query: string) => {
+    const normalized = query.replace(/\s+/g, " ").trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key) || normalized.length > 100) return;
+    seen.add(key);
+    queries.push({ query: normalized, type: "branded", service: null });
+  };
+  if (input.businessName) {
+    add(input.businessName);
+    if (location) add(`${input.businessName} ${location}`);
+  }
+  return queries;
 }
 
 export function generateSearchQueries(input: {
@@ -77,9 +100,8 @@ export function generateSearchQueries(input: {
   services: string[];
   profile?: SearchProfile;
 }): SearchVisibilityQuery[] {
-  const location = normalizeLocation(input.city, input.state);
-  const queries: SearchVisibilityQuery[] = [];
-  const seen = new Set<string>();
+  const queries: SearchVisibilityQuery[] = [...generateBrandedQueries(input)];
+  const seen = new Set(queries.map((query) => query.query.toLowerCase()));
   const add = (query: string, type: SearchVisibilityQuery["type"], service: string | null, relevanceTier?: 1 | 2 | 3 | 4, relevanceSource?: SearchVisibilityQuery["relevanceSource"]) => {
     const normalized = query.replace(/\s+/g, " ").trim();
     const key = normalized.toLowerCase();
@@ -87,11 +109,6 @@ export function generateSearchQueries(input: {
     seen.add(key);
     queries.push({ query: normalized, type, service, relevanceTier, relevanceSource });
   };
-
-  if (input.businessName) {
-    add(input.businessName, "branded", null);
-    if (location) add(`${input.businessName} ${location}`, "branded", null);
-  }
 
   for (const candidate of generateDiscoveryCandidates(input)) {
     add(candidate.query, candidate.type, candidate.service, candidate.relevanceTier, candidate.relevanceSource);
@@ -103,12 +120,12 @@ export function generateSearchQueries(input: {
 export function generateDiscoveryCandidates(input: { businessName: string | null; businessTypeHint?: string | null; city: string | null; state?: string | null; services: string[]; profile?: SearchProfile }): SearchVisibilityQuery[] {
   const location = normalizeLocation(input.city, input.state);
   const profile = input.profile ?? selectSearchProfile({ businessName: input.businessName, businessTypeHint: input.businessTypeHint, services: input.services });
-  const validServices = input.services.map((value) => cleanPhrase(value, input.businessName)).filter((value): value is string => Boolean(value)).filter(isCommercialPhrase).map((value) => value.toLowerCase());
+  const validServices = input.services.map((value) => cleanPhrase(value, input.businessName)).filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase());
   // Financial discovery has a dedicated service-intent set; keep it from
   // being reshaped by the generic primary-service variant path.
   const primaryVariants = profile.key === "financial_advisor" ? [] : profile.primaryServiceVariants ?? [];
   const explicitBusinessHint = Boolean(input.businessTypeHint?.trim());
-  const supportedProfileDefaults = profile.baseTerms.filter((term) => validServices.some((service) => service.toLowerCase() === term.toLowerCase() || service.toLowerCase().includes(term.toLowerCase())));
+  const supportedProfileDefaults = profile.baseTerms.filter((term) => validServices.some((service) => containsPhrase(service, term)));
   const profileTerms = explicitBusinessHint
     ? profile.baseTerms.filter((term) => !primaryVariants.includes(term))
     : supportedProfileDefaults.filter((term) => !primaryVariants.includes(term));

@@ -1,5 +1,17 @@
 import type { DemandLevel, SearchDemand } from "./types";
 
+export const DEMAND_TTL_DAYS = Number(process.env.SEARCH_INTENT_DEMAND_TTL_DAYS ?? 90) || 90;
+
+export function normalizeIntent(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function demandIsFresh(demand: { checkedAt: string }) {
+  if (!demand.checkedAt) return false;
+  const age = Date.now() - new Date(demand.checkedAt).getTime();
+  return Number.isFinite(age) && age >= 0 && age <= DEMAND_TTL_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export function demandLevelForVolume(volume: number | null): DemandLevel {
   if (volume == null) return "unavailable";
   if (volume >= 500) return "high";

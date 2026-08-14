@@ -169,6 +169,16 @@ describe("search visibility phase 1", () => {
     });
   });
 
+  it("does not classify gymnastics as fitness_gym from the gym substring", () => {
+    const profile = selectSearchProfile({ businessName: "Flip Zone", services: ["Gymnastics Classes", "Tumbling"] });
+    expect(profile.key).not.toBe("fitness_gym");
+    expect(profile.key).toBe("generic_local_business");
+    const candidates = generateDiscoveryCandidates({ businessName: "Flip Zone", city: "Indianapolis", state: "IN", services: ["Gymnastics Classes", "Tumbling"] });
+    expect(candidates.map((item) => item.query)).not.toContain("gym");
+    expect(candidates.map((item) => item.query)).not.toContain("fitness center");
+    expect(candidates.map((item) => item.query)).not.toContain("personal trainer");
+  });
+
   it("recognizes basketball training as a sports-training profile", () => {
     const profile = selectSearchProfile({ businessName: "Refined Indiana", services: ["Basketball Training in Indiana"] });
     expect(profile.key).toBe("sports_training");

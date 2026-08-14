@@ -2,12 +2,29 @@ import type { SearchDemandDiagnostics } from "@/lib/audit/search-demand/types";
 
 export type SearchQueryType = "branded" | "discovery";
 
+export type DiscoveryFallbackPath = "none" | "keywords_for_keywords" | "profile_or_website" | "insufficient";
+
+export type DiscoveryDiagnostics = {
+  kfsRequestAttempted: boolean;
+  kfsCacheHit: boolean;
+  kfsProviderHttpStatus: number | null;
+  kfsProviderTaskStatus: number | null;
+  kfsResultCount: number | null;
+  kfsEvidenceBackedCount: number;
+  kfkRequestAttempted: boolean;
+  kfkResultCount: number | null;
+  searchVolumeRequestAttempted: boolean;
+  selectedQueryCount: number;
+  fallbackPath: DiscoveryFallbackPath;
+  failureReason: string | null;
+};
+
 export type SearchVisibilityQuery = {
   query: string;
   type: SearchQueryType;
   service: string | null;
   relevanceTier?: 1 | 2 | 3 | 4;
-  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "legacy_unknown";
+  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "keywords_for_site" | "keywords_for_keywords" | "legacy_unknown";
 };
 
 export type SearchVisibilityResult = SearchVisibilityQuery & {
@@ -41,7 +58,7 @@ export type SearchVisibilityResult = SearchVisibilityQuery & {
   collectionErrorCode?: string | null;
   collectionErrorMessage?: string | null;
   relevanceTier?: 1 | 2 | 3 | 4;
-  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "legacy_unknown";
+  relevanceSource?: "primary_service" | "website_evidence" | "business_hint" | "profile_default" | "keywords_for_site" | "keywords_for_keywords" | "legacy_unknown";
 };
 
 export type SearchVisibilitySummary = {
@@ -86,6 +103,7 @@ export type SearchVisibilitySnapshot = {
     error: string | null;
   };
   searchDemandDiagnostics?: SearchDemandDiagnostics;
+  discoveryDiagnostics?: DiscoveryDiagnostics;
   diagnostics?: {
     failurePhase: string | null;
     failureCode: string | null;

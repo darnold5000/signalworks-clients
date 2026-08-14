@@ -3,6 +3,7 @@ import { runSearchVisibility } from "./run";
 import { fetchGoogleOrganicResults, resolveDataForSeoLocation } from "./client";
 import { ensureSearchDemand } from "@/lib/audit/search-demand/client";
 import { resolveGoogleAdsLocation } from "@/lib/audit/search-demand/location";
+import { discoverSearchQueries } from "./discovery";
 
 vi.mock("./client", () => ({
   fetchGoogleOrganicResults: vi.fn(),
@@ -11,12 +12,46 @@ vi.mock("./client", () => ({
 
 vi.mock("@/lib/audit/search-demand/client", () => ({ ensureSearchDemand: vi.fn() }));
 vi.mock("@/lib/audit/search-demand/location", () => ({ resolveGoogleAdsLocation: vi.fn() }));
+vi.mock("./discovery", () => ({ discoverSearchQueries: vi.fn() }));
 
 const serpLocation = { status: "resolved" as const, location: { locationCode: 1017146, locationName: "Indianapolis,Indiana,United States", locationType: "City" } };
 const googleAdsLocation = { status: "resolved" as const, location: { locationCode: 2001001, locationName: "Indianapolis, Indiana, United States", countryIsoCode: "US", locationType: "City" }, error: null };
 
+const discoveryQueries = [
+  { query: "web design", type: "discovery" as const, service: "web design", relevanceTier: 1 as const, relevanceSource: "primary_service" as const },
+  { query: "website designer", type: "discovery" as const, service: "website designer", relevanceTier: 2 as const, relevanceSource: "website_evidence" as const },
+  { query: "web development", type: "discovery" as const, service: "web development", relevanceTier: 2 as const, relevanceSource: "website_evidence" as const },
+  { query: "software development", type: "discovery" as const, service: "software development", relevanceTier: 3 as const, relevanceSource: "website_evidence" as const },
+  { query: "small business website design", type: "discovery" as const, service: "small business website design", relevanceTier: 3 as const, relevanceSource: "website_evidence" as const },
+  { query: "web design company", type: "discovery" as const, service: "web design company", relevanceTier: 3 as const, relevanceSource: "website_evidence" as const },
+];
+
 function demandMap(intents: string[]) {
   return { demandByIntent: new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 500, competition: null, cpc: null, demandLevel: "high" as const, checkedAt: new Date().toISOString() }])), diagnostics: { providerRequestAttempted: true, providerHttpStatus: 200, providerTaskStatus: 20000, responseStatus: "received" as const, parseStatus: "succeeded" as const, resultCount: intents.length, persistenceAttempted: true, persistenceStatus: "succeeded" as const, failurePhase: null, failureCode: null, failureMessage: null } };
+}
+
+function discoveryResult(overrides?: Partial<{ selected: typeof discoveryQueries; demand: number | null }>) {
+  const selected = overrides?.selected ?? discoveryQueries;
+  const volume = overrides?.demand === undefined ? 500 : overrides.demand;
+  return {
+    selected,
+    demandByIntent: new Map(selected.map((item) => [item.query, { query: item.query, monthlySearchVolume: volume, competition: 20, cpc: 1, demandLevel: volume == null ? "unavailable" as const : volume >= 1 ? "high" as const : "very_low" as const, checkedAt: volume == null ? "" : new Date().toISOString() }])),
+    diagnostics: {
+      kfsRequestAttempted: true,
+      kfsCacheHit: false,
+      kfsProviderHttpStatus: 200,
+      kfsProviderTaskStatus: 20000,
+      kfsResultCount: selected.length,
+      kfsEvidenceBackedCount: selected.length,
+      kfkRequestAttempted: false,
+      kfkResultCount: null,
+      searchVolumeRequestAttempted: false,
+      selectedQueryCount: selected.length,
+      fallbackPath: "none" as const,
+      failureReason: null,
+    },
+    evidenceBackedCount: selected.length,
+  };
 }
 
 async function runAudit() {
@@ -36,6 +71,7 @@ describe("Search Visibility failure isolation", () => {
     vi.clearAllMocks();
     vi.mocked(resolveDataForSeoLocation).mockResolvedValue(serpLocation);
     vi.mocked(resolveGoogleAdsLocation).mockResolvedValue(googleAdsLocation);
+    vi.mocked(discoverSearchQueries).mockResolvedValue(discoveryResult());
     vi.mocked(ensureSearchDemand).mockImplementation(async ({ intents }) => demandMap(intents));
     vi.mocked(fetchGoogleOrganicResults).mockResolvedValue({
       items: [{ type: "organic", url: "https://example.com/services", rank_absolute: 12 }],
@@ -112,9 +148,9 @@ describe("Search Visibility failure isolation", () => {
     const result = await runAudit();
 
     expect(result.status).toBe("completed");
-    expect(result.results).toHaveLength(10);
+    expect(result.results).toHaveLength(8);
     expect(result.results.filter((item) => item.collectionStatus === "failed")).toHaveLength(1);
-    expect(result.diagnostics).toMatchObject({ failurePhase: "organic_serp", failureCode: "organic_query_partial_failure", successfulQueryCount: 9, failedQueryCount: 1 });
+    expect(result.diagnostics).toMatchObject({ failurePhase: "organic_serp", failureCode: "organic_query_partial_failure", successfulQueryCount: 7, failedQueryCount: 1 });
     expect(result.results.find((item) => item.collectionStatus === "failed")).toMatchObject({ position: null, found: false, collectionErrorCode: "organic_query_failed" });
   });
 
@@ -125,12 +161,13 @@ describe("Search Visibility failure isolation", () => {
 
     expect(result.status).toBe("unavailable");
     expect(result.score).toBeNull();
-    expect(result.results).toHaveLength(10);
-    expect(result.diagnostics).toMatchObject({ failurePhase: "organic_serp", failureCode: "organic_insufficient_coverage", successfulQueryCount: 0, failedQueryCount: 10 });
+    expect(result.results).toHaveLength(8);
+    expect(result.diagnostics).toMatchObject({ failurePhase: "organic_serp", failureCode: "organic_insufficient_coverage", successfulQueryCount: 0, failedQueryCount: 8 });
   });
 
   it("keeps organic rankings when Google Ads location resolution fails", async () => {
     vi.mocked(resolveGoogleAdsLocation).mockResolvedValue({ status: "provider_error", location: null, error: "DataForSEO Google Ads locations HTTP 401" });
+    vi.mocked(discoverSearchQueries).mockResolvedValue(discoveryResult({ demand: null }));
 
     const result = await runAudit();
 
@@ -141,6 +178,7 @@ describe("Search Visibility failure isolation", () => {
   });
 
   it("keeps organic rankings when demand provider or persistence fails", async () => {
+    vi.mocked(discoverSearchQueries).mockResolvedValue(discoveryResult({ demand: null }));
     vi.mocked(ensureSearchDemand).mockRejectedValue(new Error("demand persistence failed"));
 
     const result = await runAudit();
@@ -151,7 +189,7 @@ describe("Search Visibility failure isolation", () => {
   });
 
   it("preserves measured zero-volume demand without treating it as unavailable", async () => {
-    vi.mocked(ensureSearchDemand).mockImplementation(async ({ intents }) => ({ ...demandMap(intents), demandByIntent: new Map(intents.map((intent) => [intent, { query: intent, monthlySearchVolume: 0, competition: null, cpc: null, demandLevel: "very_low" as const, checkedAt: new Date().toISOString() }])) }));
+    vi.mocked(discoverSearchQueries).mockResolvedValue(discoveryResult({ demand: 0 }));
 
     const result = await runAudit();
 
@@ -163,7 +201,12 @@ describe("Search Visibility failure isolation", () => {
     const result = await runAudit();
 
     expect(result.status).toBe("completed");
-    expect(result.diagnostics).toEqual({ failurePhase: null, failureCode: null, failureMessage: null, successfulQueryCount: 10, failedQueryCount: 0 });
+    expect(result.diagnostics).toEqual({ failurePhase: null, failureCode: null, failureMessage: null, successfulQueryCount: 8, failedQueryCount: 0 });
+  });
+
+  it("does not call search_volume when KFS already supplied demand for selected terms", async () => {
+    await runAudit();
+    expect(ensureSearchDemand).not.toHaveBeenCalled();
   });
 
   it("passes clean discovery keywords with the resolved location separately", async () => {

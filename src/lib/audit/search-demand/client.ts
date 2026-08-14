@@ -1,18 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SearchDemand, SearchDemandDiagnostics, SearchDemandResult } from "./types";
-import { normalizeDemand } from "./normalize";
+import { demandIsFresh, DEMAND_TTL_DAYS, normalizeDemand, normalizeIntent } from "./normalize";
 import type { GoogleAdsLocation } from "./location";
 
 type DemandResponse = { status_code?: number; status_message?: string; tasks?: Array<{ status_code?: number; status_message?: string; result_count?: number; result?: Array<{ keyword?: string; search_volume?: number | null; competition?: number | null; competition_index?: number | null; cpc?: number | null; location_code?: number; language_code?: string }> }> };
-const DEMAND_TTL_DAYS = Number(process.env.SEARCH_INTENT_DEMAND_TTL_DAYS ?? 90) || 90;
 
-function normalizeIntent(value: string) { return value.trim().toLowerCase().replace(/\s+/g, " "); }
-
-const demandIsFresh = (demand: SearchDemand) => {
-  if (!demand.checkedAt) return false;
-  const age = Date.now() - new Date(demand.checkedAt).getTime();
-  return Number.isFinite(age) && age >= 0 && age <= DEMAND_TTL_DAYS * 24 * 60 * 60 * 1000;
-};
+export const KFS_DEMAND_SOURCE = "dataforseo_google_ads_keywords_for_site";
+export const KFK_DEMAND_SOURCE = "dataforseo_google_ads_keywords_for_keywords";
+export const SEARCH_VOLUME_DEMAND_SOURCE = "dataforseo_google_ads";
 
 function unavailable(keyword: string): SearchDemand { return { query: keyword, monthlySearchVolume: null, competition: null, cpc: null, demandLevel: "unavailable", checkedAt: "" }; }
 
@@ -210,7 +205,7 @@ export async function refreshSearchIntentDemand(input: { supabase: SupabaseClien
   });
   const checkedAt = new Date().toISOString();
   const measured = new Map(providerResults.map((result) => { const normalized = normalizeIntent(result.keyword ?? ""); return [normalized, normalizeDemand({ query: result.keyword ?? normalized, searchVolume: result.search_volume, competition: result.competition_index ?? result.competition, cpc: result.cpc, checkedAt })]; }));
-  const rows = keywords.map((keyword) => { const item = measured.get(keyword) ?? unavailable(keyword); return { normalized_intent: keyword, display_intent: item.query, country_code: input.countryCode ?? "US", language_code: input.languageCode ?? "en", location_code: locationCode, location_name: input.googleAdsLocation.locationName, monthly_search_volume: item.monthlySearchVolume, demand_level: item.demandLevel, competition: item.competition, competition_index: item.competition, cpc: item.cpc, source: "dataforseo_google_ads", confidence: item.demandLevel === "unavailable" ? "unavailable" : "measured", checked_at: checkedAt, updated_at: checkedAt }; });
+  const rows = keywords.map((keyword) => { const item = measured.get(keyword) ?? unavailable(keyword); return demandRow({ keyword, demand: item, countryCode: input.countryCode, languageCode: input.languageCode, googleAdsLocation: input.googleAdsLocation, source: SEARCH_VOLUME_DEMAND_SOURCE, checkedAt }); });
   diagnostics = { ...diagnostics, persistenceAttempted: true };
   const { error } = await input.supabase.from("search_intent_demand").upsert(rows, { onConflict: "normalized_intent,country_code,language_code,location_code" });
   if (error) {
@@ -235,4 +230,99 @@ export async function refreshSearchIntentDemand(input: { supabase: SupabaseClien
     persisted: rows.length,
   });
   return { demand: keywords.map((keyword) => measured.get(keyword) ?? unavailable(keyword)), diagnostics };
+}
+
+function demandRow(input: { keyword: string; demand: SearchDemand; countryCode?: string; languageCode?: string; googleAdsLocation: GoogleAdsLocation; source: string; checkedAt: string }) {
+  return {
+    normalized_intent: input.keyword,
+    display_intent: input.demand.query,
+    country_code: input.countryCode ?? "US",
+    language_code: input.languageCode ?? "en",
+    location_code: input.googleAdsLocation.locationCode,
+    location_name: input.googleAdsLocation.locationName,
+    monthly_search_volume: input.demand.monthlySearchVolume,
+    demand_level: input.demand.demandLevel,
+    competition: input.demand.competition,
+    competition_index: input.demand.competition,
+    cpc: input.demand.cpc,
+    source: input.source,
+    confidence: input.demand.demandLevel === "unavailable" ? "unavailable" : "measured",
+    checked_at: input.checkedAt,
+    updated_at: input.checkedAt,
+  };
+}
+
+/**
+ * Writes provider-supplied demand (e.g. Keywords For Site) into the existing
+ * cache. Fresh rows are left untouched so a later discovery pass does not
+ * invalidate a still-valid measurement.
+ */
+export async function persistSearchDemandMetrics(input: {
+  supabase: SupabaseClient;
+  items: Array<{ query: string; searchVolume?: number | null; competition?: number | null; cpc?: number | null }>;
+  googleAdsLocation: GoogleAdsLocation;
+  countryCode?: string;
+  languageCode?: string;
+  source: string;
+  auditId?: string;
+}): Promise<Map<string, SearchDemand>> {
+  const checkedAt = new Date().toISOString();
+  const result = new Map<string, SearchDemand>();
+  const unique = [...new Set(input.items.map((item) => normalizeIntent(item.query)).filter(Boolean))];
+  if (!unique.length) return result;
+
+  let cached: SearchDemand[] = [];
+  try {
+    cached = await fetchSearchDemand({
+      supabase: input.supabase,
+      keywords: unique,
+      countryCode: input.countryCode,
+      languageCode: input.languageCode,
+      googleAdsLocation: input.googleAdsLocation,
+    });
+  } catch (error) {
+    console.warn("[audit/search-demand] cache lookup failed during provider persist", {
+      auditId: input.auditId,
+      error: error instanceof Error ? error.message : "Demand cache lookup failed.",
+    });
+  }
+  const cachedByIntent = new Map(unique.map((intent, index) => [intent, cached[index]]));
+  const incoming = new Map(input.items.map((item) => {
+    const keyword = normalizeIntent(item.query);
+    return [keyword, normalizeDemand({ query: item.query, searchVolume: item.searchVolume, competition: item.competition, cpc: item.cpc, checkedAt })];
+  }));
+
+  const toPersist: typeof unique = [];
+  for (const intent of unique) {
+    const existing = cachedByIntent.get(intent);
+    if (existing && demandIsFresh(existing)) {
+      result.set(intent, existing);
+      continue;
+    }
+    const demand = incoming.get(intent) ?? unavailable(intent);
+    result.set(intent, demand);
+    toPersist.push(intent);
+  }
+
+  if (!toPersist.length) return result;
+  const rows = toPersist.map((keyword) => demandRow({
+    keyword,
+    demand: result.get(keyword) ?? unavailable(keyword),
+    countryCode: input.countryCode,
+    languageCode: input.languageCode,
+    googleAdsLocation: input.googleAdsLocation,
+    source: input.source,
+    checkedAt,
+  }));
+  const { error } = await input.supabase.from("search_intent_demand").upsert(rows, { onConflict: "normalized_intent,country_code,language_code,location_code" });
+  if (error) {
+    console.warn("[audit/search-demand] persist failed", {
+      auditId: input.auditId,
+      source: input.source,
+      requested: toPersist.length,
+      error: error.message,
+    });
+    throw new Error(error.message);
+  }
+  return result;
 }

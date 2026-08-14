@@ -68,11 +68,13 @@ function visibilityStatusForScore(score: number | null) {
   return "Low visibility";
 }
 
-export function localSearchInterpretation(summary: { foundCount: number; queriesAnalyzed: number; topThreeCount: number }) {
+export function localSearchInterpretation(summary: { foundCount: number; queriesAnalyzed: number; topThreeCount: number }, area = "the selected search area", measuredCount = summary.queriesAnalyzed) {
   const total = Math.max(0, summary.queriesAnalyzed);
   const found = Math.max(0, summary.foundCount);
   const topThree = Math.max(0, summary.topThreeCount);
-  if (total === 0 || found === 0) return "Your business was not found in Google’s local results for the searches checked.";
+  const searchWord = measuredCount === 1 ? "search" : "searches";
+  if (measuredCount < total) return `We successfully measured ${measuredCount} of ${total} local searches in the ${area} area. ${found === 0 ? `Your business was not found in any of the ${measuredCount} ${searchWord} measured.` : `Your business appeared in ${found} of the ${measuredCount} ${searchWord} measured.`}`;
+  if (total === 0 || found === 0) return `Your business was not found in Google's local results for any of the ${measuredCount} ${searchWord} we checked in the ${area} area.`;
   if (topThree >= 2 && found >= Math.ceil(total * 0.6)) return "Your business has strong local visibility, appearing prominently in several of the local searches checked.";
   if (topThree === 0 && found >= Math.ceil(total * 0.6)) return "Your business is appearing in Google’s local results, but not yet prominently. None of the searches checked placed the business in the top 3 local results.";
   if (topThree > 0 && found < total) return "Your business appears prominently for some searches, but local visibility varies by search.";
@@ -177,7 +179,7 @@ export function buildPublicAuditReportHtml(detail: PublicAuditDetail): string {
   const searchArea = formatSearchArea(detail.searchVisibility?.locationName ?? null) ?? "the selected search area";
   let searchDemandCopyUsed = false;
   const localInterpretation = detail.localSearch?.status === "completed" && detail.localSearch.summary
-    ? localSearchInterpretation(detail.localSearch.summary)
+    ? localSearchInterpretation(detail.localSearch.summary, formatSearchArea(detail.localSearch.locationName ?? detail.localSearch.normalizedMarket ?? detail.localSearch.enteredMarket) ?? "selected search area", detail.localSearch.results.length)
     : null;
   const searchVisibilityFailureCopy = detail.searchVisibility
     ? searchVisibilityFailureMessage(detail.searchVisibility)

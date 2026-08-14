@@ -42,6 +42,20 @@ describe("Search Visibility diagnostic persistence", () => {
         failureCode: "demand_provider_http_error",
         failureMessage: "DataForSEO demand HTTP 401",
       },
+      discoveryDiagnostics: {
+        kfsRequestAttempted: true,
+        kfsCacheHit: false,
+        kfsProviderHttpStatus: null,
+        kfsProviderTaskStatus: null,
+        kfsResultCount: null,
+        kfsEvidenceBackedCount: 0,
+        kfkRequestAttempted: false,
+        kfkResultCount: null,
+        searchVolumeRequestAttempted: false,
+        selectedQueryCount: 2,
+        fallbackPath: "insufficient",
+        failureReason: "insufficient_discovery_coverage",
+      },
     });
 
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -54,15 +68,13 @@ describe("Search Visibility diagnostic persistence", () => {
       failed_query_count: 6,
       demand_provider_request_attempted: true,
       demand_provider_http_status: 401,
-      demand_provider_task_status: null,
-      demand_response_status: "failed",
-      demand_parse_status: "not_attempted",
-      demand_result_count: null,
-      demand_persistence_attempted: false,
-      demand_persistence_status: "not_attempted",
-      demand_failure_phase: "provider_response",
-      demand_failure_code: "demand_provider_http_error",
-      demand_failure_message: "DataForSEO demand HTTP 401",
+      discovery_diagnostics_json: expect.objectContaining({
+        kfsRequestAttempted: true,
+        kfsCacheHit: false,
+        selectedQueryCount: 2,
+        fallbackPath: "insufficient",
+        failureReason: "insufficient_discovery_coverage",
+      }),
     }), { onConflict: "audit_run_id" });
   });
 });

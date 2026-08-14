@@ -259,6 +259,7 @@ export async function saveSearchVisibilitySnapshot(
     demand_failure_phase: snapshot.searchDemandDiagnostics?.failurePhase ?? null,
     demand_failure_code: snapshot.searchDemandDiagnostics?.failureCode ?? null,
     demand_failure_message: snapshot.searchDemandDiagnostics?.failureMessage ?? null,
+    discovery_diagnostics_json: snapshot.discoveryDiagnostics ?? null,
     failure_phase: snapshot.diagnostics?.failurePhase ?? null,
     failure_code: snapshot.diagnostics?.failureCode ?? null,
     failure_message: snapshot.diagnostics?.failureMessage ?? null,
