@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { pipelineClientInputSchema } from "@/lib/pipeline/validation";
+import {
+  pipelineClientInputSchema,
+  pipelineLastContactUpdateSchema,
+} from "@/lib/pipeline/validation";
 
 describe("pipelineClientInputSchema", () => {
   it("accepts an empty client and applies safe defaults", () => {
@@ -58,6 +61,24 @@ describe("pipelineClientInputSchema", () => {
     expect(
       pipelineClientInputSchema.safeParse({
         last_contact_date: "08/14/2026",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates quick last-contact date updates", () => {
+    expect(
+      pipelineLastContactUpdateSchema.parse({
+        last_contact_date: "2026-08-14",
+      }).last_contact_date,
+    ).toBe("2026-08-14");
+    expect(
+      pipelineLastContactUpdateSchema.parse({
+        last_contact_date: null,
+      }).last_contact_date,
+    ).toBeNull();
+    expect(
+      pipelineLastContactUpdateSchema.safeParse({
+        last_contact_date: "August 14",
       }).success,
     ).toBe(false);
   });

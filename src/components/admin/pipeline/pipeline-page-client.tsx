@@ -8,6 +8,7 @@ import {
   createPipelineClient,
   deletePipelineClient,
   updatePipelineClient,
+  updatePipelineLastContact,
   updatePipelineStatus,
 } from "@/lib/pipeline/clients";
 import type {
@@ -80,6 +81,9 @@ export function PipelinePageClient({
   );
   const [saving, setSaving] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [lastContactUpdatingId, setLastContactUpdatingId] = useState<
+    string | null
+  >(null);
   const [deletingClient, setDeletingClient] =
     useState<ClientPipelineRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -293,6 +297,23 @@ export function PipelinePageClient({
     router.refresh();
   }
 
+  async function handleLastContactChange(id: string, date: string | null) {
+    setLastContactUpdatingId(id);
+    const result = await updatePipelineLastContact(id, date);
+    setLastContactUpdatingId(null);
+
+    if (!result.ok) {
+      showPipelineToast(result.error, "error");
+      return;
+    }
+
+    setClients((previous) =>
+      previous.map((client) => (client.id === id ? result.data : client)),
+    );
+    showPipelineToast("Last contact updated");
+    router.refresh();
+  }
+
   if (clients.length === 0) {
     return (
       <>
@@ -379,6 +400,8 @@ export function PipelinePageClient({
             selectedIds={selectedIds}
             onToggleSelected={toggleSelected}
             onToggleAll={toggleAllVisible}
+            onLastContactChange={handleLastContactChange}
+            lastContactUpdatingId={lastContactUpdatingId}
           />
 
           <div className="space-y-4">
@@ -392,6 +415,8 @@ export function PipelinePageClient({
                 statusUpdating={statusUpdatingId === client.id}
                 selected={selectedIds.has(client.id)}
                 onToggleSelected={toggleSelected}
+                onLastContactChange={handleLastContactChange}
+                lastContactUpdating={lastContactUpdatingId === client.id}
               />
             ))}
           </div>

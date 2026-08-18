@@ -9,6 +9,7 @@ import type {
   PipelineStatus,
 } from "@/lib/pipeline/types";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { InlineLastContactDate } from "./inline-last-contact-date";
 import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
@@ -36,6 +37,8 @@ export function PipelineTable({
   selectedIds,
   onToggleSelected,
   onToggleAll,
+  onLastContactChange,
+  lastContactUpdatingId,
 }: {
   clients: ClientPipelineRecord[];
   sortKey: PipelineSortKey;
@@ -48,6 +51,8 @@ export function PipelineTable({
   selectedIds: Set<string>;
   onToggleSelected: (id: string) => void;
   onToggleAll: () => void;
+  onLastContactChange: (id: string, date: string | null) => void;
+  lastContactUpdatingId: string | null;
 }) {
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectedVisibleCount = clients.filter((client) =>
@@ -171,7 +176,11 @@ export function PipelineTable({
                 {formatMonthlyValue(client.estimated_monthly_value_cents)}
               </td>
               <td className="py-3 pr-3 align-top text-xs text-muted">
-                {formatDate(client.last_contacted_at)}
+                <InlineLastContactDate
+                  value={client.last_contacted_at}
+                  disabled={lastContactUpdatingId === client.id}
+                  onChange={(date) => onLastContactChange(client.id, date)}
+                />
               </td>
               <td className="py-3 pr-3 align-top text-xs text-muted">
                 {client.health_check_sent ? (

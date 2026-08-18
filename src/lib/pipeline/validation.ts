@@ -77,6 +77,16 @@ export const pipelineStatusUpdateSchema = z.object({
   status: pipelineStatusSchema,
 });
 
+export const pipelineLastContactUpdateSchema = z.object({
+  last_contact_date: z.preprocess(
+    emptyStringToNull,
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid last contact date")
+      .nullable(),
+  ),
+});
+
 export type PipelineClientInput = Omit<
   z.infer<typeof pipelineClientInputSchema>,
   "tags"

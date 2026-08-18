@@ -21,6 +21,7 @@ import {
 } from "@/lib/pipeline/types";
 import {
   pipelineClientInputSchema,
+  pipelineLastContactUpdateSchema,
   pipelineStatusUpdateSchema,
   type PipelineClientInput,
 } from "@/lib/pipeline/validation";
@@ -35,6 +36,7 @@ const PIPELINE_ERRORS = {
   create: "Could not create client. Please try again.",
   update: "Could not update client. Please try again.",
   updateStatus: "Could not update status. Please try again.",
+  updateLastContact: "Could not update last contact. Please try again.",
   delete: "Could not delete client. Please try again.",
   bulkDelete: "Could not delete the selected clients. Please try again.",
   notFound: "Client not found",
@@ -346,6 +348,21 @@ export async function updatePipelineStatus(
 
     const tenantId = await getSignalWorksTenantId();
     const supabase = await createClient();
+    const { data: existing, error: existingError } = await supabase
+      .from(TABLES.clientPipeline)
+      .select("last_contacted_at")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error("updatePipelineStatus:existing", existingError.message);
+      return { ok: false, error: PIPELINE_ERRORS.updateStatus };
+    }
+    if (!existing) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
+    }
+
     const { data, error } = await supabase
       .from(TABLES.clientPipeline)
       .update({ status: parsed.data.status })
@@ -363,8 +380,28 @@ export async function updatePipelineStatus(
       return { ok: false, error: PIPELINE_ERRORS.notFound };
     }
 
+    let updatedData = data;
+    if (data.last_contacted_at !== existing.last_contacted_at) {
+      const { data: restored, error: restoreError } = await supabase
+        .from(TABLES.clientPipeline)
+        .update({ last_contacted_at: existing.last_contacted_at })
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .select("*")
+        .maybeSingle();
+
+      if (restoreError || !restored) {
+        console.error(
+          "updatePipelineStatus:restoreLastContact",
+          restoreError?.message,
+        );
+        return { ok: false, error: PIPELINE_ERRORS.updateStatus };
+      }
+      updatedData = restored;
+    }
+
     revalidatePipeline();
-    return { ok: true, data: mapRow(data) };
+    return { ok: true, data: mapRow(updatedData) };
   } catch (err) {
     if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
       return { ok: false, error: err.message };
@@ -374,6 +411,70 @@ export async function updatePipelineStatus(
       error: err instanceof Error && err.message === "Unauthorized"
         ? err.message
         : PIPELINE_ERRORS.updateStatus,
+    };
+  }
+}
+
+export async function updatePipelineLastContact(
+  id: string,
+  lastContactDate: string | null,
+): Promise<PipelineActionResult<ClientPipelineRecord>> {
+  try {
+    await requirePipelineAdmin();
+
+    const parsed = pipelineLastContactUpdateSchema.safeParse({
+      last_contact_date: lastContactDate,
+    });
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid last contact date" };
+    }
+
+    const lastContactedAt = parsed.data.last_contact_date
+      ? `${parsed.data.last_contact_date}T12:00:00.000Z`
+      : null;
+
+    if (!isSupabaseConfigured()) {
+      const record = demoUpdatePipelineClient(id, {
+        last_contacted_at: lastContactedAt,
+      });
+      if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
+      revalidatePipeline();
+      return { ok: true, data: record };
+    }
+
+    const tenantId = await getSignalWorksTenantId();
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from(TABLES.clientPipeline)
+      .update({ last_contacted_at: lastContactedAt })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("updatePipelineLastContact", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.updateLastContact };
+    }
+    if (!data) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
+    }
+
+    revalidatePipeline();
+    return { ok: true, data: mapRow(data) };
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message.includes("Signal Works internal tenant")
+    ) {
+      return { ok: false, error: err.message };
+    }
+    return {
+      ok: false,
+      error:
+        err instanceof Error && err.message === "Unauthorized"
+          ? err.message
+          : PIPELINE_ERRORS.updateLastContact,
     };
   }
 }
