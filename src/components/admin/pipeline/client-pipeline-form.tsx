@@ -17,7 +17,9 @@ const EMPTY_FORM: PipelineClientInput = {
   last_conversation: "",
   plan: "",
   estimated_monthly_value: null,
-  next_follow_up_date: "",
+  last_contact_date: "",
+  last_contact_date_explicit: false,
+  health_check_sent: false,
   tags: [],
 };
 
@@ -46,7 +48,9 @@ export function ClientPipelineForm({
     last_conversation: initial?.last_conversation ?? "",
     plan: initial?.plan ?? "",
     estimated_monthly_value: initial?.estimated_monthly_value ?? null,
-    next_follow_up_date: initial?.next_follow_up_date ?? "",
+    last_contact_date: initial?.last_contact_date ?? "",
+    last_contact_date_explicit: false,
+    health_check_sent: initial?.health_check_sent ?? false,
     tags: initial?.tags ?? [],
   });
   const [error, setError] = useState<string | null>(null);
@@ -61,14 +65,6 @@ export function ClientPipelineForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.business_name.trim()) {
-      setError("Business name is required");
-      return;
-    }
-    if (!form.contact_name.trim()) {
-      setError("Contact name is required");
-      return;
-    }
     try {
       await onSubmit(form);
     } catch (err) {
@@ -78,10 +74,12 @@ export function ClientPipelineForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">
+        Contact / Business
+      </p>
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Business Name</span>
         <input
-          required
           value={form.business_name}
           onChange={(e) => updateField("business_name", e.target.value)}
           placeholder="MA5 Performance"
@@ -92,7 +90,6 @@ export function ClientPipelineForm({
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Contact Name</span>
         <input
-          required
           value={form.contact_name}
           onChange={(e) => updateField("contact_name", e.target.value)}
           placeholder="John Smith"
@@ -135,6 +132,9 @@ export function ClientPipelineForm({
         />
       </label>
 
+      <p className="pt-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        Pipeline
+      </p>
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Status</span>
         <PipelineStatusSelect
@@ -163,24 +163,52 @@ export function ClientPipelineForm({
         </label>
 
         <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Next Follow-up</span>
+          <span className="text-sm font-medium">Last Contact</span>
           <input
             type="date"
-            value={form.next_follow_up_date ?? ""}
-            onChange={(e) => updateField("next_follow_up_date", e.target.value)}
+            value={form.last_contact_date ?? ""}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                last_contact_date: e.target.value,
+                last_contact_date_explicit: true,
+              }))
+            }
             className={inputClassName}
           />
         </label>
       </div>
 
+      <label className="flex items-start gap-3 rounded-md border border-border px-3 py-3">
+        <input
+          type="checkbox"
+          checked={form.health_check_sent}
+          onChange={(e) => updateField("health_check_sent", e.target.checked)}
+          className="mt-0.5 size-4 rounded border-border"
+        />
+        <span>
+          <span className="block text-sm font-medium">Health Check Sent</span>
+          <span className="mt-0.5 block text-xs text-muted">
+            Mark this when a Signal Works Website Health Check has been sent to
+            this prospect.
+          </span>
+        </span>
+      </label>
+
+      <p className="pt-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        Tags
+      </p>
       <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Tags</span>
+        <span className="sr-only">Tags</span>
         <PipelineTagsSelect
           value={form.tags}
           onChange={(tags) => updateField("tags", tags)}
         />
       </label>
 
+      <p className="pt-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        Activity
+      </p>
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Last Conversation</span>
         <textarea
@@ -191,7 +219,8 @@ export function ClientPipelineForm({
           className={inputClassName}
         />
         <p className="text-xs text-muted">
-          Saving conversation notes updates Last Contacted automatically.
+          Saving new conversation notes updates Last Contact automatically
+          unless you choose a date above.
         </p>
       </label>
 

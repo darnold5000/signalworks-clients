@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Check } from "lucide-react";
 import type { ClientPipelineRecord, PipelineStatus } from "@/lib/pipeline/types";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { PipelineRowActions } from "./pipeline-row-actions";
@@ -19,24 +20,37 @@ export function PipelineCard({
   onDelete,
   onStatusChange,
   statusUpdating,
+  selected,
+  onToggleSelected,
 }: {
   client: ClientPipelineRecord;
   onEdit: (client: ClientPipelineRecord) => void;
   onDelete: (client: ClientPipelineRecord) => void;
   onStatusChange: (id: string, status: PipelineStatus) => void;
   statusUpdating?: boolean;
+  selected: boolean;
+  onToggleSelected: (id: string) => void;
 }) {
   return (
     <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface p-4 lg:hidden">
       <div className="flex items-start justify-between gap-3">
+        <input
+          type="checkbox"
+          aria-label={`Select ${client.business_name || "unnamed prospect"}`}
+          checked={selected}
+          onChange={() => onToggleSelected(client.id)}
+          className="mt-1 size-4 rounded border-border"
+        />
         <div className="min-w-0 flex-1">
           <Link
             href={`/admin/pipeline/${client.id}`}
             className="font-medium break-words underline-offset-2 hover:underline"
           >
-            {client.business_name}
+            {client.business_name || "Unnamed prospect"}
           </Link>
-          <p className="mt-1 text-sm break-words text-muted">{client.contact_name}</p>
+          <p className="mt-1 text-sm break-words text-muted">
+            {client.contact_name || "—"}
+          </p>
           {client.contact_email ? (
             <p className="text-xs break-all text-muted">{client.contact_email}</p>
           ) : null}
@@ -58,8 +72,21 @@ export function PipelineCard({
           </p>
         </div>
         <div>
-          <p className="text-xs tracking-wide text-muted uppercase">Next Follow-up</p>
-          <p className="mt-1 text-muted">{formatDate(client.next_follow_up_date)}</p>
+          <p className="text-xs tracking-wide text-muted uppercase">Last Contact</p>
+          <p className="mt-1 text-muted">{formatDate(client.last_contacted_at)}</p>
+        </div>
+        <div>
+          <p className="text-xs tracking-wide text-muted uppercase">Health Check</p>
+          <p className="mt-1 text-muted">
+            {client.health_check_sent ? (
+              <span className="inline-flex items-center gap-1">
+                <Check className="size-3.5" aria-hidden="true" />
+                Sent
+              </span>
+            ) : (
+              "—"
+            )}
+          </p>
         </div>
         <div>
           <p className="text-xs tracking-wide text-muted uppercase">Status</p>

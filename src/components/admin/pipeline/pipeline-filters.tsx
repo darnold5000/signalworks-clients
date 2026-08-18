@@ -3,11 +3,15 @@
 import { PIPELINE_FILTER_OPTIONS } from "@/lib/pipeline/labels";
 import type { PipelineStatus } from "@/lib/pipeline/types";
 
+export type HealthCheckFilter = "all" | "sent" | "not_sent";
+
 export function PipelineFilters({
   query,
   onQueryChange,
   statusFilter,
   onStatusFilterChange,
+  healthCheckFilter,
+  onHealthCheckFilterChange,
   resultCount,
   totalCount,
 }: {
@@ -15,6 +19,8 @@ export function PipelineFilters({
   onQueryChange: (value: string) => void;
   statusFilter: "all" | PipelineStatus;
   onStatusFilterChange: (value: "all" | PipelineStatus) => void;
+  healthCheckFilter: HealthCheckFilter;
+  onHealthCheckFilterChange: (value: HealthCheckFilter) => void;
   resultCount: number;
   totalCount: number;
 }) {
@@ -33,21 +39,39 @@ export function PipelineFilters({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {PIPELINE_FILTER_OPTIONS.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => onStatusFilterChange(option.key)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              statusFilter === option.key
-                ? "border-foreground bg-foreground text-background"
-                : "border-border text-muted hover:text-foreground"
-            }`}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {PIPELINE_FILTER_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => onStatusFilterChange(option.key)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === option.key
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border text-muted hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <span>Health Check</span>
+          <select
+            value={healthCheckFilter}
+            onChange={(event) =>
+              onHealthCheckFilterChange(
+                event.target.value as HealthCheckFilter,
+              )
+            }
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
           >
-            {option.label}
-          </button>
-        ))}
+            <option value="all">All</option>
+            <option value="sent">Sent</option>
+            <option value="not_sent">Not Sent</option>
+          </select>
+        </label>
       </div>
     </div>
   );

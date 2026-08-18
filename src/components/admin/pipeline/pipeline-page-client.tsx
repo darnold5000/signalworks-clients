@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import {
+  bulkDeletePipelineClients,
   createPipelineClient,
   deletePipelineClient,
   updatePipelineClient,
@@ -20,9 +21,13 @@ import {
   type PipelineClientInput,
 } from "@/lib/pipeline/validation";
 import { ClientPipelineForm } from "./client-pipeline-form";
+import { BulkDeleteClientsDialog } from "./bulk-delete-clients-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
 import { PipelineCard } from "./pipeline-card";
-import { PipelineFilters } from "./pipeline-filters";
+import {
+  PipelineFilters,
+  type HealthCheckFilter,
+} from "./pipeline-filters";
 import { PipelineSlideOver } from "./pipeline-slide-over";
 import { PipelineTable } from "./pipeline-table";
 import { PipelineToastHost, showPipelineToast } from "./pipeline-toast";
@@ -38,12 +43,12 @@ function sortClients(
         new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
       );
     }
-    if (sortKey === "next_follow_up_date") {
-      const aTime = a.next_follow_up_date
-        ? new Date(a.next_follow_up_date).getTime()
+    if (sortKey === "last_contacted_at") {
+      const aTime = a.last_contacted_at
+        ? new Date(a.last_contacted_at).getTime()
         : 0;
-      const bTime = b.next_follow_up_date
-        ? new Date(b.next_follow_up_date).getTime()
+      const bTime = b.last_contacted_at
+        ? new Date(b.last_contacted_at).getTime()
         : 0;
       return aTime - bTime;
     }
@@ -64,6 +69,8 @@ export function PipelinePageClient({
   const [clients, setClients] = useState(initialClients);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PipelineStatus>("all");
+  const [healthCheckFilter, setHealthCheckFilter] =
+    useState<HealthCheckFilter>("all");
   const [sortKey, setSortKey] = useState<PipelineSortKey>("updated_at");
   const [sortDirection, setSortDirection] =
     useState<PipelineSortDirection>("desc");
@@ -76,11 +83,26 @@ export function PipelinePageClient({
   const [deletingClient, setDeletingClient] =
     useState<ClientPipelineRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matched = clients.filter((client) => {
       if (statusFilter !== "all" && client.status !== statusFilter) {
+        return false;
+      }
+      if (
+        healthCheckFilter === "sent" &&
+        !client.health_check_sent
+      ) {
+        return false;
+      }
+      if (
+        healthCheckFilter === "not_sent" &&
+        client.health_check_sent
+      ) {
         return false;
       }
       if (!q) return true;
@@ -98,7 +120,18 @@ export function PipelinePageClient({
       return haystack.includes(q);
     });
     return sortClients(matched, sortKey, sortDirection);
-  }, [clients, query, sortKey, sortDirection, statusFilter]);
+  }, [
+    clients,
+    healthCheckFilter,
+    query,
+    sortKey,
+    sortDirection,
+    statusFilter,
+  ]);
+
+  const selectedVisibleIds = filtered
+    .filter((client) => selectedIds.has(client.id))
+    .map((client) => client.id);
 
   function handleSort(key: PipelineSortKey) {
     if (sortKey === key) {
@@ -126,6 +159,44 @@ export function PipelinePageClient({
 
   function openDelete(client: ClientPipelineRecord) {
     setDeletingClient(client);
+  }
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    setSelectedIds(new Set());
+  }
+
+  function handleStatusFilterChange(value: "all" | PipelineStatus) {
+    setStatusFilter(value);
+    setSelectedIds(new Set());
+  }
+
+  function handleHealthCheckFilterChange(value: HealthCheckFilter) {
+    setHealthCheckFilter(value);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      const allSelected =
+        filtered.length > 0 &&
+        filtered.every((client) => next.has(client.id));
+      for (const client of filtered) {
+        if (allSelected) next.delete(client.id);
+        else next.add(client.id);
+      }
+      return next;
+    });
   }
 
   async function handleCreate(data: PipelineClientInput) {
@@ -171,8 +242,34 @@ export function PipelinePageClient({
       return;
     }
     setClients((prev) => prev.filter((c) => c.id !== deletingClient.id));
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      next.delete(deletingClient.id);
+      return next;
+    });
     setDeletingClient(null);
     showPipelineToast("Client deleted");
+    router.refresh();
+  }
+
+  async function confirmBulkDelete() {
+    if (selectedVisibleIds.length === 0) return;
+    setBulkDeleting(true);
+    const result = await bulkDeletePipelineClients(selectedVisibleIds);
+    setBulkDeleting(false);
+    if (!result.ok) {
+      showPipelineToast(result.error, "error");
+      return;
+    }
+    const deleted = new Set(result.data);
+    setClients((previous) =>
+      previous.filter((client) => !deleted.has(client.id)),
+    );
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+    showPipelineToast(
+      `${result.data.length} ${result.data.length === 1 ? "client" : "clients"} deleted`,
+    );
     router.refresh();
   }
 
@@ -246,14 +343,30 @@ export function PipelinePageClient({
       <Panel>
         <PipelineFilters
           query={query}
-          onQueryChange={setQuery}
+          onQueryChange={handleQueryChange}
           statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
+          onStatusFilterChange={handleStatusFilterChange}
+          healthCheckFilter={healthCheckFilter}
+          onHealthCheckFilterChange={handleHealthCheckFilterChange}
           resultCount={filtered.length}
           totalCount={clients.length}
         />
 
         <div className="mt-6 space-y-4">
+          {selectedVisibleIds.length > 0 ? (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
+              <p className="text-sm text-muted">
+                {selectedVisibleIds.length} selected
+              </p>
+              <Button
+                type="button"
+                className="bg-danger hover:bg-danger/90"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                Delete Selected ({selectedVisibleIds.length})
+              </Button>
+            </div>
+          ) : null}
           <PipelineTable
             clients={filtered}
             sortKey={sortKey}
@@ -263,6 +376,9 @@ export function PipelinePageClient({
             statusUpdatingId={statusUpdatingId}
             onEdit={openEdit}
             onDelete={openDelete}
+            selectedIds={selectedIds}
+            onToggleSelected={toggleSelected}
+            onToggleAll={toggleAllVisible}
           />
 
           <div className="space-y-4">
@@ -274,6 +390,8 @@ export function PipelinePageClient({
                 onDelete={openDelete}
                 onStatusChange={handleStatusChange}
                 statusUpdating={statusUpdatingId === client.id}
+                selected={selectedIds.has(client.id)}
+                onToggleSelected={toggleSelected}
               />
             ))}
           </div>
@@ -320,6 +438,13 @@ export function PipelinePageClient({
         onCancel={() => setDeletingClient(null)}
         onConfirm={() => void confirmDelete()}
         loading={deleting}
+      />
+      <BulkDeleteClientsDialog
+        open={bulkDeleteOpen}
+        count={selectedVisibleIds.length}
+        onCancel={() => setBulkDeleteOpen(false)}
+        onConfirm={() => void confirmBulkDelete()}
+        loading={bulkDeleting}
       />
     </>
   );

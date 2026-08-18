@@ -2,23 +2,33 @@ export type PipelineStatus =
   | "potential"
   | "reached_out"
   | "contact_made"
-  | "conversation_ongoing"
+  | "interested"
   | "proposal_sent"
   | "won"
   | "not_interested";
 
 export const PIPELINE_TAGS = [
   "Gym",
+  "Sports Organization",
+  "Instructor",
+  "Food Truck",
+  "Beverage Shop",
   "Hair Salon",
   "Golf",
   "Financial",
-  "Retail",
-  "Restaurant",
-  "Healthcare",
+  "Contractor",
   "Other",
 ] as const;
 
-export type PipelineTag = (typeof PIPELINE_TAGS)[number];
+export const LEGACY_PIPELINE_TAGS = [
+  "Restaurant",
+  "Healthcare",
+  "Retail",
+] as const;
+
+export type PipelineTag =
+  | (typeof PIPELINE_TAGS)[number]
+  | (typeof LEGACY_PIPELINE_TAGS)[number];
 
 export interface ClientPipelineRecord {
   id: string;
@@ -34,6 +44,7 @@ export interface ClientPipelineRecord {
   estimated_monthly_value_cents: number | null;
   next_follow_up_date: string | null;
   last_contacted_at: string | null;
+  health_check_sent: boolean;
   tags: PipelineTag[];
   created_at: string;
   updated_at: string;
@@ -43,7 +54,7 @@ export type PipelineSortKey =
   | "business_name"
   | "status"
   | "updated_at"
-  | "next_follow_up_date";
+  | "last_contacted_at";
 
 export type PipelineSortDirection = "asc" | "desc";
 
@@ -51,7 +62,7 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
   "potential",
   "reached_out",
   "contact_made",
-  "conversation_ongoing",
+  "interested",
   "proposal_sent",
   "won",
   "not_interested",

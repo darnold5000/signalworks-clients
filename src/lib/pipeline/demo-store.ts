@@ -8,12 +8,22 @@ const now = () => new Date().toISOString();
 
 type DemoPipelinePayload = Omit<
   ClientPipelineRecord,
-  "id" | "tenant_id" | "created_at" | "updated_at" | "last_contacted_at"
->;
+  | "id"
+  | "tenant_id"
+  | "created_at"
+  | "updated_at"
+  | "last_contacted_at"
+  | "next_follow_up_date"
+> & {
+  last_contacted_at?: string | null;
+  next_follow_up_date?: string | null;
+};
 
 function initialLastContacted(payload: DemoPipelinePayload): string | null {
+  if (Object.prototype.hasOwnProperty.call(payload, "last_contacted_at")) {
+    return payload.last_contacted_at ?? null;
+  }
   if (payload.last_conversation?.trim()) return now();
-  if (payload.status !== "potential") return now();
   return null;
 }
 
@@ -32,6 +42,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: 250000,
     next_follow_up_date: "2026-07-25",
     last_contacted_at: "2026-07-18T14:30:00.000Z",
+    health_check_sent: true,
     tags: ["Gym"],
     created_at: "2026-06-01T12:00:00.000Z",
     updated_at: "2026-07-18T14:30:00.000Z",
@@ -50,6 +61,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: 180000,
     next_follow_up_date: "2026-07-24",
     last_contacted_at: "2026-07-20T09:00:00.000Z",
+    health_check_sent: true,
     tags: ["Gym"],
     created_at: "2026-05-15T10:00:00.000Z",
     updated_at: "2026-07-20T09:00:00.000Z",
@@ -62,12 +74,13 @@ let demoRecords: ClientPipelineRecord[] = [
     contact_email: null,
     phone: null,
     website_url: "https://zerolimits.example",
-    status: "conversation_ongoing",
+    status: "interested",
     last_conversation: null,
     plan: "Send updated proposal",
     estimated_monthly_value_cents: 320000,
     next_follow_up_date: "2026-07-28",
     last_contacted_at: "2026-07-10T16:00:00.000Z",
+    health_check_sent: false,
     tags: ["Gym", "Other"],
     created_at: "2026-04-01T08:00:00.000Z",
     updated_at: "2026-07-10T16:00:00.000Z",
@@ -86,6 +99,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: null,
     next_follow_up_date: null,
     last_contacted_at: null,
+    health_check_sent: false,
     tags: ["Retail"],
     created_at: "2026-07-01T08:00:00.000Z",
     updated_at: "2026-07-01T08:00:00.000Z",
@@ -104,6 +118,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: 150000,
     next_follow_up_date: "2026-07-23",
     last_contacted_at: "2026-07-12T11:00:00.000Z",
+    health_check_sent: true,
     tags: ["Golf"],
     created_at: "2026-07-05T08:00:00.000Z",
     updated_at: "2026-07-12T11:00:00.000Z",
@@ -122,6 +137,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: null,
     next_follow_up_date: null,
     last_contacted_at: null,
+    health_check_sent: false,
     tags: ["Retail", "Other"],
     created_at: "2026-07-08T08:00:00.000Z",
     updated_at: "2026-07-08T08:00:00.000Z",
@@ -140,6 +156,7 @@ let demoRecords: ClientPipelineRecord[] = [
     estimated_monthly_value_cents: 95000,
     next_follow_up_date: "2026-08-01",
     last_contacted_at: null,
+    health_check_sent: false,
     tags: ["Financial"],
     created_at: "2026-07-10T08:00:00.000Z",
     updated_at: "2026-07-10T08:00:00.000Z",
@@ -170,6 +187,7 @@ export function demoCreatePipelineClient(
     id: crypto.randomUUID(),
     tenant_id: DEMO_SIGNALWORKS_TENANT_ID,
     ...data,
+    next_follow_up_date: data.next_follow_up_date ?? null,
     tags: data.tags as PipelineTag[],
     last_contacted_at: initialLastContacted(data),
     created_at: now(),
@@ -199,4 +217,13 @@ export function demoDeletePipelineClient(id: string): boolean {
   const before = demoRecords.length;
   demoRecords = demoRecords.filter((r) => r.id !== id);
   return demoRecords.length < before;
+}
+
+export function demoBulkDeletePipelineClients(ids: string[]): string[] {
+  const selected = new Set(ids);
+  const deletedIds = demoRecords
+    .filter((record) => selected.has(record.id))
+    .map((record) => record.id);
+  demoRecords = demoRecords.filter((record) => !selected.has(record.id));
+  return deletedIds;
 }

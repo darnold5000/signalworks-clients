@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { isPlatformAdmin } from "@/lib/auth";
 import {
+  demoBulkDeletePipelineClients,
   demoCreatePipelineClient,
   demoDeletePipelineClient,
   demoGetPipelineClient,
@@ -11,6 +13,7 @@ import {
 } from "@/lib/pipeline/demo-store";
 import { getSignalWorksTenantId } from "@/lib/pipeline/internal-tenant";
 import {
+  LEGACY_PIPELINE_TAGS,
   PIPELINE_TAGS,
   type ClientPipelineRecord,
   type PipelineStatus,
@@ -33,10 +36,14 @@ const PIPELINE_ERRORS = {
   update: "Could not update client. Please try again.",
   updateStatus: "Could not update status. Please try again.",
   delete: "Could not delete client. Please try again.",
+  bulkDelete: "Could not delete the selected clients. Please try again.",
   notFound: "Client not found",
 } as const;
 
-const PIPELINE_TAG_SET = new Set<string>(PIPELINE_TAGS);
+const PIPELINE_TAG_SET = new Set<string>([
+  ...PIPELINE_TAGS,
+  ...LEGACY_PIPELINE_TAGS,
+]);
 
 async function requirePipelineAdmin(): Promise<void> {
   if (!(await isPlatformAdmin())) {
@@ -58,8 +65,8 @@ function normalizeTags(value: unknown): PipelineTag[] {
 
 function buildPipelinePayload(parsed: PipelineClientInput) {
   return {
-    business_name: parsed.business_name,
-    contact_name: parsed.contact_name,
+    business_name: parsed.business_name.trim(),
+    contact_name: parsed.contact_name.trim(),
     contact_email: parsed.contact_email ?? null,
     phone: parsed.phone ?? null,
     website_url: parsed.website_url ?? null,
@@ -70,8 +77,15 @@ function buildPipelinePayload(parsed: PipelineClientInput) {
       parsed.estimated_monthly_value != null
         ? Math.round(parsed.estimated_monthly_value * 100)
         : null,
-    next_follow_up_date: parsed.next_follow_up_date ?? null,
+    health_check_sent: parsed.health_check_sent,
     tags: (parsed.tags ?? []) as PipelineTag[],
+    ...(parsed.last_contact_date_explicit
+      ? {
+          last_contacted_at: parsed.last_contact_date
+            ? `${parsed.last_contact_date}T12:00:00.000Z`
+            : null,
+        }
+      : {}),
   };
 }
 
@@ -91,6 +105,7 @@ function mapRow(row: Record<string, unknown>): ClientPipelineRecord {
       (row.estimated_monthly_value_cents as number | null) ?? null,
     next_follow_up_date: (row.next_follow_up_date as string | null) ?? null,
     last_contacted_at: (row.last_contacted_at as string | null) ?? null,
+    health_check_sent: (row.health_check_sent as boolean | null) ?? false,
     tags: normalizeTags(row.tags),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -103,17 +118,15 @@ function touchDemoLastContacted(
 ): string | null {
   const conversationChanged =
     (payload.last_conversation ?? "") !== (existing.last_conversation ?? "");
-  const statusChanged = payload.status !== existing.status;
+  if (Object.prototype.hasOwnProperty.call(payload, "last_contacted_at")) {
+    return payload.last_contacted_at ?? null;
+  }
 
   if (
     conversationChanged &&
     payload.last_conversation &&
     payload.last_conversation.trim() !== ""
   ) {
-    return new Date().toISOString();
-  }
-
-  if (statusChanged && payload.status !== "potential") {
     return new Date().toISOString();
   }
 
@@ -274,8 +287,27 @@ export async function updatePipelineClient(
       return { ok: false, error: PIPELINE_ERRORS.notFound };
     }
 
+    let updatedData = data;
+    if (parsed.data.last_contact_date_explicit) {
+      const { data: explicitData, error: explicitError } = await supabase
+        .from(TABLES.clientPipeline)
+        .update({
+          last_contacted_at: payload.last_contacted_at ?? null,
+        })
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .select("*")
+        .maybeSingle();
+
+      if (explicitError || !explicitData) {
+        console.error("updatePipelineClient:lastContact", explicitError?.message);
+        return { ok: false, error: PIPELINE_ERRORS.update };
+      }
+      updatedData = explicitData;
+    }
+
     revalidatePipeline();
-    return { ok: true, data: mapRow(data) };
+    return { ok: true, data: mapRow(updatedData) };
   } catch (err) {
     if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
       return { ok: false, error: err.message };
@@ -306,10 +338,6 @@ export async function updatePipelineStatus(
       if (!existing) return { ok: false, error: PIPELINE_ERRORS.notFound };
       const record = demoUpdatePipelineClient(id, {
         status: parsed.data.status as PipelineStatus,
-        last_contacted_at:
-          parsed.data.status !== "potential"
-            ? new Date().toISOString()
-            : existing.last_contacted_at,
       });
       if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
       revalidatePipeline();
@@ -393,6 +421,65 @@ export async function deletePipelineClient(
       error: err instanceof Error && err.message === "Unauthorized"
         ? err.message
         : PIPELINE_ERRORS.delete,
+    };
+  }
+}
+
+export async function bulkDeletePipelineClients(
+  ids: string[],
+): Promise<PipelineActionResult<string[]>> {
+  try {
+    await requirePipelineAdmin();
+
+    const parsed = z
+      .array(z.string().min(1))
+      .min(1)
+      .max(500)
+      .safeParse([...new Set(ids)]);
+    if (!parsed.success) {
+      return { ok: false, error: "Select at least one valid client" };
+    }
+
+    if (!isSupabaseConfigured()) {
+      const deletedIds = demoBulkDeletePipelineClients(parsed.data);
+      revalidatePipeline();
+      return { ok: true, data: deletedIds };
+    }
+
+    const tenantId = await getSignalWorksTenantId();
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from(TABLES.clientPipeline)
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in("id", parsed.data)
+      .select("id");
+
+    if (error) {
+      console.error("bulkDeletePipelineClients", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.bulkDelete };
+    }
+
+    const deletedIds = (data ?? []).map((row) => row.id as string);
+    if (deletedIds.length === 0) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
+    }
+
+    revalidatePipeline();
+    return { ok: true, data: deletedIds };
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message.includes("Signal Works internal tenant")
+    ) {
+      return { ok: false, error: err.message };
+    }
+    return {
+      ok: false,
+      error:
+        err instanceof Error && err.message === "Unauthorized"
+          ? err.message
+          : PIPELINE_ERRORS.bulkDelete,
     };
   }
 }

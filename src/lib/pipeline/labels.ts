@@ -4,7 +4,7 @@ export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
   potential: "Potential Client",
   reached_out: "Reached Out",
   contact_made: "Contact Made",
-  conversation_ongoing: "Conversation Ongoing",
+  interested: "Interested",
   proposal_sent: "Proposal Sent",
   won: "Won",
   not_interested: "Not Interested",
@@ -27,7 +27,7 @@ export function pipelineStatusTone(status: PipelineStatus): PipelineStatusTone {
       return "blue";
     case "contact_made":
       return "purple";
-    case "conversation_ongoing":
+    case "interested":
       return "warning";
     case "proposal_sent":
       return "orange";
@@ -48,7 +48,7 @@ export const PIPELINE_FILTER_OPTIONS: {
   { key: "potential", label: "Potential" },
   { key: "reached_out", label: "Reached Out" },
   { key: "contact_made", label: "Contact Made" },
-  { key: "conversation_ongoing", label: "Conversation Ongoing" },
+  { key: "interested", label: "Interested" },
   { key: "proposal_sent", label: "Proposal Sent" },
   { key: "won", label: "Won" },
   { key: "not_interested", label: "Not Interested" },

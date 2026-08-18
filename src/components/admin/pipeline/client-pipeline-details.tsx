@@ -65,7 +65,7 @@ export function ClientPipelineDetails({
     <>
       <PipelineToastHost />
       <PageHeader
-        title={client.business_name}
+        title={client.business_name || "Unnamed prospect"}
         description="Pipeline client record"
         actions={
           <div className="flex items-center gap-1">
@@ -86,8 +86,8 @@ export function ClientPipelineDetails({
 
       <Panel>
         <dl>
-          <MetaRow label="Business" value={client.business_name} />
-          <MetaRow label="Contact" value={client.contact_name} />
+          <MetaRow label="Business" value={client.business_name || "—"} />
+          <MetaRow label="Contact" value={client.contact_name || "—"} />
           <MetaRow
             label="Email"
             value={
@@ -135,12 +135,12 @@ export function ClientPipelineDetails({
             }
           />
           <MetaRow
-            label="Next Follow-up"
-            value={formatDate(client.next_follow_up_date)}
+            label="Last Contact"
+            value={formatDate(client.last_contacted_at)}
           />
           <MetaRow
-            label="Last Contacted"
-            value={formatDateTime(client.last_contacted_at)}
+            label="Health Check"
+            value={client.health_check_sent ? "Sent" : "—"}
           />
           <MetaRow
             label="Last Conversation"

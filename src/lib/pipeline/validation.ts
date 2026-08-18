@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  LEGACY_PIPELINE_TAGS,
   PIPELINE_STATUSES,
   PIPELINE_TAGS,
   type ClientPipelineRecord,
@@ -11,7 +12,7 @@ const pipelineStatusSchema = z.enum(
 );
 
 const pipelineTagSchema = z.enum(
-  PIPELINE_TAGS as unknown as [string, ...string[]],
+  [...PIPELINE_TAGS, ...LEGACY_PIPELINE_TAGS] as [string, ...string[]],
 );
 
 function emptyStringToNull(value: unknown) {
@@ -21,10 +22,20 @@ function emptyStringToNull(value: unknown) {
   return value;
 }
 
+function emptyValueToBlank(value: unknown) {
+  return value == null ? "" : value;
+}
+
 export const pipelineClientInputSchema = z
   .object({
-    business_name: z.string().trim().min(1, "Business name is required"),
-    contact_name: z.string().trim().min(1, "Contact name is required"),
+    business_name: z.preprocess(
+      emptyValueToBlank,
+      z.string().trim().max(500),
+    ),
+    contact_name: z.preprocess(
+      emptyValueToBlank,
+      z.string().trim().max(500),
+    ),
     contact_email: z.preprocess(
       emptyStringToNull,
       z.string().email("Invalid email address").max(320).nullable().optional(),
@@ -40,20 +51,25 @@ export const pipelineClientInputSchema = z
     status: pipelineStatusSchema.default("potential"),
     last_conversation: z.string().trim().max(10000).nullable().optional(),
     plan: z.string().trim().max(5000).nullable().optional(),
-    estimated_monthly_value: z.coerce
-      .number()
-      .min(0, "Value must be zero or greater")
-      .nullable()
-      .optional(),
-    next_follow_up_date: z.preprocess(
+    estimated_monthly_value: z.preprocess(
       emptyStringToNull,
-      z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid follow-up date")
+      z.coerce
+        .number()
+        .min(0, "Value must be zero or greater")
         .nullable()
         .optional(),
     ),
-    tags: z.array(pipelineTagSchema).max(8).default([]),
+    last_contact_date: z.preprocess(
+      emptyStringToNull,
+      z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid last contact date")
+        .nullable()
+        .optional(),
+    ),
+    last_contact_date_explicit: z.boolean().default(false),
+    health_check_sent: z.boolean().default(false),
+    tags: z.array(pipelineTagSchema).max(16).default([]),
   })
   .strict();
 
@@ -84,7 +100,9 @@ export function pipelineRecordToInput(
       record.estimated_monthly_value_cents != null
         ? record.estimated_monthly_value_cents / 100
         : null,
-    next_follow_up_date: record.next_follow_up_date ?? "",
+    last_contact_date: record.last_contacted_at?.slice(0, 10) ?? "",
+    last_contact_date_explicit: false,
+    health_check_sent: record.health_check_sent,
     tags: record.tags,
   };
 }
