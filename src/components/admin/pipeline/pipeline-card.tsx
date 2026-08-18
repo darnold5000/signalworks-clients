@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import type { ClientPipelineRecord, PipelineStatus } from "@/lib/pipeline/types";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
 import { InlineLastContactDate } from "./inline-last-contact-date";
 import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusBadge } from "./pipeline-status-badge";
@@ -112,9 +112,6 @@ export function PipelineCard({
           <p className="text-xs tracking-wide text-muted uppercase">Last Conversation</p>
           <p className="mt-1 line-clamp-3 break-words text-muted">
             {truncateText(client.last_conversation)}
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            Last contacted: {formatDate(client.last_contacted_at)}
           </p>
         </div>
         <div>

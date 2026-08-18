@@ -196,9 +196,6 @@ export function PipelineTable({
                 <p className="line-clamp-3 break-words text-muted">
                   {truncateText(client.last_conversation, 160)}
                 </p>
-                <p className="mt-1 text-xs text-muted">
-                  Last contacted: {formatDate(client.last_contacted_at)}
-                </p>
               </td>
               <td className="py-3 pr-3 align-top text-xs text-muted">
                 {formatDate(client.updated_at)}
