@@ -24,6 +24,24 @@ export const INCLUDED_SETUP_ITEMS: ReadonlyArray<{
   { product_key: "business_email_setup", name: "Business Email Setup" },
 ];
 
+export const DEFAULT_PLAN_INCLUSIONS = PLAN_STANDARD_INCLUSIONS.map(
+  (row) => row.name,
+);
+
+export const DEFAULT_SETUP_INCLUSIONS = INCLUDED_SETUP_ITEMS.map(
+  (row) => row.name,
+);
+
+/** A null database value identifies a legacy client that needs the defaults. */
+export function resolvePlanInclusions(value: string[] | null | undefined): string[] {
+  return value == null ? [...DEFAULT_PLAN_INCLUSIONS] : value;
+}
+
+/** An explicitly saved empty array stays empty so its card can be hidden. */
+export function resolveSetupInclusions(value: string[] | null | undefined): string[] {
+  return value == null ? [...DEFAULT_SETUP_INCLUSIONS] : value;
+}
+
 /** Legacy paid add-on key — still on old offers; new invites use managed_email_delivery. */
 export const LEGACY_MANAGED_EMAIL_PRODUCT_KEY = "business_email_setup";
 export const MANAGED_EMAIL_DELIVERY_PRODUCT_KEY = "managed_email_delivery";

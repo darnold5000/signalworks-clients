@@ -8,17 +8,28 @@ import {
   resolvePlanInclusionLines,
 } from "@/lib/offers/invoice-sections";
 import { formatMoney } from "@/lib/utils";
+import type { Client } from "@/lib/types";
 
 export function ProposalCommercialSummary({
   offer,
   items,
+  planInclusions,
+  setupInclusions,
 }: {
   offer: Pick<ClientOffer, "currency" | "title">;
   items: ClientOfferItem[];
+  planInclusions?: Client["plan_inclusions"];
+  setupInclusions?: Client["setup_inclusions"];
 }) {
   const pricing = buildOfferPricingSummary(items, offer.currency);
-  const planInclusions = resolvePlanInclusionLines(items);
-  const includedSetup = resolveIncludedSetupLines(items);
+  const planInclusionLines = planInclusions?.map((name, index) => ({
+    id: `stored-plan-inclusion-${index}`,
+    name,
+  })) ?? resolvePlanInclusionLines(items);
+  const includedSetup = setupInclusions?.map((name, index) => ({
+    id: `stored-setup-inclusion-${index}`,
+    name,
+  })) ?? resolveIncludedSetupLines(items);
   const paidAddOns = resolvePaidRecurringAddOnLines(items);
   const oneTimeLines = resolveOneTimeServiceLines(items);
 
@@ -34,11 +45,11 @@ export function ProposalCommercialSummary({
         </div>
       </section>
 
-      {planInclusions.length > 0 ? (
+      {planInclusionLines.length > 0 ? (
         <section>
           <h3 className="text-sm font-medium">Included with your plan</h3>
           <ul className="mt-2 space-y-1 text-sm text-muted">
-            {planInclusions.map((line) => (
+            {planInclusionLines.map((line) => (
               <li key={line.id} className="flex justify-between gap-4">
                 <span>{line.name}</span>
                 <span className="shrink-0 text-xs">Included</span>

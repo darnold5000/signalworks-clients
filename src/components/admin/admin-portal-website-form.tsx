@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Panel } from "@/components/ui";
+import { InclusionItemsEditor } from "@/components/inclusion-items-editor";
 import type { Client } from "@/lib/types";
 import {
   WEBSITE_SECURITY_LABELS,
@@ -49,6 +50,8 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
   const [certExpires, setCertExpires] = useState(
     toDatetimeLocalValue(client.website_security_cert_expires_at),
   );
+  const [planInclusions, setPlanInclusions] = useState(client.plan_inclusions);
+  const [setupInclusions, setSetupInclusions] = useState(client.setup_inclusions);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +72,8 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
             website_security_https_enabled: httpsEnabled,
             website_security_cert_valid: certValid,
             website_security_cert_expires_at: fromDatetimeLocalValue(certExpires),
+            plan_inclusions: planInclusions,
+            setup_inclusions: setupInclusions,
           }),
         },
       );
@@ -176,6 +181,20 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
               onChange={(e) => setCertExpires(e.target.value)}
             />
           </label>
+        </fieldset>
+
+        <fieldset className="space-y-4 rounded-lg border border-border p-4">
+          <legend className="px-1 text-sm font-medium">Plan inclusions</legend>
+          <InclusionItemsEditor
+            label="Included with this Plan"
+            items={planInclusions}
+            onChange={setPlanInclusions}
+          />
+          <InclusionItemsEditor
+            label="Included Setup"
+            items={setupInclusions}
+            onChange={setSetupInclusions}
+          />
         </fieldset>
 
         {error ? (

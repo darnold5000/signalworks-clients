@@ -225,7 +225,12 @@ export function OfferPortal() {
             <p className="mb-4 text-sm text-muted">
               Review your plan, included platform services, and pricing below.
             </p>
-            <ProposalCommercialSummary offer={offer} items={offer.items} />
+            <ProposalCommercialSummary
+              offer={offer}
+              items={offer.items}
+              planInclusions={data.client.plan_inclusions}
+              setupInclusions={data.client.setup_inclusions}
+            />
           </Panel>
 
           {needsAgreements ? (

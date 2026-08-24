@@ -57,6 +57,28 @@ describe("build-invite-offer", () => {
     });
   });
 
+  it("uses the selected inclusion arrays and preserves empty sections", () => {
+    const rows = buildInviteOfferItemRows({
+      tenantId: "tenant-1",
+      offerId: "offer-1",
+      plan,
+      products: [],
+      planInclusions: [
+        { product_key: "plan_inclusion_website", name: "Website" },
+      ],
+      setupInclusions: [],
+    });
+
+    const inclusionRows = rows.filter(
+      (row) => row.metadata?.commercial_role === "plan_inclusion",
+    );
+    const setupRows = rows.filter(
+      (row) => row.metadata?.commercial_role === "included_setup",
+    );
+    expect(inclusionRows.map((row) => row.name)).toEqual(["Website"]);
+    expect(setupRows).toEqual([]);
+  });
+
   it("keeps zero-dollar bundled products from increasing MRR", () => {
     const totals = calculateInviteOfferTotals({
       plan,

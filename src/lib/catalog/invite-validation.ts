@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { validateCustomPlanPrice } from "@/lib/catalog/build-invite-offer";
 import { isPlaceholderOfferItemName } from "@/lib/offers/offer-item-validation";
+import {
+  DEFAULT_PLAN_INCLUSIONS,
+  DEFAULT_SETUP_INCLUSIONS,
+} from "@/lib/catalog/plan-inclusions";
 
 function normalizeOptionalUrl(value: string): string {
   const trimmed = value.trim();
@@ -33,6 +37,8 @@ const customServiceAddOnSchema = z.object({
   billingType: z.enum(["recurring", "one_time"]).optional(),
 });
 
+const inclusionListSchema = z.array(z.string().trim().min(1).max(200)).max(50);
+
 export const inviteClientRequestSchema = z
   .object({
     businessName: z.string().trim().min(2).max(120),
@@ -58,6 +64,8 @@ export const inviteClientRequestSchema = z
     setupFeeDollars: z.coerce.number().min(0).default(0),
     monthlyDiscountDollars: z.coerce.number().min(0).default(0),
     monthlyDiscountDurationMonths: z.coerce.number().int().min(0).max(120).default(0),
+    planInclusions: inclusionListSchema.default([...DEFAULT_PLAN_INCLUSIONS]),
+    setupInclusions: inclusionListSchema.default([...DEFAULT_SETUP_INCLUSIONS]),
     idempotencyKey: z.string().uuid().optional(),
   })
   .transform((data) => {

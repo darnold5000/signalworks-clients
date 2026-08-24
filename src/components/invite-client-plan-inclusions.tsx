@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  INCLUDED_SETUP_ITEMS,
-  PLAN_STANDARD_INCLUSIONS,
-} from "@/lib/catalog/plan-inclusions";
+import { InclusionItemsEditor } from "@/components/inclusion-items-editor";
 
 function InclusionCard({
   title,
@@ -22,24 +19,24 @@ function InclusionCard({
   );
 }
 
-export function InviteClientPlanInclusions() {
-  const planNames = PLAN_STANDARD_INCLUSIONS.map((row) => row.name);
-  const mid = Math.ceil(planNames.length / 2);
-
+export function InviteClientPlanInclusions({
+  planInclusions,
+  setupInclusions,
+  onPlanInclusionsChange,
+  onSetupInclusionsChange,
+}: {
+  planInclusions: string[];
+  setupInclusions: string[];
+  onPlanInclusionsChange: (items: string[]) => void;
+  onSetupInclusionsChange: (items: string[]) => void;
+}) {
   return (
     <section className="space-y-3">
       <InclusionCard title="Included with this plan">
-        <p className="leading-relaxed text-muted">
-          {planNames.slice(0, mid).join(" · ")}
-        </p>
-        <p className="mt-1 leading-relaxed text-muted">
-          {planNames.slice(mid).join(" · ")}
-        </p>
+        <InclusionItemsEditor label="Plan items" items={planInclusions} onChange={onPlanInclusionsChange} />
       </InclusionCard>
       <InclusionCard title="Included setup">
-        <p className="text-muted">
-          {INCLUDED_SETUP_ITEMS.map((row) => row.name).join(" · ")}
-        </p>
+        <InclusionItemsEditor label="Setup items" items={setupInclusions} onChange={onSetupInclusionsChange} />
       </InclusionCard>
     </section>
   );

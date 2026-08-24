@@ -111,6 +111,8 @@ export function buildInviteOfferItemRows(args: {
   offerId: string;
   plan: InvitePlanSelection;
   products: InviteProductSelection[];
+  planInclusions?: InviteProductSelection[];
+  setupInclusions?: InviteProductSelection[];
   extras?: InviteCommercialExtras;
 }): Array<Omit<ClientOfferItem, "id" | "created_at" | "updated_at">> {
   const extras = args.extras ?? {};
@@ -147,7 +149,7 @@ export function buildInviteOfferItemRows(args: {
 
   let sortOrder = 1;
 
-  for (const product of planStandardInclusionProducts()) {
+  for (const product of args.planInclusions ?? planStandardInclusionProducts()) {
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
@@ -174,7 +176,7 @@ export function buildInviteOfferItemRows(args: {
     });
   }
 
-  for (const product of includedSetupProducts()) {
+  for (const product of args.setupInclusions ?? includedSetupProducts()) {
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,

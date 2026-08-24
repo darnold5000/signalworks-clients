@@ -35,6 +35,12 @@ export async function updateTenantPortalWebsiteSettings(
     patch.website_security_cert_expires_at =
       input.website_security_cert_expires_at;
   }
+  if (input.plan_inclusions !== undefined) {
+    patch.plan_inclusions = input.plan_inclusions;
+  }
+  if (input.setup_inclusions !== undefined) {
+    patch.setup_inclusions = input.setup_inclusions;
+  }
 
   const { data, error } = await supabase
     .from(TABLES.tenantPortalSettings)

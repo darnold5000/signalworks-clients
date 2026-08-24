@@ -9,7 +9,11 @@ import type {
   InviteProductSelection,
 } from "@/lib/catalog/build-invite-offer";
 import { dollarsToCents } from "@/lib/catalog/build-invite-offer";
-import { addOnDefaultBillingType } from "@/lib/catalog/plan-inclusions";
+import {
+  addOnDefaultBillingType,
+  DEFAULT_PLAN_INCLUSIONS,
+  DEFAULT_SETUP_INCLUSIONS,
+} from "@/lib/catalog/plan-inclusions";
 import type {
   PlatformPlanTemplate,
   PlatformProductCatalogItem,
@@ -65,6 +69,12 @@ export function InviteClientForm({
   const [customServiceAddOnRows, setCustomServiceAddOnRows] = useState<
     CustomServiceAddOnRow[]
   >([]);
+  const [planInclusions, setPlanInclusions] = useState<string[]>([
+    ...DEFAULT_PLAN_INCLUSIONS,
+  ]);
+  const [setupInclusions, setSetupInclusions] = useState<string[]>([
+    ...DEFAULT_SETUP_INCLUSIONS,
+  ]);
   const [setupFeeDollars, setSetupFeeDollars] = useState("0");
   const [monthlyDiscountDollars, setMonthlyDiscountDollars] = useState("0");
   const [monthlyDiscountDurationMonths, setMonthlyDiscountDurationMonths] =
@@ -247,6 +257,8 @@ export function InviteClientForm({
           monthlyDiscountDollars: Number.parseFloat(monthlyDiscountDollars) || 0,
           monthlyDiscountDurationMonths:
             Number.parseInt(monthlyDiscountDurationMonths, 10) || 0,
+          planInclusions,
+          setupInclusions,
           idempotencyKey: idempotencyKeyRef.current,
         }),
       });
@@ -302,8 +314,8 @@ export function InviteClientForm({
     <form onSubmit={onSubmit} className="space-y-8">
       <p className="text-sm text-muted">
         Create a new client tenant, commercial offer, and first-time portal
-        invite. Plan inclusions and setup are automatic; configure paid add-ons
-        below.
+        invite. Customize the included plan and setup items, then configure paid
+        add-ons below.
       </p>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -384,7 +396,12 @@ export function InviteClientForm({
             onMonthlyPriceChange={setMonthlyPriceDollars}
           />
 
-          <InviteClientPlanInclusions />
+          <InviteClientPlanInclusions
+            planInclusions={planInclusions}
+            setupInclusions={setupInclusions}
+            onPlanInclusionsChange={setPlanInclusions}
+            onSetupInclusionsChange={setSetupInclusions}
+          />
 
           <InviteClientPlatformComponentsSelect
             components={platformComponents}
@@ -497,4 +514,3 @@ export function InviteClientForm({
     </form>
   );
 }
-

@@ -1,4 +1,8 @@
 import type { Client, Document, Profile, ServiceRequest } from "@/lib/types";
+import {
+  DEFAULT_PLAN_INCLUSIONS,
+  DEFAULT_SETUP_INCLUSIONS,
+} from "@/lib/catalog/plan-inclusions";
 
 export const DEMO_ADMIN: Profile = {
   id: "demo-admin",
@@ -41,6 +45,8 @@ export const DEMO_CLIENTS: Client[] = [
     website_last_updated_at: "2026-07-11T14:00:00.000Z",
     database_platform: "Supabase",
     plan_name: "Launch",
+    plan_inclusions: [...DEFAULT_PLAN_INCLUSIONS],
+    setup_inclusions: [...DEFAULT_SETUP_INCLUSIONS],
     monthly_price_cents: 4900,
     currency: "usd",
     intro_price_cents: null,
@@ -84,6 +90,8 @@ export const DEMO_CLIENTS: Client[] = [
     website_last_updated_at: "2026-07-11T14:00:00.000Z",
     database_platform: "Supabase",
     plan_name: "Founding Client",
+    plan_inclusions: [...DEFAULT_PLAN_INCLUSIONS],
+    setup_inclusions: ["Domain Transfer"],
     monthly_price_cents: 2500,
     currency: "usd",
     intro_price_cents: 2500,

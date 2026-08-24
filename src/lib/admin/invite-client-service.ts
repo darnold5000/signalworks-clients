@@ -67,6 +67,13 @@ function slugify(value: string) {
     .slice(0, 60);
 }
 
+function inclusionProducts(prefix: string, names: string[]) {
+  return names.map((name, index) => ({
+    product_key: `${prefix}_${slugify(name) || index + 1}`,
+    name,
+  }));
+}
+
 async function findIdempotentInviteResult(
   idempotencyKey: string,
 ): Promise<InviteClientResult | null> {
@@ -276,6 +283,8 @@ export async function inviteClientWithOffer(
         domain,
         plan_name: planTemplate.name,
         monthly_price_cents: monthlyPriceCents,
+        plan_inclusions: input.planInclusions,
+        setup_inclusions: input.setupInclusions,
         support_email: siteConfig.supportEmail,
         contract_start_on: new Date().toISOString().slice(0, 10),
       });
@@ -345,6 +354,8 @@ export async function inviteClientWithOffer(
         product_key: product.product_key,
         name: product.name,
       })),
+      planInclusions: inclusionProducts("plan_inclusion", input.planInclusions),
+      setupInclusions: inclusionProducts("setup_inclusion", input.setupInclusions),
       extras: {
         setup_fee_cents: setupFeeCents > 0 ? setupFeeCents : undefined,
         monthly_discount_cents:

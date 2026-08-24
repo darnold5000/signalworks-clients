@@ -73,6 +73,8 @@ export type Client = {
   website_last_updated_at: string | null;
   database_platform: string | null;
   plan_name: string;
+  plan_inclusions: string[];
+  setup_inclusions: string[];
   monthly_price_cents: number;
   currency: string;
   intro_price_cents: number | null;

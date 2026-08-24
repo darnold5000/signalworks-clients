@@ -7,6 +7,10 @@ import type {
   WebsiteSecurityStatus,
   WebsiteStatus,
 } from "@/lib/types";
+import {
+  resolvePlanInclusions,
+  resolveSetupInclusions,
+} from "@/lib/catalog/plan-inclusions";
 
 type PortalSettingsRow = {
   website_status?: WebsiteStatus;
@@ -24,6 +28,8 @@ type PortalSettingsRow = {
   website_last_updated_at?: string | null;
   database_platform?: string | null;
   plan_name?: string;
+  plan_inclusions?: string[] | null;
+  setup_inclusions?: string[] | null;
   monthly_price_cents?: number;
   currency?: string;
   intro_price_cents?: number | null;
@@ -111,6 +117,8 @@ export function mapTenantToClient(row: TenantRow): Client {
     website_last_updated_at: settings?.website_last_updated_at ?? null,
     database_platform: settings?.database_platform ?? null,
     plan_name: settings?.plan_name ?? "Launch",
+    plan_inclusions: resolvePlanInclusions(settings?.plan_inclusions),
+    setup_inclusions: resolveSetupInclusions(settings?.setup_inclusions),
     monthly_price_cents: settings?.monthly_price_cents ?? 0,
     currency: settings?.currency ?? "usd",
     intro_price_cents: settings?.intro_price_cents ?? null,
@@ -195,6 +203,8 @@ export const TENANT_PORTAL_SELECT = `
   updated_at,
   tenant_portal_settings (
     ${TENANT_PORTAL_SETTINGS_SELECT_BASE},
+    plan_inclusions,
+    setup_inclusions,
     website_security_status,
     website_security_https_enabled,
     website_security_cert_valid,
