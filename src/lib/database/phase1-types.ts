@@ -231,6 +231,7 @@ export type ClientOffer = {
   id: string;
   tenant_id: string;
   title: string;
+  short_summary?: string | null;
   description: string | null;
   status: ClientOfferStatus;
   currency: string;
@@ -248,6 +249,16 @@ export type ClientOffer = {
   published_at: string | null;
   accepted_at: string | null;
   purchased_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientOfferFeature = {
+  id: string;
+  offer_id: string;
+  tenant_id: string;
+  label: string;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };

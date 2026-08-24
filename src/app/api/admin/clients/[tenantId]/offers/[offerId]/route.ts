@@ -45,7 +45,12 @@ const itemSchema = z.object({
 
 const patchSchema = z.object({
   title: z.string().trim().min(2).max(200).optional(),
+  shortSummary: z.string().trim().max(500).optional(),
   description: z.string().trim().max(5000).optional(),
+  features: z
+    .array(z.string().trim().min(1).max(300))
+    .max(100)
+    .optional(),
   requiresTermsAcceptance: z.boolean().optional(),
   addItem: itemSchema.optional(),
   updateItem: itemSchema
@@ -118,6 +123,9 @@ export async function PATCH(
 
   const updates: Record<string, unknown> = {};
   if (parsed.data.title) updates.title = parsed.data.title;
+  if (parsed.data.shortSummary !== undefined) {
+    updates.short_summary = parsed.data.shortSummary || null;
+  }
   if (parsed.data.description !== undefined) {
     updates.description = parsed.data.description || null;
   }
@@ -127,6 +135,37 @@ export async function PATCH(
 
   if (Object.keys(updates).length > 0) {
     await supabase.from(TABLES.clientOffers).update(updates).eq("id", offerId);
+  }
+
+  if (parsed.data.features !== undefined) {
+    const { error: deleteFeaturesError } = await supabase
+      .from(TABLES.clientOfferFeatures)
+      .delete()
+      .eq("offer_id", offerId);
+    if (deleteFeaturesError) {
+      return NextResponse.json(
+        { error: "Could not update proposal features" },
+        { status: 400 },
+      );
+    }
+    if (parsed.data.features.length > 0) {
+      const { error: insertFeaturesError } = await supabase
+        .from(TABLES.clientOfferFeatures)
+        .insert(
+          parsed.data.features.map((label, sortOrder) => ({
+            offer_id: offerId,
+            tenant_id: tenantId,
+            label,
+            sort_order: sortOrder,
+          })),
+        );
+      if (insertFeaturesError) {
+        return NextResponse.json(
+          { error: "Could not update proposal features" },
+          { status: 400 },
+        );
+      }
+    }
   }
 
   if (parsed.data.addItem) {

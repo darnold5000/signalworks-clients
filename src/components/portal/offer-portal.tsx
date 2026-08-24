@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type {
   ClientOffer,
+  ClientOfferFeature,
   ClientOfferItem,
   LegalDocument,
 } from "@/lib/database/phase1-types";
@@ -11,11 +12,16 @@ import type { OnboardingState } from "@/lib/portal/onboarding-state";
 import type { Client } from "@/lib/types";
 import { Button, Panel } from "@/components/ui";
 import { OfferCheckoutButton } from "@/components/offer-checkout-button";
-import { ProposalCommercialSummary } from "@/components/portal/proposal-commercial-summary";
+import { ProposalClientView } from "@/components/portal/proposal-client-view";
 
 type OfferPayload = {
   client: Client;
-  offer: (ClientOffer & { items: ClientOfferItem[] }) | null;
+  offer:
+    | (ClientOffer & {
+        items: ClientOfferItem[];
+        features: ClientOfferFeature[];
+      })
+    | null;
   terms: LegalDocument | null;
   sow: LegalDocument | null;
   onboarding: OnboardingState;
@@ -221,20 +227,15 @@ export function OfferPortal() {
         </Panel>
       ) : (
         <>
-          <Panel title={offer.title}>
-            <p className="mb-4 text-sm text-muted">
-              Review your plan, included platform services, and pricing below.
-            </p>
-            <ProposalCommercialSummary
-              offer={offer}
-              items={offer.items}
-              planInclusions={data.client.plan_inclusions}
-              setupInclusions={data.client.setup_inclusions}
-            />
-          </Panel>
-
-          {needsAgreements ? (
-            <Panel title="Review and accept agreements">
+          <ProposalClientView
+            offer={offer}
+            items={offer.items}
+            features={offer.features ?? []}
+            planInclusions={data.client.plan_inclusions}
+            setupInclusions={data.client.setup_inclusions}
+            acceptance={
+              needsAgreements ? (
+                <div>
               <p className="text-sm text-muted">
                 Read the Terms of Service and Statement of Work. When you
                 continue, your acceptance is saved and you will be taken directly
@@ -315,20 +316,24 @@ export function OfferPortal() {
                   ? "Saving your acceptance and opening secure checkout…"
                   : "Accept agreement and continue to secure checkout"}
               </Button>
-            </Panel>
-          ) : null}
-
-          {awaitingCheckout && (checkoutRecovery || error) ? (
-            <Panel title="Secure checkout">
-              <p className="text-sm text-muted">
-                Your agreement is on file. Continue to Stripe to add your payment
-                method and complete setup.
-              </p>
-              <div className="mt-4">
-                <OfferCheckoutButton label="Continue to secure checkout" />
-              </div>
-            </Panel>
-          ) : null}
+                </div>
+              ) : awaitingCheckout && (checkoutRecovery || error) ? (
+                <div>
+                  <p className="text-sm text-muted">
+                    Your agreement is on file. Continue to Stripe to add your
+                    payment method and complete setup.
+                  </p>
+                  <div className="mt-4">
+                    <OfferCheckoutButton label="Continue to secure checkout" />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">
+                  Your acceptance and checkout status will appear here.
+                </p>
+              )
+            }
+          />
         </>
       )}
 

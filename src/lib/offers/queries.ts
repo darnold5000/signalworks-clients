@@ -1,6 +1,7 @@
 import type {
   ClientOffer,
   ClientOfferItem,
+  ClientOfferFeature,
   LegalDocument,
 } from "@/lib/database/phase1-types";
 import {
@@ -15,7 +16,10 @@ import {
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
-export type OfferWithItems = ClientOffer & { items: ClientOfferItem[] };
+export type OfferWithItems = ClientOffer & {
+  items: ClientOfferItem[];
+  features: ClientOfferFeature[];
+};
 
 export async function listOffersForTenant(
   tenantId: string,
@@ -44,9 +48,23 @@ export async function listOffersForTenant(
     itemsByOffer.set(offerId, list);
   }
 
+  const { data: features } = await supabase
+    .from(TABLES.clientOfferFeatures)
+    .select("*")
+    .in("offer_id", offerIds)
+    .order("sort_order", { ascending: true });
+  const featuresByOffer = new Map<string, ClientOfferFeature[]>();
+  for (const feature of features ?? []) {
+    const offerId = feature.offer_id as string;
+    const list = featuresByOffer.get(offerId) ?? [];
+    list.push(feature as ClientOfferFeature);
+    featuresByOffer.set(offerId, list);
+  }
+
   return offers.map((offer) => ({
     ...(offer as ClientOffer),
     items: itemsByOffer.get(offer.id as string) ?? [],
+    features: featuresByOffer.get(offer.id as string) ?? [],
   }));
 }
 
@@ -68,9 +86,16 @@ export async function getOfferWithItems(
     .eq("offer_id", offerId)
     .order("sort_order", { ascending: true });
 
+  const { data: features } = await supabase
+    .from(TABLES.clientOfferFeatures)
+    .select("*")
+    .eq("offer_id", offerId)
+    .order("sort_order", { ascending: true });
+
   return {
     ...(offer as ClientOffer),
     items: (items as ClientOfferItem[]) ?? [],
+    features: (features as ClientOfferFeature[]) ?? [],
   };
 }
 

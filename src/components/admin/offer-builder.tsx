@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type {
   ClientOffer,
+  ClientOfferFeature,
   ClientOfferItem,
   ClientOfferItemType,
 } from "@/lib/database/phase1-types";
@@ -14,7 +15,10 @@ import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 import { formatOfferLineItemSubtitle } from "@/lib/offers/format-offer-line-item-meta";
 
-type OfferWithItems = ClientOffer & { items: ClientOfferItem[] };
+type OfferWithItems = ClientOffer & {
+  items: ClientOfferItem[];
+  features: ClientOfferFeature[];
+};
 
 type ItemFormState = {
   itemType: ClientOfferItemType;
@@ -72,7 +76,9 @@ export function OfferBuilder({
     initialOffers[0]?.id ?? null,
   );
   const [title, setTitle] = useState("");
+  const [shortSummary, setShortSummary] = useState("");
   const [description, setDescription] = useState("");
+  const [newFeature, setNewFeature] = useState("");
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_ITEM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +108,14 @@ export function OfferBuilder({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title || "Client proposal",
+          shortSummary: shortSummary || undefined,
           description: description || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not create offer");
       setTitle("");
+      setShortSummary("");
       setDescription("");
       await refreshOffers(data.offer.id);
       setMessage("Draft offer created.");
@@ -116,6 +124,103 @@ export function OfferBuilder({
     } finally {
       setBusy(false);
     }
+  }
+
+  function updateSelected(patch: Partial<OfferWithItems>) {
+    if (!selected) return;
+    setOffers((current) =>
+      current.map((offer) =>
+        offer.id === selected.id ? { ...offer, ...patch } : offer,
+      ),
+    );
+  }
+
+  async function saveProposal(): Promise<boolean> {
+    if (!selected || selected.status !== "draft") return false;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/clients/${tenantId}/offers/${selected.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: selected.title,
+            shortSummary: selected.short_summary ?? "",
+            description: selected.description ?? "",
+            features: selected.features.map((feature) => feature.label),
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not save proposal");
+      await refreshOffers(selected.id);
+      setMessage("Draft saved.");
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save proposal");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewAsClient() {
+    if (!selected || selected.status !== "draft") return;
+    const previewWindow = window.open("about:blank", "_blank");
+    if (previewWindow) previewWindow.opener = null;
+    const saved = await saveProposal();
+    if (!saved) {
+      previewWindow?.close();
+      return;
+    }
+    const previewUrl = `/proposal-preview/${tenantId}/${selected.id}`;
+    if (previewWindow) previewWindow.location.href = previewUrl;
+    else window.open(previewUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function addFeature() {
+    if (!selected) return;
+    const label = newFeature.trim();
+    if (!label) return;
+    const feature: ClientOfferFeature = {
+      id: crypto.randomUUID(),
+      offer_id: selected.id,
+      tenant_id: tenantId,
+      label,
+      sort_order: selected.features.length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    updateSelected({ features: [...selected.features, feature] });
+    setNewFeature("");
+  }
+
+  function updateFeature(index: number, label: string) {
+    if (!selected) return;
+    updateSelected({
+      features: selected.features.map((feature, featureIndex) =>
+        featureIndex === index ? { ...feature, label } : feature,
+      ),
+    });
+  }
+
+  function removeFeature(index: number) {
+    if (!selected) return;
+    updateSelected({
+      features: selected.features.filter((_, featureIndex) => featureIndex !== index),
+    });
+  }
+
+  function moveFeature(index: number, direction: -1 | 1) {
+    if (!selected) return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= selected.features.length) return;
+    const features = [...selected.features];
+    [features[index], features[nextIndex]] = [features[nextIndex], features[index]];
+    updateSelected({ features });
   }
 
   async function addItem() {
@@ -199,6 +304,7 @@ export function OfferBuilder({
 
   async function publishOffer() {
     if (!selected) return;
+    if (!(await saveProposal())) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -229,10 +335,17 @@ export function OfferBuilder({
             className="rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
           <input
+            value={shortSummary}
+            onChange={(e) => setShortSummary(e.target.value)}
+            placeholder="Short summary (optional)"
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+          />
+          <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Short description (optional)"
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            placeholder="Detailed description / scope (optional)"
+            rows={4}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm md:col-span-2"
           />
         </div>
         <Button className="mt-4" onClick={createOffer} disabled={busy}>
@@ -295,6 +408,152 @@ export function OfferBuilder({
                     )}
                   </span>
                 </div>
+
+                {selected.status === "draft" ? (
+                  <div className="mb-6 space-y-5 border-b border-border pb-6">
+                    <div className="grid gap-3">
+                      <label className="text-sm">
+                        <span className="mb-1 block text-xs font-medium text-muted">
+                          Proposal title
+                        </span>
+                        <input
+                          required
+                          value={selected.title}
+                          onChange={(event) =>
+                            updateSelected({ title: event.target.value })
+                          }
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        <span className="mb-1 block text-xs font-medium text-muted">
+                          Short summary
+                        </span>
+                        <input
+                          value={selected.short_summary ?? ""}
+                          onChange={(event) =>
+                            updateSelected({
+                              short_summary: event.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        <span className="mb-1 block text-xs font-medium text-muted">
+                          Detailed description / overview
+                        </span>
+                        <textarea
+                          value={selected.description ?? ""}
+                          onChange={(event) =>
+                            updateSelected({ description: event.target.value })
+                          }
+                          rows={6}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold">What&apos;s Included</h3>
+                      <div className="mt-3 space-y-2">
+                        {selected.features.map((feature, index) => (
+                          <div key={feature.id} className="flex items-center gap-2">
+                            <span className="text-success" aria-hidden="true">
+                              ✓
+                            </span>
+                            <input
+                              value={feature.label}
+                              onChange={(event) =>
+                                updateFeature(index, event.target.value)
+                              }
+                              className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                              aria-label={`Feature ${index + 1}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => moveFeature(index, -1)}
+                              disabled={index === 0}
+                              className="px-1 text-sm text-muted disabled:opacity-30"
+                              aria-label={`Move ${feature.label} up`}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveFeature(index, 1)}
+                              disabled={index === selected.features.length - 1}
+                              className="px-1 text-sm text-muted disabled:opacity-30"
+                              aria-label={`Move ${feature.label} down`}
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeFeature(index)}
+                              className="text-xs text-muted hover:text-danger"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          value={newFeature}
+                          onChange={(event) => setNewFeature(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addFeature();
+                            }
+                          }}
+                          placeholder="Add feature"
+                          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                        <Button type="button" variant="secondary" onClick={addFeature}>
+                          Add feature
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void saveProposal()}
+                        disabled={busy || selected.title.trim().length < 2}
+                      >
+                        Save draft
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => void previewAsClient()}
+                        disabled={busy || selected.title.trim().length < 2}
+                      >
+                        Preview as Client ↗
+                      </Button>
+                    </div>
+                  </div>
+                ) : selected.description || selected.features.length > 0 ? (
+                  <div className="mb-6 border-b border-border pb-6 text-sm">
+                    {selected.short_summary ? (
+                      <p className="font-medium">{selected.short_summary}</p>
+                    ) : null}
+                    {selected.description ? (
+                      <p className="mt-2 whitespace-pre-wrap text-muted">
+                        {selected.description}
+                      </p>
+                    ) : null}
+                    {selected.features.length > 0 ? (
+                      <ul className="mt-3 space-y-1">
+                        {selected.features.map((feature) => (
+                          <li key={feature.id}>✓ {feature.label}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {selected.items.length === 0 ? (
                   <p className="text-sm text-muted">No line items yet.</p>

@@ -15,6 +15,7 @@ export const TABLES = {
   legalDocuments: "legal_documents",
   clientOffers: "client_offers",
   clientOfferItems: "client_offer_items",
+  clientOfferFeatures: "client_offer_features",
   purchases: "purchases",
   purchaseItems: "purchase_items",
   agreementAcceptances: "agreement_acceptances",

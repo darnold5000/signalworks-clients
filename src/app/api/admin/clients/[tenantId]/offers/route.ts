@@ -8,6 +8,7 @@ import { TABLES } from "@/lib/supabase/tables";
 
 const createSchema = z.object({
   title: z.string().trim().min(2).max(200),
+  shortSummary: z.string().trim().max(500).optional(),
   description: z.string().trim().max(5000).optional(),
   currency: z.string().trim().length(3).default("usd"),
   requiresTermsAcceptance: z.boolean().default(true),
@@ -47,6 +48,7 @@ export async function POST(
     .insert({
       tenant_id: tenantId,
       title: parsed.data.title,
+      short_summary: parsed.data.shortSummary ?? null,
       description: parsed.data.description ?? null,
       currency: parsed.data.currency.toLowerCase(),
       requires_terms_acceptance: parsed.data.requiresTermsAcceptance,
