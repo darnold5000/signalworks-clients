@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProposalClientView } from "@/components/portal/proposal-client-view";
-import { getAdminClientBundle } from "@/lib/admin/client-records";
 import { requireAdmin } from "@/lib/auth";
 import { getOfferWithItems } from "@/lib/offers/queries";
 
@@ -12,16 +11,8 @@ export default async function ProposalPreviewPage({
 }) {
   await requireAdmin();
   const { tenantId, offerId } = await params;
-  const [offer, bundle] = await Promise.all([
-    getOfferWithItems(offerId),
-    getAdminClientBundle(tenantId),
-  ]);
-  if (
-    !offer ||
-    !bundle ||
-    offer.tenant_id !== tenantId ||
-    offer.status !== "draft"
-  ) {
+  const offer = await getOfferWithItems(offerId);
+  if (!offer || offer.tenant_id !== tenantId || offer.status !== "draft") {
     notFound();
   }
 
@@ -49,8 +40,6 @@ export default async function ProposalPreviewPage({
           offer={offer}
           items={offer.items}
           features={offer.features}
-          planInclusions={bundle.client.plan_inclusions}
-          setupInclusions={bundle.client.setup_inclusions}
           preview
         />
       </div>

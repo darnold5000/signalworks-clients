@@ -232,6 +232,8 @@ export type ClientOffer = {
   tenant_id: string;
   title: string;
   short_summary?: string | null;
+  plan_inclusions?: string[] | null;
+  setup_inclusions?: string[] | null;
   description: string | null;
   status: ClientOfferStatus;
   currency: string;

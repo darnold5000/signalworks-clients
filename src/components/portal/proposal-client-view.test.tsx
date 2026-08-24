@@ -90,4 +90,124 @@ describe("ProposalClientView", () => {
     expect(html).not.toContain("prod_internal");
     expect(html).not.toContain("catalog_internal");
   });
+
+  it("renders a title-only draft without inherited inclusions or fake totals", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={{
+          ...offer,
+          title: "Title only",
+          short_summary: null,
+          description: null,
+          plan_inclusions: null,
+          setup_inclusions: null,
+        }}
+        items={[]}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Title only");
+    expect(html).not.toContain("Overview");
+    expect(html).not.toContain("What&#x27;s Included");
+    expect(html).not.toContain("Included with This Plan");
+    expect(html).not.toContain("Included Setup");
+    expect(html).not.toContain("Recurring monthly");
+    expect(html).not.toContain("Due today");
+    expect(html).not.toContain("$0.00");
+  });
+
+  it("renders only title and offer-owned description for an empty draft", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={{
+          ...offer,
+          title: "Draft title",
+          short_summary: null,
+          description: "Draft-specific description",
+          plan_inclusions: [],
+          setup_inclusions: [],
+        }}
+        items={[]}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Draft title");
+    expect(html).toContain("Draft-specific description");
+    expect(html).not.toContain("Website Security");
+    expect(html).not.toContain("Business Email Setup");
+  });
+
+  it("preserves inclusions explicitly snapshotted on a purchased offer", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={{
+          ...offer,
+          status: "purchased",
+          plan_inclusions: ["Historical hosting"],
+          setup_inclusions: ["Historical migration"],
+        }}
+        items={[item]}
+        features={[]}
+      />,
+    );
+
+    expect(html).toContain("Historical hosting");
+    expect(html).toContain("Historical migration");
+  });
+
+  it("renders only features attached to an add-on draft", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={{
+          ...offer,
+          plan_inclusions: [],
+          setup_inclusions: [],
+        }}
+        items={[item]}
+        features={features}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Apple Health integration");
+    expect(html).not.toContain("Website");
+    expect(html).not.toContain("Domain Transfer");
+  });
+
+  it("uses identical offer content in preview and the real client view", () => {
+    const previewHtml = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[item]}
+        features={features}
+        preview
+      />,
+    );
+    const clientHtml = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[item]}
+        features={features}
+        acceptance={<button type="button">Continue to checkout</button>}
+      />,
+    );
+
+    for (const content of [
+      "Mobile Apps with Wearables",
+      "Connected health and workout activity.",
+      "Connected coaching insights.",
+      "Apple Health integration",
+      "Connected Health Platform",
+      "$99.00",
+    ]) {
+      expect(previewHtml).toContain(content);
+      expect(clientHtml).toContain(content);
+    }
+    expect(previewHtml).toContain("Checkout disabled in preview mode");
+    expect(clientHtml).toContain("Continue to checkout");
+  });
 });

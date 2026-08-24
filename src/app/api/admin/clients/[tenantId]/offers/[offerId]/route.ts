@@ -267,6 +267,15 @@ export async function DELETE(
     );
   }
 
-  await supabase.from(TABLES.clientOffers).delete().eq("id", offerId);
+  const { error } = await supabase
+    .from(TABLES.clientOffers)
+    .delete()
+    .eq("id", offerId);
+  if (error) {
+    return NextResponse.json(
+      { error: "Could not delete draft offer" },
+      { status: 400 },
+    );
+  }
   return NextResponse.json({ ok: true });
 }

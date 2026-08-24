@@ -231,8 +231,6 @@ export function OfferPortal() {
             offer={offer}
             items={offer.items}
             features={offer.features ?? []}
-            planInclusions={data.client.plan_inclusions}
-            setupInclusions={data.client.setup_inclusions}
             acceptance={
               needsAgreements ? (
                 <div>

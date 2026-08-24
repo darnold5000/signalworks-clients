@@ -50,6 +50,8 @@ export async function POST(
       title: parsed.data.title,
       short_summary: parsed.data.shortSummary ?? null,
       description: parsed.data.description ?? null,
+      plan_inclusions: [],
+      setup_inclusions: [],
       currency: parsed.data.currency.toLowerCase(),
       requires_terms_acceptance: parsed.data.requiresTermsAcceptance,
       status: "draft",

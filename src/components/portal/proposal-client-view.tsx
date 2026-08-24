@@ -36,16 +36,12 @@ export function ProposalClientView({
   features,
   preview = false,
   acceptance,
-  planInclusions = [],
-  setupInclusions = [],
 }: {
   offer: ClientOffer;
   items: ClientOfferItem[];
   features: ClientOfferFeature[];
   preview?: boolean;
   acceptance?: React.ReactNode;
-  planInclusions?: string[];
-  setupInclusions?: string[];
 }) {
   const totals = calculateOfferTotals(items);
   const billableItems = items.filter(
@@ -56,6 +52,8 @@ export function ProposalClientView({
       !isEntitlementOfferItem(item),
   );
   const dueToday = calculateAmountDueFirstCycle(totals);
+  const planInclusions = offer.plan_inclusions ?? [];
+  const setupInclusions = offer.setup_inclusions ?? [];
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
@@ -193,42 +191,46 @@ export function ProposalClientView({
             )}
           </div>
 
-          <dl className="mt-5 ml-auto max-w-md space-y-2 text-sm">
-            <div className="flex justify-between gap-6">
-              <dt className="text-muted">One-time</dt>
-              <dd className="font-medium">
-                {formatMoney(totals.initial_total_cents, offer.currency)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-6">
-              <dt className="text-muted">Recurring monthly</dt>
-              <dd className="font-medium">
-                {formatMoney(totals.recurring_total_cents, offer.currency)}/mo
-              </dd>
-            </div>
-            <div className="flex justify-between gap-6 border-t border-border pt-3 text-base">
-              <dt className="font-semibold">Due today</dt>
-              <dd className="font-semibold">
-                {formatMoney(dueToday, offer.currency)}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="rounded-xl bg-background p-4 text-sm text-muted">
-          <h2 className="font-medium text-foreground">Proposal terms</h2>
-          <p className="mt-2 leading-6">
-            One-time charges are due at checkout. Recurring services renew at
-            the billing frequency shown above until canceled under the
-            applicable agreement.
-          </p>
-          {offer.requires_terms_acceptance ? (
-            <p className="mt-2 leading-6">
-              Acceptance of the applicable Terms of Service and Statement of
-              Work is required before payment.
-            </p>
+          {billableItems.length > 0 ? (
+            <dl className="mt-5 ml-auto max-w-md space-y-2 text-sm">
+              <div className="flex justify-between gap-6">
+                <dt className="text-muted">One-time</dt>
+                <dd className="font-medium">
+                  {formatMoney(totals.initial_total_cents, offer.currency)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-6">
+                <dt className="text-muted">Recurring monthly</dt>
+                <dd className="font-medium">
+                  {formatMoney(totals.recurring_total_cents, offer.currency)}/mo
+                </dd>
+              </div>
+              <div className="flex justify-between gap-6 border-t border-border pt-3 text-base">
+                <dt className="font-semibold">Due today</dt>
+                <dd className="font-semibold">
+                  {formatMoney(dueToday, offer.currency)}
+                </dd>
+              </div>
+            </dl>
           ) : null}
         </section>
+
+        {billableItems.length > 0 ? (
+          <section className="rounded-xl bg-background p-4 text-sm text-muted">
+            <h2 className="font-medium text-foreground">Proposal terms</h2>
+            <p className="mt-2 leading-6">
+              One-time charges are due at checkout. Recurring services renew at
+              the billing frequency shown above until canceled under the
+              applicable agreement.
+            </p>
+            {offer.requires_terms_acceptance ? (
+              <p className="mt-2 leading-6">
+                Acceptance of the applicable Terms of Service and Statement of
+                Work is required before payment.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section>
           <h2 className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">

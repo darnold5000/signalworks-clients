@@ -1,16 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdmin, getOfferWithItems, getAdminClientBundle, createCheckout } = vi.hoisted(() => ({
+const { requireAdmin, getOfferWithItems, createCheckout } = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   getOfferWithItems: vi.fn(),
-  getAdminClientBundle: vi.fn(),
   createCheckout: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireAdmin }));
 vi.mock("@/lib/offers/queries", () => ({ getOfferWithItems }));
-vi.mock("@/lib/admin/client-records", () => ({ getAdminClientBundle }));
 vi.mock("@/lib/offers/checkout", () => ({
   createOfferCheckoutSession: createCheckout,
 }));
@@ -37,12 +35,6 @@ describe("proposal preview route", () => {
       items: [],
       features: [],
     });
-    getAdminClientBundle.mockResolvedValue({
-      client: {
-        plan_inclusions: ["Website Security"],
-        setup_inclusions: ["Domain Transfer"],
-      },
-    });
   });
 
   it("is admin-only and renders a draft without billing side effects", async () => {
@@ -53,11 +45,12 @@ describe("proposal preview route", () => {
 
     expect(requireAdmin).toHaveBeenCalledOnce();
     expect(getOfferWithItems).toHaveBeenCalledWith("offer-1");
-    expect(getAdminClientBundle).toHaveBeenCalledWith("tenant-1");
     expect(createCheckout).not.toHaveBeenCalled();
     expect(html).toContain("Preview mode");
     expect(html).toContain("Checkout disabled in preview mode");
-    expect(html).toContain("Website Security");
-    expect(html).toContain("Domain Transfer");
+    expect(html).not.toContain("Website Security");
+    expect(html).not.toContain("Domain Transfer");
+    expect(html).not.toContain("Recurring monthly");
+    expect(html).not.toContain("$0.00");
   });
 });

@@ -181,6 +181,35 @@ export function OfferBuilder({
     else window.open(previewUrl, "_blank", "noopener,noreferrer");
   }
 
+  async function deleteDraft() {
+    if (!selected || selected.status !== "draft") return;
+    const confirmed = window.confirm(
+      "Delete proposal?\n\nThis will permanently delete this draft and its line items. No billing will be affected.",
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        `/api/admin/clients/${tenantId}/offers/${selected.id}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not delete draft");
+
+      const remainingOffers = offers.filter((offer) => offer.id !== selected.id);
+      setOffers(remainingOffers);
+      setSelectedId(remainingOffers[0]?.id ?? null);
+      setMessage("Draft proposal deleted. No billing was affected.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete draft");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function addFeature() {
     if (!selected) return;
     const label = newFeature.trim();
@@ -532,6 +561,15 @@ export function OfferBuilder({
                         disabled={busy || selected.title.trim().length < 2}
                       >
                         Preview as Client ↗
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-danger hover:text-danger"
+                        onClick={() => void deleteDraft()}
+                        disabled={busy}
+                      >
+                        Delete draft
                       </Button>
                     </div>
                   </div>
