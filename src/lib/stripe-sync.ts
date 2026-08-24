@@ -11,6 +11,54 @@ import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
 import type { ClientStatus, SubscriptionStatus } from "@/lib/types";
 
+export function resolveAggregateTenantStatus(
+  statuses: SubscriptionStatus[],
+): ClientStatus | null {
+  if (statuses.some((status) => status === "active" || status === "trialing")) {
+    return "active";
+  }
+  if (
+    statuses.some(
+      (status) =>
+        status === "past_due" ||
+        status === "unpaid" ||
+        status === "incomplete",
+    )
+  ) {
+    return "past_due";
+  }
+  const billableStatuses = statuses.filter((status) => status !== "none");
+  if (
+    billableStatuses.length > 0 &&
+    billableStatuses.every((status) => status === "canceled")
+  ) {
+    return "canceled";
+  }
+  return null;
+}
+
+export function basePlanFromPurchaseSnapshot(
+  snapshot: unknown,
+): { name: string; monthlyPriceCents: number } | null {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const items = (snapshot as Record<string, unknown>).items;
+  if (!Array.isArray(items)) return null;
+  const basePlan = items.find(
+    (item) =>
+      item &&
+      typeof item === "object" &&
+      (item as Record<string, unknown>).item_type === "base_plan" &&
+      (item as Record<string, unknown>).is_selected !== false,
+  ) as Record<string, unknown> | undefined;
+  if (!basePlan || typeof basePlan.unit_amount_cents !== "number") return null;
+  const quantity =
+    typeof basePlan.quantity === "number" ? basePlan.quantity : 1;
+  return {
+    name: typeof basePlan.name === "string" ? basePlan.name : "Plan",
+    monthlyPriceCents: basePlan.unit_amount_cents * quantity,
+  };
+}
+
 function mapSubStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
   switch (status) {
     case "active":
@@ -98,6 +146,24 @@ async function upsertTenantSubscription(
     tenant_id: args.tenantId,
     ...args.payload,
   });
+}
+
+async function updateAggregateTenantStatus(
+  supabase: ReturnType<typeof createServiceClient>,
+  tenantId: string,
+) {
+  const { data } = await supabase
+    .from(TABLES.tenantSubscriptions)
+    .select("subscription_status")
+    .eq("tenant_id", tenantId);
+  const status = resolveAggregateTenantStatus(
+    (data ?? []).map(
+      (row) => (row.subscription_status ?? "none") as SubscriptionStatus,
+    ),
+  );
+  if (status) {
+    await supabase.from(TABLES.tenants).update({ status }).eq("id", tenantId);
+  }
 }
 
 export async function syncClientFromCheckoutSession(
@@ -228,15 +294,19 @@ export async function syncClientFromCheckoutSession(
     } else if (purchaseId) {
       const { data: purchase } = await supabase
         .from(TABLES.purchases)
-        .select("recurring_total_cents, purchase_snapshot")
+        .select("purchase_snapshot")
         .eq("id", purchaseId)
         .maybeSingle();
 
-      if (purchase?.recurring_total_cents) {
+      const basePlan = basePlanFromPurchaseSnapshot(
+        purchase?.purchase_snapshot,
+      );
+      if (basePlan) {
         await supabase
           .from(TABLES.tenantPortalSettings)
           .update({
-            monthly_price_cents: purchase.recurring_total_cents,
+            plan_name: basePlan.name,
+            monthly_price_cents: basePlan.monthlyPriceCents,
           })
           .eq("tenant_id", tenantId);
       }
@@ -319,13 +389,6 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
   };
 
   const tenantId = sub.metadata?.tenant_id || sub.metadata?.client_id;
-  const tenantStatus: ClientStatus =
-    sub.status === "past_due"
-      ? "past_due"
-      : sub.status === "canceled"
-        ? "canceled"
-        : "active";
-
   if (tenantId) {
     await upsertTenantSubscription(supabase, {
       tenantId,
@@ -333,10 +396,7 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
       payload: subscriptionPayload,
     });
 
-    await supabase
-      .from(TABLES.tenants)
-      .update({ status: tenantStatus })
-      .eq("id", tenantId);
+    await updateAggregateTenantStatus(supabase, tenantId);
 
     if (plan) {
       await supabase
@@ -364,38 +424,37 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
     .maybeSingle();
 
   if (subRow?.tenant_id) {
-    await supabase
-      .from(TABLES.tenants)
-      .update({ status: tenantStatus })
-      .eq("id", subRow.tenant_id);
+    await updateAggregateTenantStatus(supabase, subRow.tenant_id as string);
   }
 }
 
 export async function syncTenantBillingStatus(
   stripeCustomerId: string,
   subscriptionStatus: SubscriptionStatus,
-  tenantStatus: ClientStatus,
+  stripeSubscriptionId?: string | null,
 ) {
   if (!isSupabaseConfigured()) return;
 
   const supabase = createServiceClient();
-  const { data: subRow } = await supabase
+  const { data: subRows } = await supabase
     .from(TABLES.tenantSubscriptions)
-    .select("tenant_id")
+    .select("tenant_id, stripe_subscription_id")
     .eq("stripe_customer_id", stripeCustomerId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("updated_at", { ascending: false });
 
-  if (!subRow?.tenant_id) return;
+  const subRow = stripeSubscriptionId
+    ? subRows?.find(
+        (row) => row.stripe_subscription_id === stripeSubscriptionId,
+      )
+    : subRows?.length === 1
+      ? subRows[0]
+      : null;
+  if (!subRow?.tenant_id || !subRow.stripe_subscription_id) return;
 
   await supabase
     .from(TABLES.tenantSubscriptions)
     .update({ subscription_status: subscriptionStatus })
-    .eq("stripe_customer_id", stripeCustomerId);
+    .eq("stripe_subscription_id", subRow.stripe_subscription_id);
 
-  await supabase
-    .from(TABLES.tenants)
-    .update({ status: tenantStatus })
-    .eq("id", subRow.tenant_id);
+  await updateAggregateTenantStatus(supabase, subRow.tenant_id as string);
 }

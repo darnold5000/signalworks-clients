@@ -244,6 +244,7 @@ export function TechnicalProfileForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [newIntegrationName, setNewIntegrationName] = useState("");
 
   function setField(key: string, value: unknown) {
     setSaved(false);
@@ -283,16 +284,22 @@ export function TechnicalProfileForm({
 
   function setIntegration(
     key: string,
-    patch: Partial<{ enabled: boolean; account_owner: string; notes: string }>,
+    patch: Partial<{
+      enabled: boolean;
+      name: string;
+      account_owner: string;
+      notes: string;
+    }>,
   ) {
     setSaved(false);
     setForm((prev) => {
       const current = (prev.api_integrations as Record<
         string,
-        { enabled: boolean; account_owner: string; notes: string }
+        { enabled: boolean; name: string; account_owner: string; notes: string }
       >) ?? {};
       const entry = current[key] ?? {
         enabled: false,
+        name: "",
         account_owner: "",
         notes: "",
       };
@@ -303,6 +310,33 @@ export function TechnicalProfileForm({
           [key]: { ...entry, ...patch },
         },
       };
+    });
+  }
+
+  function addIntegration() {
+    const name = newIntegrationName.trim();
+    if (!name) return;
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    const baseKey = `custom_${slug || "integration"}`;
+    let key = baseKey;
+    let suffix = 2;
+    const current = (form.api_integrations ?? {}) as Record<string, unknown>;
+    while (current[key]) key = `${baseKey}_${suffix++}`;
+    setIntegration(key, { enabled: true, name });
+    setNewIntegrationName("");
+  }
+
+  function removeIntegration(key: string) {
+    setSaved(false);
+    setForm((prev) => {
+      const current = {
+        ...((prev.api_integrations ?? {}) as Record<string, unknown>),
+      };
+      delete current[key];
+      return { ...prev, api_integrations: current };
     });
   }
 
@@ -355,8 +389,17 @@ export function TechnicalProfileForm({
   >;
   const integrations = (form.api_integrations ?? {}) as Record<
     string,
-    { enabled: boolean; account_owner: string; notes: string }
+    { enabled: boolean; name?: string; account_owner: string; notes: string }
   >;
+  const integrationKeys = [
+    ...THIRD_PARTY_INTEGRATION_KEYS,
+    ...Object.keys(integrations).filter(
+      (key) =>
+        !THIRD_PARTY_INTEGRATION_KEYS.includes(
+          key as (typeof THIRD_PARTY_INTEGRATION_KEYS)[number],
+        ),
+    ),
+  ];
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -614,19 +657,37 @@ export function TechnicalProfileForm({
 
       <Panel title="4. Third-party integrations">
         <div className="space-y-3">
-          {THIRD_PARTY_INTEGRATION_KEYS.map((key) => {
+          {integrationKeys.map((key) => {
             const entry = integrations[key] ?? {
               enabled: false,
+              name: "",
               account_owner: "",
               notes: "",
             };
             return (
               <div key={key} className="rounded-lg border border-border p-3">
-                <CheckboxField
-                  label={THIRD_PARTY_INTEGRATION_LABELS[key]}
-                  checked={entry.enabled}
-                  onChange={(v) => setIntegration(key, { enabled: v })}
-                />
+                <div className="flex items-center justify-between gap-3">
+                  <CheckboxField
+                    label={
+                      entry.name ||
+                      THIRD_PARTY_INTEGRATION_LABELS[
+                        key as keyof typeof THIRD_PARTY_INTEGRATION_LABELS
+                      ] ||
+                      key
+                    }
+                    checked={entry.enabled}
+                    onChange={(v) => setIntegration(key, { enabled: v })}
+                  />
+                  {key.startsWith("custom_") ? (
+                    <button
+                      type="button"
+                      onClick={() => removeIntegration(key)}
+                      className="text-xs text-muted hover:text-danger"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
                 {entry.enabled ? (
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <TextField
@@ -646,6 +707,24 @@ export function TechnicalProfileForm({
               </div>
             );
           })}
+          <div className="flex gap-2 pt-1">
+            <input
+              className={inputClassName}
+              value={newIntegrationName}
+              onChange={(event) => setNewIntegrationName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addIntegration();
+                }
+              }}
+              placeholder="Integration name"
+              aria-label="Integration name"
+            />
+            <Button type="button" variant="secondary" onClick={addIntegration}>
+              Add integration
+            </Button>
+          </div>
         </div>
       </Panel>
 

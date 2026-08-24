@@ -16,6 +16,12 @@ function customerId(customer: string | Stripe.Customer | Stripe.DeletedCustomer)
   return typeof customer === "string" ? customer : customer.id;
 }
 
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const subscription = invoice.parent?.subscription_details?.subscription;
+  if (!subscription) return null;
+  return typeof subscription === "string" ? subscription : subscription.id;
+}
+
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
     return NextResponse.json(
@@ -83,7 +89,7 @@ export async function POST(request: Request) {
           await syncTenantBillingStatus(
             customerId(invoice.customer),
             "past_due",
-            "past_due",
+            invoiceSubscriptionId(invoice),
           );
         }
         break;
@@ -92,19 +98,15 @@ export async function POST(request: Request) {
         const invoice = event.data.object as Stripe.Invoice;
         if (isSupabaseConfigured() && invoice.customer) {
           const cid = customerId(invoice.customer);
-          await syncTenantBillingStatus(cid, "active", "active");
-          if (stripe) {
+          const subscriptionId = invoiceSubscriptionId(invoice);
+          if (stripe && subscriptionId) {
             try {
-              const subs = await stripe.subscriptions.list({
-                customer: cid,
-                status: "active",
-                limit: 1,
-              });
-              if (subs.data[0]) {
-                await syncClientFromSubscription(subs.data[0]);
-              }
+              const subscription =
+                await stripe.subscriptions.retrieve(subscriptionId);
+              await syncClientFromSubscription(subscription);
             } catch (syncError) {
               console.error("webhook.invoice.paid.subscriptionSync", syncError);
+              await syncTenantBillingStatus(cid, "active", subscriptionId);
             }
           }
         }

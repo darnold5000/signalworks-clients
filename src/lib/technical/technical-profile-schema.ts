@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   ACCESS_VENDOR_KEYS,
   SERVICE_OWNERSHIP_KEYS,
-  THIRD_PARTY_INTEGRATION_KEYS,
 } from "@/lib/technical/operations-inventory";
 
 const optionalString = z
@@ -51,21 +50,15 @@ const accessStatusSchema = z
 
 const apiIntegrationEntrySchema = z.object({
   enabled: z.boolean(),
+  name: optionalString,
   account_owner: optionalString,
   notes: optionalString,
 });
 
 const apiIntegrationsSchema = z
-  .record(z.string(), apiIntegrationEntrySchema)
+  .record(z.string().regex(/^[a-z0-9_]{1,80}$/), apiIntegrationEntrySchema)
   .optional()
-  .transform((raw) => {
-    if (!raw) return {};
-    const out: Record<string, z.infer<typeof apiIntegrationEntrySchema>> = {};
-    for (const key of THIRD_PARTY_INTEGRATION_KEYS) {
-      if (raw[key]) out[key] = raw[key];
-    }
-    return out;
-  });
+  .transform((raw) => raw ?? {});
 
 const businessServicesSchema = z.record(z.string(), z.unknown()).optional();
 

@@ -212,6 +212,7 @@ export const THIRD_PARTY_INTEGRATION_LABELS: Record<
 
 export type ThirdPartyIntegrationEntry = {
   enabled: boolean;
+  name: string | null;
   account_owner: string | null;
   notes: string | null;
 };
@@ -335,17 +336,15 @@ export function parseAccessStatus(
 
 export function parseThirdPartyIntegrations(
   raw: unknown,
-): Partial<Record<ThirdPartyIntegrationKey, ThirdPartyIntegrationEntry>> {
+): Record<string, ThirdPartyIntegrationEntry> {
   if (!raw || typeof raw !== "object") return {};
-  const out: Partial<
-    Record<ThirdPartyIntegrationKey, ThirdPartyIntegrationEntry>
-  > = {};
-  for (const key of THIRD_PARTY_INTEGRATION_KEYS) {
-    const entry = (raw as Record<string, unknown>)[key];
+  const out: Record<string, ThirdPartyIntegrationEntry> = {};
+  for (const [key, entry] of Object.entries(raw as Record<string, unknown>)) {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
     out[key] = {
       enabled: Boolean(e.enabled),
+      name: typeof e.name === "string" ? e.name : null,
       account_owner:
         typeof e.account_owner === "string" ? e.account_owner : null,
       notes: typeof e.notes === "string" ? e.notes : null,
