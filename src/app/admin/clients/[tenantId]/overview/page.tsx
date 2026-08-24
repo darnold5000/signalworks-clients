@@ -3,7 +3,7 @@ import { AdminBusinessProfileForm } from "@/components/admin/admin-business-prof
 import { AdminPortalWebsiteForm } from "@/components/admin/admin-portal-website-form";
 import { ClientAuditSummaryCard } from "@/components/admin/audits/client-audit-summary-card";
 import { DeleteClientPanel } from "@/components/admin/delete-client-panel";
-import { InternalNotesPanel } from "@/components/admin/admin-client-header";
+import { InternalNotesPanel } from "@/components/admin/internal-notes-panel";
 import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-summary-card";
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
@@ -43,69 +43,75 @@ export default async function AdminClientOverviewPage({
   const websiteUrl = client.website_url ?? profile?.website_url ?? null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <AdminBusinessProfileForm
-        tenantId={tenantId}
-        client={client}
-        profile={profile}
-        portalInvite={portalInvite}
-        startEditing={edit === "1"}
-      />
+    <div className="space-y-6">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          <AdminBusinessProfileForm
+            tenantId={tenantId}
+            client={client}
+            profile={profile}
+            portalInvite={portalInvite}
+            startEditing={edit === "1"}
+          />
 
-      <AdminPortalWebsiteForm client={client} />
-
-      <InfrastructureSummaryCard bundle={bundle} />
-
-      <ClientAuditSummaryCard
-        tenantId={tenantId}
-        websiteUrl={websiteUrl}
-        summary={auditSummary}
-      />
-
-      <Panel title="Account summary">
-        <dl>
-          <MetaRow
-            label="Tenant status"
-            value={
-              <StatusPill
-                label={client.status}
-                tone={client.status === "active" ? "success" : "warning"}
+          <Panel title="Account summary">
+            <dl>
+              <MetaRow
+                label="Tenant status"
+                value={
+                  <StatusPill
+                    label={client.status}
+                    tone={client.status === "active" ? "success" : "warning"}
+                  />
+                }
               />
-            }
-          />
-          <MetaRow
-            label="Website"
-            value={
-              <StatusPill
-                label={client.website_status}
-                tone={client.website_status === "live" ? "success" : "warning"}
+              <MetaRow
+                label="Website"
+                value={
+                  <StatusPill
+                    label={client.website_status}
+                    tone={
+                      client.website_status === "live" ? "success" : "warning"
+                    }
+                  />
+                }
               />
-            }
-          />
-          <MetaRow label="Plan" value={client.plan_name} />
-          <MetaRow
-            label="Monthly price"
-            value={formatMoney(client.monthly_price_cents, client.currency)}
-          />
-          <MetaRow label="Monthly margin" value={formatMoney(margin)} />
-          <MetaRow
-            label="Last deployment"
-            value={formatDate(client.last_deployment_at)}
-          />
-          <MetaRow
-            label="Last request"
-            value={lastRequest?.title ?? "—"}
-          />
-          <MetaRow
-            label="Client since"
-            value={formatDate(client.created_at)}
-          />
-        </dl>
-      </Panel>
+              <MetaRow label="Plan" value={client.plan_name} />
+              <MetaRow
+                label="Monthly price"
+                value={formatMoney(client.monthly_price_cents, client.currency)}
+              />
+              <MetaRow label="Monthly margin" value={formatMoney(margin)} />
+              <MetaRow
+                label="Last deployment"
+                value={formatDate(client.last_deployment_at)}
+              />
+              <MetaRow
+                label="Last request"
+                value={lastRequest?.title ?? "—"}
+              />
+              <MetaRow
+                label="Client since"
+                value={formatDate(client.created_at)}
+              />
+            </dl>
+          </Panel>
 
-      <InternalNotesPanel bundle={bundle} />
+          <InternalNotesPanel client={client} />
+        </div>
 
-      <Panel title="Service requests" className="lg:col-span-2">
+        <div className="space-y-6">
+          <AdminPortalWebsiteForm client={client} />
+          <InfrastructureSummaryCard bundle={bundle} />
+          <ClientAuditSummaryCard
+            tenantId={tenantId}
+            websiteUrl={websiteUrl}
+            summary={auditSummary}
+          />
+        </div>
+      </div>
+
+      <Panel title="Service requests">
         {requests.length === 0 ? (
           <p className="text-sm text-muted">No requests.</p>
         ) : (
@@ -140,7 +146,7 @@ export default async function AdminClientOverviewPage({
 
       <div
         id="delete-client"
-        className="scroll-mt-8 border-t border-border pt-8 lg:col-span-2"
+        className="scroll-mt-8 border-t border-border pt-8"
       >
         <DeleteClientPanel
           tenantId={tenantId}

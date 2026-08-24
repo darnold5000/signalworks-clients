@@ -41,6 +41,7 @@ export async function updateTenantPortalWebsiteSettings(
   if (input.setup_inclusions !== undefined) {
     patch.setup_inclusions = input.setup_inclusions;
   }
+  if (input.notes !== undefined) patch.notes = input.notes;
 
   const { data, error } = await supabase
     .from(TABLES.tenantPortalSettings)

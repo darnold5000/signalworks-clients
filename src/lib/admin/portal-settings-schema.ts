@@ -25,6 +25,7 @@ export const portalWebsiteSettingsUpdateSchema = z.object({
   website_security_cert_expires_at: optionalIsoDate,
   plan_inclusions: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   setup_inclusions: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+  notes: z.string().trim().max(5000).nullable().optional(),
 });
 
 export type PortalWebsiteSettingsUpdate = z.infer<
