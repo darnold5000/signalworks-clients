@@ -291,7 +291,7 @@ describe("ProposalClientView", () => {
     expect(html).toContain("$109.99");
     expect(html).toContain("Founding Partner Discount");
     expect(html).toContain("-$50.00/month");
-    expect(html).toContain("Ongoing");
+    expect(html).not.toContain(">Ongoing</p>");
     expect(html).toContain("Ongoing founding partner pricing");
     expect(html).toContain(
       formatMoney(totals.recurring_total_cents, offer.currency),

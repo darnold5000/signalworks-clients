@@ -78,6 +78,10 @@ export function formatClientDiscountDurationNote(
     item.discount_duration_type === "forever" ||
     (!item.discount_duration_type && !item.discount_duration_months)
   ) {
+    const description = item.description?.trim();
+    if (scope === DISCOUNT_SCOPE.RECURRING && description) {
+      return null;
+    }
     return "Ongoing";
   }
 

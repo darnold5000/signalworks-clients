@@ -145,6 +145,25 @@ describe("formatClientDiscountDurationNote", () => {
     ).toBe("Ongoing");
   });
 
+  it("omits ongoing label when a forever recurring discount has a description", () => {
+    expect(
+      formatClientDiscountDurationNote(
+        discountLine({
+          discount_duration_type: "forever",
+          description: "Ongoing founding partner pricing",
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      formatClientDiscountSecondaryNote(
+        discountLine({
+          discount_duration_type: "forever",
+          description: "Ongoing founding partner pricing",
+        }),
+      ),
+    ).toBe("Ongoing founding partner pricing");
+  });
+
   it("describes first-cycle discounts", () => {
     expect(
       formatClientDiscountDurationNote(
