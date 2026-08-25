@@ -1,6 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ProposalClientView } from "@/components/portal/proposal-client-view";
+import {
+  calculateAmountDueFirstCycle,
+  calculateOfferTotals,
+} from "@/lib/offers/calculate-totals";
+import { recurringMonthlyDiscountMetadata } from "@/lib/offers/discount-scope";
+import { formatMoney } from "@/lib/utils";
 import type {
   ClientOffer,
   ClientOfferFeature,
@@ -42,6 +48,62 @@ const item = {
   is_selected: true,
   sort_order: 0,
   metadata: { product_key: "catalog_internal" },
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+} as ClientOfferItem;
+
+const recurringProduct = {
+  id: "recurring-product-id",
+  offer_id: offer.id,
+  tenant_id: offer.tenant_id,
+  item_type: "base_plan",
+  name: "MA5 Connect — iOS, Android & Connected Fitness",
+  description: null,
+  quantity: 1,
+  unit_amount_cents: 10999,
+  billing_type: "recurring",
+  billing_interval: "month",
+  billing_interval_count: 1,
+  discount_type: null,
+  discount_amount_cents: null,
+  discount_percent: null,
+  discount_duration_type: null,
+  discount_duration_months: null,
+  stripe_product_id: "prod_ma5",
+  stripe_price_id: "price_ma5",
+  stripe_coupon_id: null,
+  is_optional: false,
+  is_selected: true,
+  sort_order: 0,
+  metadata: {},
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+} as ClientOfferItem;
+
+const recurringDiscount = {
+  id: "recurring-discount-id",
+  offer_id: offer.id,
+  tenant_id: offer.tenant_id,
+  item_type: "discount",
+  name: "Founding Partner Discount",
+  description: "Ongoing founding partner pricing",
+  quantity: 1,
+  unit_amount_cents: 5000,
+  billing_type: "one_time",
+  billing_interval: null,
+  billing_interval_count: 1,
+  discount_type: "amount",
+  discount_amount_cents: 5000,
+  discount_percent: null,
+  discount_duration_type: "forever",
+  discount_duration_months: null,
+  stripe_product_id: null,
+  stripe_price_id: null,
+  stripe_coupon_id: "coupon_internal",
+  is_optional: false,
+  is_selected: true,
+  sort_order: 1,
+  metadata: recurringMonthlyDiscountMetadata(),
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 } as ClientOfferItem;
@@ -209,5 +271,93 @@ describe("ProposalClientView", () => {
     }
     expect(previewHtml).toContain("Checkout disabled in preview mode");
     expect(clientHtml).toContain("Continue to checkout");
+  });
+
+  it("renders recurring discount lines under the product with duration and net totals", () => {
+    const items = [recurringProduct, recurringDiscount];
+    const totals = calculateOfferTotals(items);
+    const dueToday = calculateAmountDueFirstCycle(totals);
+
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={items}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("MA5 Connect — iOS, Android &amp; Connected Fitness");
+    expect(html).toContain("$109.99");
+    expect(html).toContain("Founding Partner Discount");
+    expect(html).toContain("-$50.00/month");
+    expect(html).toContain("Ongoing");
+    expect(html).toContain("Ongoing founding partner pricing");
+    expect(html).toContain(
+      formatMoney(totals.recurring_total_cents, offer.currency),
+    );
+    expect(html).toContain(formatMoney(dueToday, offer.currency));
+    expect(html).not.toContain("recurring-discount-id");
+    expect(html).not.toContain("coupon_internal");
+    expect(html).not.toContain("price_ma5");
+  });
+
+  it("renders one-time scoped discounts without a monthly suffix", () => {
+    const oneTimeDiscount = {
+      ...recurringDiscount,
+      id: "first-cycle-discount-id",
+      name: "Launch credit",
+      unit_amount_cents: 2500,
+      discount_amount_cents: 2500,
+      discount_duration_type: "once",
+      description: null,
+      sort_order: 1,
+      metadata: { discount_scope: "first_cycle" },
+    } as ClientOfferItem;
+
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[recurringProduct, oneTimeDiscount]}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Launch credit");
+    expect(html).toContain("-$25.00");
+    expect(html).not.toContain("-$25.00/month");
+    expect(html).toContain("First billing cycle");
+  });
+
+  it("shows identical investment pricing in preview and published client views", () => {
+    const items = [recurringProduct, recurringDiscount];
+    const previewHtml = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={items}
+        features={[]}
+        preview
+      />,
+    );
+    const clientHtml = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={items}
+        features={[]}
+        acceptance={<button type="button">Continue to checkout</button>}
+      />,
+    );
+
+    for (const content of [
+      "Founding Partner Discount",
+      "-$50.00/month",
+      "$59.99",
+      "Recurring monthly",
+      "Due today",
+    ]) {
+      expect(previewHtml).toContain(content);
+      expect(clientHtml).toContain(content);
+    }
   });
 });

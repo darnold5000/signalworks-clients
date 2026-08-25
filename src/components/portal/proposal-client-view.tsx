@@ -7,7 +7,14 @@ import {
   calculateAmountDueFirstCycle,
   calculateOfferTotals,
 } from "@/lib/offers/calculate-totals";
-import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
+import {
+  formatClientDiscountAmountLabel,
+  formatClientDiscountDurationNote,
+  formatClientDiscountSecondaryNote,
+  groupProposalInvestmentItems,
+  proposalInvestmentHasDiscountLines,
+  proposalInvestmentHasLineItems,
+} from "@/lib/offers/proposal-investment-display";
 import { formatMoney } from "@/lib/utils";
 
 function itemDiscountCents(item: ClientOfferItem): number {
@@ -30,6 +37,78 @@ function billingLabel(item: ClientOfferItem): string {
     : `Billed every ${count} ${interval}s`;
 }
 
+function BillableInvestmentRow({
+  item,
+  currency,
+}: {
+  item: ClientOfferItem;
+  currency: string;
+}) {
+  const original = item.unit_amount_cents * item.quantity;
+  const discount = itemDiscountCents(item);
+  const finalPrice = original - discount;
+
+  return (
+    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p className="font-medium">{item.name}</p>
+        {item.description ? (
+          <p className="mt-1 text-sm text-muted">{item.description}</p>
+        ) : null}
+        <p className="mt-1 text-xs text-muted">{billingLabel(item)}</p>
+      </div>
+      <div className="text-left sm:text-right">
+        {discount > 0 ? (
+          <>
+            <p className="text-xs text-muted line-through">
+              {formatMoney(original, currency)}
+            </p>
+            <p className="text-xs text-success">
+              Save {formatMoney(discount, currency)}
+            </p>
+          </>
+        ) : null}
+        <p className="font-semibold">
+          {formatMoney(finalPrice, currency)}
+          {item.billing_type === "recurring"
+            ? `/${item.billing_interval ?? "month"}`
+            : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DiscountInvestmentRow({
+  item,
+  currency,
+}: {
+  item: ClientOfferItem;
+  currency: string;
+}) {
+  const durationNote = formatClientDiscountDurationNote(item);
+  const secondaryNote = formatClientDiscountSecondaryNote(item);
+
+  return (
+    <div
+      className="flex flex-col gap-2 border-l-2 border-success/25 bg-success/5 px-4 py-3 pl-5 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div>
+        <p className="text-sm font-medium text-foreground">{item.name}</p>
+        {durationNote ? (
+          <p className="mt-0.5 text-xs text-muted">{durationNote}</p>
+        ) : null}
+        {secondaryNote ? (
+          <p className="mt-0.5 text-xs text-muted/80">{secondaryNote}</p>
+        ) : null}
+      </div>
+      <p className="text-sm font-semibold text-success sm:text-right">
+        {formatClientDiscountAmountLabel(item, currency)}
+      </p>
+    </div>
+  );
+}
+
 export function ProposalClientView({
   offer,
   items,
@@ -44,13 +123,9 @@ export function ProposalClientView({
   acceptance?: React.ReactNode;
 }) {
   const totals = calculateOfferTotals(items);
-  const billableItems = items.filter(
-    (item) =>
-      item.is_selected &&
-      item.item_type !== "discount" &&
-      item.item_type !== "credit" &&
-      !isEntitlementOfferItem(item),
-  );
+  const investmentLayout = groupProposalInvestmentItems(items);
+  const hasInvestmentLines = proposalInvestmentHasLineItems(investmentLayout);
+  const hasDiscountLines = proposalInvestmentHasDiscountLines(investmentLayout);
   const dueToday = calculateAmountDueFirstCycle(totals);
   const planInclusions = offer.plan_inclusions ?? [];
   const setupInclusions = offer.setup_inclusions ?? [];
@@ -142,48 +217,31 @@ export function ProposalClientView({
             Investment
           </h2>
           <div className="mt-4 divide-y divide-border rounded-xl border border-border">
-            {billableItems.length > 0 ? (
-              billableItems.map((item) => {
-                const original = item.unit_amount_cents * item.quantity;
-                const discount = itemDiscountCents(item);
-                const finalPrice = original - discount;
-                return (
-                  <div
-                    key={item.id}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      {item.description ? (
-                        <p className="mt-1 text-sm text-muted">
-                          {item.description}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-muted">
-                        {billingLabel(item)}
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      {discount > 0 ? (
-                        <>
-                          <p className="text-xs text-muted line-through">
-                            {formatMoney(original, offer.currency)}
-                          </p>
-                          <p className="text-xs text-success">
-                            Save {formatMoney(discount, offer.currency)}
-                          </p>
-                        </>
-                      ) : null}
-                      <p className="font-semibold">
-                        {formatMoney(finalPrice, offer.currency)}
-                        {item.billing_type === "recurring"
-                          ? `/${item.billing_interval ?? "month"}`
-                          : ""}
-                      </p>
-                    </div>
+            {hasInvestmentLines ? (
+              <>
+                {investmentLayout.groups.map((group) => (
+                  <div key={group.billable.id}>
+                    <BillableInvestmentRow
+                      item={group.billable}
+                      currency={offer.currency}
+                    />
+                    {group.discounts.map((discount) => (
+                      <DiscountInvestmentRow
+                        key={discount.id}
+                        item={discount}
+                        currency={offer.currency}
+                      />
+                    ))}
                   </div>
-                );
-              })
+                ))}
+                {investmentLayout.orphanDiscounts.map((discount) => (
+                  <DiscountInvestmentRow
+                    key={discount.id}
+                    item={discount}
+                    currency={offer.currency}
+                  />
+                ))}
+              </>
             ) : (
               <p className="p-4 text-sm text-muted">
                 Pricing has not been added yet.
@@ -191,8 +249,12 @@ export function ProposalClientView({
             )}
           </div>
 
-          {billableItems.length > 0 ? (
-            <dl className="mt-5 ml-auto max-w-md space-y-2 text-sm">
+          {hasInvestmentLines ? (
+            <dl
+              className={`mt-5 ml-auto max-w-md space-y-2 text-sm ${
+                hasDiscountLines ? "border-t border-border pt-4" : ""
+              }`}
+            >
               <div className="flex justify-between gap-6">
                 <dt className="text-muted">One-time</dt>
                 <dd className="font-medium">
@@ -215,7 +277,7 @@ export function ProposalClientView({
           ) : null}
         </section>
 
-        {billableItems.length > 0 ? (
+        {hasInvestmentLines ? (
           <section className="rounded-xl bg-background p-4 text-sm text-muted">
             <h2 className="font-medium text-foreground">Proposal terms</h2>
             <p className="mt-2 leading-6">
