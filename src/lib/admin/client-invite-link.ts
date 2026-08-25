@@ -9,6 +9,7 @@ import {
 } from "@/lib/email/client-proposal-email";
 import {
   buildBrandedConfirmInviteUrl,
+  buildBrandedConfirmRecoveryUrl,
   isBrandedInviteFlowEnabled,
 } from "@/lib/auth/branded-invite-flow";
 import {
@@ -286,6 +287,13 @@ function extractAccessLink(
         hashedToken,
         "/auth/set-password",
       ),
+      userId,
+    };
+  }
+
+  if (options?.linkType === "recovery" && hashedToken) {
+    return {
+      inviteLink: buildBrandedConfirmRecoveryUrl(portalUrl, hashedToken),
       userId,
     };
   }

@@ -29,6 +29,14 @@ export function getAuthTokensRedirectUrl(): string | null {
 
   const { search, hash } = window.location;
   if (search.includes("code=") || search.includes("token_hash=")) {
+    const params = new URLSearchParams(search.replace(/^\?/, ""));
+    const type = params.get("type");
+    if (type === "recovery" || params.get("token_hash")) {
+      const tokenHash = params.get("token_hash");
+      if (tokenHash && type === "recovery") {
+        return `/auth/confirm-recovery${search}${hash}`;
+      }
+    }
     return `/auth/callback${search}${hash}`;
   }
 

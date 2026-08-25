@@ -39,6 +39,12 @@ export function EstablishSessionRedirect({
 
       // PKCE / OTP query params are handled reliably on the server callback route.
       if (search.includes("code=") || search.includes("token_hash=")) {
+        const params = new URLSearchParams(search.replace(/^\?/, ""));
+        const type = params.get("type");
+        if (params.get("token_hash") && type === "recovery") {
+          window.location.replace(`/auth/confirm-recovery${search}${hash}`);
+          return;
+        }
         window.location.replace(`/auth/callback${search}${hash}`);
         return;
       }

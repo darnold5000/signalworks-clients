@@ -65,10 +65,10 @@ export function inviteRedirectUrl(appUrl: string): string {
   return `${base}/auth/callback?next=${encodeURIComponent("/auth/set-password")}`;
 }
 
-/** Where Supabase should send users after they click a password recovery link. */
+/** Where Supabase should send users after they click a password recovery link (legacy PKCE fallback). */
 export function recoveryRedirectUrl(appUrl: string): string {
   const base = appUrl.replace(/\/$/, "");
-  return `${base}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`;
+  return `${base}/auth/reset-password`;
 }
 
 /** After sign-in, land on the active proposal. */

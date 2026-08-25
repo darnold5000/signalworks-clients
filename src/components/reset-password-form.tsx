@@ -31,7 +31,22 @@ export function ResetPasswordForm() {
         return;
       }
 
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "recovery_link") {
+        if (!cancelled) setSessionError(resetLinkErrorMessage);
+        return;
+      }
+
       const supabase = createClient();
+      const {
+        data: { user: existingUser },
+      } = await supabase.auth.getUser();
+
+      if (existingUser) {
+        setReady(true);
+        return;
+      }
+
       const result = await establishSessionFromAuthLink(
         supabase,
         "/auth/reset-password",
@@ -92,12 +107,20 @@ export function ResetPasswordForm() {
       <div className="w-full max-w-md space-y-4 rounded-xl border border-border bg-surface p-8 shadow-sm">
         <h1 className="font-display text-2xl">Reset link expired</h1>
         <p className="text-sm text-muted">{sessionError}</p>
-        <Link
-          href="/login"
-          className="text-sm font-medium underline underline-offset-2"
-        >
-          Back to sign in
-        </Link>
+        <div className="flex flex-col gap-2 text-sm">
+          <Link
+            href="/login?forgot=1"
+            className="font-medium underline underline-offset-2"
+          >
+            Request a new password reset email
+          </Link>
+          <Link
+            href="/login"
+            className="font-medium underline underline-offset-2"
+          >
+            Back to sign in
+          </Link>
+        </div>
       </div>
     );
   }
