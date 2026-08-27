@@ -311,7 +311,7 @@ function extractAccessLink(
   return { inviteLink, userId };
 }
 
-/** Existing Auth user (e.g. DAWG/MA5) — one-click or login, not password reset. */
+/** Existing Auth user invite — one-click or login, not password reset. */
 async function createReturningUserPortalLink(
   supabase: ServiceClient,
   args: {
@@ -321,16 +321,13 @@ async function createReturningUserPortalLink(
   },
 ): Promise<ClientPortalAccessLinkResult> {
   const proposalRedirect = offerRedirectUrl(args.portalUrl);
-
   const magicAttempt = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email: args.email,
-    options: {
-      redirectTo: proposalRedirect,
-    },
+    options: { redirectTo: proposalRedirect },
   });
-
   const magicResult = extractAccessLink(magicAttempt, proposalRedirect);
+
   if (magicResult) {
     return {
       inviteLink: magicResult.inviteLink,
@@ -339,6 +336,20 @@ async function createReturningUserPortalLink(
     };
   }
 
+  return {
+    inviteLink: loginWithNextUrl(args.portalUrl, "/offer"),
+    userId: args.existingUserId,
+    linkType: "login",
+  };
+}
+
+/** Existing password user proposal — durable URL, never a single-use auth token. */
+function createReturningUserProposalLink(
+  args: {
+    existingUserId: string;
+    portalUrl: string;
+  },
+): ClientPortalAccessLinkResult {
   return {
     inviteLink: loginWithNextUrl(args.portalUrl, "/offer"),
     userId: args.existingUserId,
@@ -445,8 +456,7 @@ export async function createProposalPortalLink(
       await supabase.auth.admin.getUserById(existingUserId);
 
     if (userHasSignedIn(authUser.user)) {
-      return createReturningUserPortalLink(supabase, {
-        email,
+      return createReturningUserProposalLink({
         existingUserId,
         portalUrl,
       });

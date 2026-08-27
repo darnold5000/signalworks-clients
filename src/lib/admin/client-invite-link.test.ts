@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  createProposalPortalLink,
   formatAuthInviteError,
   userHasSignedIn,
 } from "@/lib/admin/client-invite-link";
@@ -37,5 +38,46 @@ describe("formatAuthInviteError", () => {
     expect(
       formatAuthInviteError("Invalid redirect URL", redirect),
     ).toContain(redirect);
+  });
+});
+
+describe("createProposalPortalLink", () => {
+  it("uses a durable login URL for an existing password user", async () => {
+    const generateLink = vi.fn();
+    const supabase = {
+      auth: {
+        admin: {
+          listUsers: vi.fn().mockResolvedValue({
+            data: {
+              users: [{ id: "user-1", email: "mike@example.com" }],
+            },
+            error: null,
+          }),
+          getUserById: vi.fn().mockResolvedValue({
+            data: {
+              user: {
+                id: "user-1",
+                user_metadata: { password_set: true },
+              },
+            },
+            error: null,
+          }),
+          generateLink,
+        },
+      },
+    } as unknown as Parameters<typeof createProposalPortalLink>[0];
+
+    const result = await createProposalPortalLink(supabase, {
+      email: "Mike@example.com",
+      fullName: "Mike",
+      tenantId: "tenant-1",
+    });
+
+    expect(result).toEqual({
+      inviteLink: "https://clients.hiresignalworks.com/login?next=%2Foffer",
+      userId: "user-1",
+      linkType: "login",
+    });
+    expect(generateLink).not.toHaveBeenCalled();
   });
 });
