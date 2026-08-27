@@ -236,6 +236,8 @@ export type ClientOffer = {
   setup_inclusions?: string[] | null;
   description: string | null;
   status: ClientOfferStatus;
+  /** Missing/null legacy values resolve to stripe_checkout. */
+  billing_method?: ProposalBillingMethod | null;
   currency: string;
   valid_from: string | null;
   expires_at: string | null;
@@ -250,10 +252,14 @@ export type ClientOffer = {
   created_by: string | null;
   published_at: string | null;
   accepted_at: string | null;
+  accepted_by_user_id?: string | null;
+  acceptance_snapshot?: Record<string, unknown> | null;
   purchased_at: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type ProposalBillingMethod = "stripe_checkout" | "proposal_only";
 
 export type ClientOfferFeature = {
   id: string;

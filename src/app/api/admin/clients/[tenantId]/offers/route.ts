@@ -12,6 +12,9 @@ const createSchema = z.object({
   description: z.string().trim().max(5000).optional(),
   currency: z.string().trim().length(3).default("usd"),
   requiresTermsAcceptance: z.boolean().default(true),
+  billingMethod: z
+    .enum(["stripe_checkout", "proposal_only"])
+    .default("stripe_checkout"),
 });
 
 export async function GET(
@@ -55,6 +58,7 @@ export async function POST(
       currency: parsed.data.currency.toLowerCase(),
       requires_terms_acceptance: parsed.data.requiresTermsAcceptance,
       status: "draft",
+      billing_method: parsed.data.billingMethod,
       created_by: profile.id,
     })
     .select("*")

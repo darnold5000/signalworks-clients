@@ -52,6 +52,7 @@ const patchSchema = z.object({
     .max(100)
     .optional(),
   requiresTermsAcceptance: z.boolean().optional(),
+  billingMethod: z.enum(["stripe_checkout", "proposal_only"]).optional(),
   addItem: itemSchema.optional(),
   updateItem: itemSchema
     .extend({ id: z.string().uuid() })
@@ -131,6 +132,9 @@ export async function PATCH(
   }
   if (parsed.data.requiresTermsAcceptance !== undefined) {
     updates.requires_terms_acceptance = parsed.data.requiresTermsAcceptance;
+  }
+  if (parsed.data.billingMethod !== undefined) {
+    updates.billing_method = parsed.data.billingMethod;
   }
 
   if (Object.keys(updates).length > 0) {

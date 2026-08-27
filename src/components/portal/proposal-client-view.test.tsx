@@ -360,4 +360,23 @@ describe("ProposalClientView", () => {
       expect(clientHtml).toContain(content);
     }
   });
+
+  it("uses Proposal Only pricing and acceptance language without payment copy", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={{ ...offer, billing_method: "proposal_only" }}
+        items={[recurringProduct, recurringDiscount]}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Recurring monthly");
+    expect(html).toContain("$59.99");
+    expect(html).toContain("Billing");
+    expect(html).toContain("Handled separately");
+    expect(html).toContain("Accept Proposal (disabled in preview mode)");
+    expect(html).not.toContain("Due today");
+    expect(html).not.toContain("Acceptance &amp; Checkout");
+  });
 });

@@ -6,7 +6,12 @@ import type {
   ClientOfferFeature,
   ClientOfferItem,
   ClientOfferItemType,
+  ProposalBillingMethod,
 } from "@/lib/database/phase1-types";
+import {
+  offerBillingMethodLabel,
+  resolveOfferBillingMethod,
+} from "@/lib/offers/billing-method";
 import { DISCOUNT_SCOPE } from "@/lib/offers/discount-scope";
 import { defaultBillingForItemType } from "@/lib/offers/build-offer-item-payload";
 import { Button, Panel, StatusPill } from "@/components/ui";
@@ -78,6 +83,8 @@ export function OfferBuilder({
   const [title, setTitle] = useState("");
   const [shortSummary, setShortSummary] = useState("");
   const [description, setDescription] = useState("");
+  const [billingMethod, setBillingMethod] =
+    useState<ProposalBillingMethod>("stripe_checkout");
   const [newFeature, setNewFeature] = useState("");
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_ITEM);
   const [busy, setBusy] = useState(false);
@@ -110,6 +117,7 @@ export function OfferBuilder({
           title: title || "Client proposal",
           shortSummary: shortSummary || undefined,
           description: description || undefined,
+          billingMethod,
         }),
       });
       const data = await res.json();
@@ -117,6 +125,7 @@ export function OfferBuilder({
       setTitle("");
       setShortSummary("");
       setDescription("");
+      setBillingMethod("stripe_checkout");
       await refreshOffers(data.offer.id);
       setMessage("Draft offer created.");
     } catch (err) {
@@ -151,6 +160,7 @@ export function OfferBuilder({
             shortSummary: selected.short_summary ?? "",
             description: selected.description ?? "",
             features: selected.features.map((feature) => feature.label),
+            billingMethod: resolveOfferBillingMethod(selected),
           }),
         },
       );
@@ -377,6 +387,52 @@ export function OfferBuilder({
             className="rounded-md border border-border bg-background px-3 py-2 text-sm md:col-span-2"
           />
         </div>
+        <fieldset className="mt-4">
+          <legend className="text-xs font-semibold tracking-wide text-muted uppercase">
+            Billing method
+          </legend>
+          <div className="mt-2 grid gap-3 md:grid-cols-2">
+            {(
+              [
+                {
+                  value: "stripe_checkout",
+                  title: "Stripe Checkout",
+                  description:
+                    "Client accepts the proposal and continues to Stripe for payment or subscription setup.",
+                },
+                {
+                  value: "proposal_only",
+                  title: "Proposal Only",
+                  description:
+                    "Client accepts the proposal without making any Stripe changes. Billing will be handled separately.",
+                },
+              ] as const
+            ).map((option) => (
+              <label
+                key={option.value}
+                className={`cursor-pointer rounded-lg border p-4 text-sm ${
+                  billingMethod === option.value
+                    ? "border-accent bg-accent/5 ring-1 ring-accent"
+                    : "border-border"
+                }`}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <input
+                    type="radio"
+                    name="new-offer-billing-method"
+                    value={option.value}
+                    checked={billingMethod === option.value}
+                    onChange={() => setBillingMethod(option.value)}
+                  />
+                  {option.title}
+                </span>
+                <span className="mt-2 block text-xs leading-5 text-muted">
+                  {option.description}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <Button className="mt-4" onClick={createOffer} disabled={busy}>
           Create draft
         </Button>
@@ -399,6 +455,9 @@ export function OfferBuilder({
                   >
                     <p className="font-medium">{offer.title}</p>
                     <StatusPill label={offer.status} tone="neutral" />
+                    <p className="mt-1 text-xs text-muted">
+                      Billing: {offerBillingMethodLabel(offer)}
+                    </p>
                   </button>
                 </li>
               ))}
@@ -410,6 +469,15 @@ export function OfferBuilder({
               <Panel title={selected.title}>
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   <StatusPill label={selected.status} tone="warning" />
+                  <span className="text-sm font-medium">
+                    Billing: {offerBillingMethodLabel(selected)}
+                  </span>
+                  {selected.status === "accepted" &&
+                  resolveOfferBillingMethod(selected) === "proposal_only" ? (
+                    <span className="text-sm text-success">
+                      Billing handled separately
+                    </span>
+                  ) : null}
                   <span className="text-sm text-muted">
                     Due at first cycle{" "}
                     {formatMoney(
@@ -482,6 +550,55 @@ export function OfferBuilder({
                         />
                       </label>
                     </div>
+
+                    <fieldset>
+                      <legend className="text-sm font-semibold">Billing method</legend>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {(
+                          [
+                            {
+                              value: "stripe_checkout",
+                              title: "Stripe Checkout",
+                              description:
+                                "Client accepts the proposal and continues to Stripe for payment or subscription setup.",
+                            },
+                            {
+                              value: "proposal_only",
+                              title: "Proposal Only",
+                              description:
+                                "Client accepts the proposal without making any Stripe changes. Billing will be handled separately.",
+                            },
+                          ] as const
+                        ).map((option) => (
+                          <label
+                            key={option.value}
+                            className={`cursor-pointer rounded-lg border p-4 text-sm ${
+                              resolveOfferBillingMethod(selected) === option.value
+                                ? "border-accent bg-accent/5 ring-1 ring-accent"
+                                : "border-border"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 font-medium">
+                              <input
+                                type="radio"
+                                name={`billing-method-${selected.id}`}
+                                value={option.value}
+                                checked={
+                                  resolveOfferBillingMethod(selected) === option.value
+                                }
+                                onChange={() =>
+                                  updateSelected({ billing_method: option.value })
+                                }
+                              />
+                              {option.title}
+                            </span>
+                            <span className="mt-2 block text-xs leading-5 text-muted">
+                              {option.description}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
 
                     <div>
                       <h3 className="text-sm font-semibold">What&apos;s Included</h3>

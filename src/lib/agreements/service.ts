@@ -135,6 +135,32 @@ export async function recordAgreementAcceptance(args: {
   return acceptance;
 }
 
+export async function recordOfferAcceptance(args: {
+  tenantId: string;
+  userId: string;
+  offerId: string;
+  acceptanceSnapshot?: Record<string, unknown> | null;
+}) {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from(TABLES.clientOffers)
+    .update({
+      status: "accepted",
+      accepted_at: new Date().toISOString(),
+      accepted_by_user_id: args.userId,
+      acceptance_snapshot: args.acceptanceSnapshot ?? null,
+    })
+    .eq("id", args.offerId)
+    .eq("tenant_id", args.tenantId);
+
+  if (error) throw new Error(error.message);
+
+  await supabase
+    .from(TABLES.tenantProfiles)
+    .update({ onboarding_status: "terms_accepted" })
+    .eq("tenant_id", args.tenantId);
+}
+
 export async function recordOfferAgreementsAcceptance(args: {
   tenantId: string;
   userId: string;
@@ -145,6 +171,7 @@ export async function recordOfferAgreementsAcceptance(args: {
   acceptedEmail: string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  acceptanceSnapshot?: Record<string, unknown> | null;
 }) {
   const effectiveDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -180,17 +207,10 @@ export async function recordOfferAgreementsAcceptance(args: {
     });
   }
 
-  const supabase = createServiceClient();
-  await supabase
-    .from(TABLES.clientOffers)
-    .update({
-      status: "accepted",
-      accepted_at: new Date().toISOString(),
-    })
-    .eq("id", args.offerId);
-
-  await supabase
-    .from(TABLES.tenantProfiles)
-    .update({ onboarding_status: "terms_accepted" })
-    .eq("tenant_id", args.tenantId);
+  await recordOfferAcceptance({
+    tenantId: args.tenantId,
+    userId: args.userId,
+    offerId: args.offerId,
+    acceptanceSnapshot: args.acceptanceSnapshot,
+  });
 }

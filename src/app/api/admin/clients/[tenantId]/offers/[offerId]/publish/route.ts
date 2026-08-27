@@ -7,7 +7,7 @@ import {
   ensurePlatformTermsDocument,
   getOfferWithItems,
 } from "@/lib/offers/queries";
-import { syncAllOfferItemsToStripe } from "@/lib/offers/stripe-catalog";
+import { syncPublishedOfferCatalog } from "@/lib/offers/stripe-catalog";
 import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -55,7 +55,7 @@ export async function POST(
   }
 
   try {
-    await syncAllOfferItemsToStripe(offer, offer.items);
+    await syncPublishedOfferCatalog(offer, offer.items);
   } catch (error) {
     const detail =
       error instanceof Error ? error.message : "Unknown Stripe sync error.";

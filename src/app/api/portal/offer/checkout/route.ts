@@ -5,6 +5,7 @@ import { hasAcceptedRequiredOfferAgreements } from "@/lib/agreements/service";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 import { isStripeConfigured } from "@/lib/stripe";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 function isRealStripeId(id: string | null | undefined): id is string {
   return Boolean(id && !id.includes("_demo_"));
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
   const offer = await getActiveOfferForTenant(client.id);
   if (!offer) {
     return NextResponse.json({ error: "No active offer" }, { status: 404 });
+  }
+  if (resolveOfferBillingMethod(offer) === "proposal_only") {
+    return NextResponse.json(
+      { error: "This proposal does not use Stripe Checkout." },
+      { status: 409 },
+    );
   }
 
   const accepted = await hasAcceptedRequiredOfferAgreements({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   hasAcceptedRequiredOfferAgreements,
+  recordOfferAcceptance,
   recordOfferAgreementsAcceptance,
 } from "@/lib/agreements/service";
 import { createOfferCheckoutSession } from "@/lib/offers/checkout";
@@ -9,6 +10,10 @@ import { getActiveOfferForTenant, getLegalDocument } from "@/lib/offers/queries"
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 import { isStripeConfigured } from "@/lib/stripe";
+import {
+  buildOfferAcceptanceSnapshot,
+  resolveOfferBillingMethod,
+} from "@/lib/offers/billing-method";
 
 const bodySchema = z.object({
   acceptedName: z.string().trim().min(2).max(200),
@@ -81,6 +86,16 @@ export async function POST(request: Request) {
     requiresTerms: offer.requires_terms_acceptance,
   });
 
+  const billingMethod = resolveOfferBillingMethod(offer);
+  const acceptanceSnapshot = buildOfferAcceptanceSnapshot({
+    offer,
+    items: offer.items,
+    acceptedByUserId: profile.id,
+    acceptedName: parsed.data.acceptedName,
+    acceptedEmail: parsed.data.acceptedEmail,
+  });
+
+  let acceptanceRecorded = false;
   if (!alreadyAccepted) {
     await recordOfferAgreementsAcceptance({
       tenantId: client.id,
@@ -92,6 +107,25 @@ export async function POST(request: Request) {
       acceptedEmail: parsed.data.acceptedEmail,
       ipAddress: request.headers.get("x-forwarded-for"),
       userAgent: request.headers.get("user-agent"),
+      acceptanceSnapshot,
+    });
+    acceptanceRecorded = true;
+  }
+
+  if (billingMethod === "proposal_only") {
+    if (!acceptanceRecorded && !offer.acceptance_snapshot) {
+      await recordOfferAcceptance({
+        tenantId: client.id,
+        userId: profile.id,
+        offerId: offer.id,
+        acceptanceSnapshot,
+      });
+    }
+    return NextResponse.json({
+      ok: true,
+      accepted: true,
+      billingMethod,
+      checkoutUrl: null,
     });
   }
 

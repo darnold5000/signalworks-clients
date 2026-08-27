@@ -9,6 +9,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
 import { formatStripeSyncError } from "@/lib/stripe-error";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 async function createCouponForItem(
   stripe: Stripe,
@@ -213,4 +214,13 @@ export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: Clien
   } catch (error) {
     throw new Error(formatStripeSyncError(error), { cause: error });
   }
+}
+
+/** Publication boundary: Proposal Only offers must never enter the Stripe catalog path. */
+export async function syncPublishedOfferCatalog(
+  offer: ClientOffer,
+  items: ClientOfferItem[],
+) {
+  if (resolveOfferBillingMethod(offer) === "proposal_only") return;
+  await syncAllOfferItemsToStripe(offer, items);
 }

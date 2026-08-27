@@ -13,6 +13,7 @@ import type { Client } from "@/lib/types";
 import { Button, Panel } from "@/components/ui";
 import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { ProposalClientView } from "@/components/portal/proposal-client-view";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 type OfferPayload = {
   client: Client;
@@ -36,6 +37,7 @@ export function OfferPortal() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutRecovery, setCheckoutRecovery] = useState(false);
+  const [proposalAccepted, setProposalAccepted] = useState(false);
   const acceptInFlight = useRef(false);
 
   const [company, setCompany] = useState({
@@ -149,6 +151,11 @@ export function OfferPortal() {
         return;
       }
 
+      if (json.accepted && json.billingMethod === "proposal_only") {
+        setProposalAccepted(true);
+        return;
+      }
+
       await reloadOffer();
       setCheckoutRecovery(true);
       if (json.error) {
@@ -179,6 +186,23 @@ export function OfferPortal() {
     offer &&
     onboarding.agreementsAccepted &&
     onboarding.nextAction === "complete_checkout";
+  const proposalOnly = offer
+    ? resolveOfferBillingMethod(offer) === "proposal_only"
+    : false;
+  const needsProposalOnlyAcceptance = Boolean(
+    offer && proposalOnly && offer.status !== "accepted",
+  );
+  const showAcceptance = needsAgreements || needsProposalOnlyAcceptance;
+
+  if (proposalAccepted || (proposalOnly && offer?.status === "accepted")) {
+    return (
+      <Panel title="Proposal Accepted">
+        <p className="text-sm text-muted">
+          Thank you. Your proposal has been accepted.
+        </p>
+      </Panel>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -232,12 +256,14 @@ export function OfferPortal() {
             items={offer.items}
             features={offer.features ?? []}
             acceptance={
-              needsAgreements ? (
+              showAcceptance ? (
                 <div>
               <p className="text-sm text-muted">
                 Read the Terms of Service and Statement of Work. When you
-                continue, your acceptance is saved and you will be taken directly
-                to secure Stripe checkout.
+                continue, your acceptance is saved
+                {proposalOnly
+                  ? ". Billing will be handled separately."
+                  : " and you will be taken directly to secure Stripe checkout."}
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
@@ -311,8 +337,12 @@ export function OfferPortal() {
                 }
               >
                 {busy
-                  ? "Saving your acceptance and opening secure checkout…"
-                  : "Accept agreement and continue to secure checkout"}
+                  ? proposalOnly
+                    ? "Saving your acceptance…"
+                    : "Saving your acceptance and opening secure checkout…"
+                  : proposalOnly
+                    ? "Accept Proposal"
+                    : "Accept & Continue to Payment"}
               </Button>
                 </div>
               ) : awaitingCheckout && (checkoutRecovery || error) ? (

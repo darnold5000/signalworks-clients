@@ -53,4 +53,27 @@ describe("proposal preview route", () => {
     expect(html).not.toContain("Recurring monthly");
     expect(html).not.toContain("$0.00");
   });
+
+  it("renders Proposal Only preview without checkout language", async () => {
+    getOfferWithItems.mockResolvedValue({
+      id: "offer-1",
+      tenant_id: "tenant-1",
+      title: "Proposal-only draft",
+      status: "draft",
+      billing_method: "proposal_only",
+      currency: "usd",
+      requires_terms_acceptance: true,
+      items: [],
+      features: [],
+    });
+
+    const page = await ProposalPreviewPage({
+      params: Promise.resolve({ tenantId: "tenant-1", offerId: "offer-1" }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("Accept Proposal (disabled in preview mode)");
+    expect(html).not.toContain("Checkout disabled in preview mode");
+    expect(createCheckout).not.toHaveBeenCalled();
+  });
 });

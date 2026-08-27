@@ -11,6 +11,7 @@ import { resolveAppUrl } from "@/lib/site";
 import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 function selectedBillableItems(items: ClientOfferItem[]) {
   return items.filter(
@@ -30,6 +31,9 @@ export async function createOfferCheckoutSession(args: {
   request: Request;
   existingCustomerId?: string | null;
 }) {
+  if (resolveOfferBillingMethod(args.offer) === "proposal_only") {
+    throw new Error("Proposal Only offers cannot create Stripe Checkout sessions.");
+  }
   const stripe = getStripe();
   if (!stripe) {
     throw new Error("Stripe is not configured");

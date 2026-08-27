@@ -16,6 +16,7 @@ import {
   proposalInvestmentHasLineItems,
 } from "@/lib/offers/proposal-investment-display";
 import { formatMoney } from "@/lib/utils";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 function itemDiscountCents(item: ClientOfferItem): number {
   const original = item.unit_amount_cents * item.quantity;
@@ -129,6 +130,7 @@ export function ProposalClientView({
   const dueToday = calculateAmountDueFirstCycle(totals);
   const planInclusions = offer.plan_inclusions ?? [];
   const setupInclusions = offer.setup_inclusions ?? [];
+  const proposalOnly = resolveOfferBillingMethod(offer) === "proposal_only";
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
@@ -268,10 +270,19 @@ export function ProposalClientView({
                 </dd>
               </div>
               <div className="flex justify-between gap-6 border-t border-border pt-3 text-base">
-                <dt className="font-semibold">Due today</dt>
-                <dd className="font-semibold">
-                  {formatMoney(dueToday, offer.currency)}
-                </dd>
+                {proposalOnly ? (
+                  <>
+                    <dt className="font-semibold">Billing</dt>
+                    <dd className="font-semibold">Handled separately</dd>
+                  </>
+                ) : (
+                  <>
+                    <dt className="font-semibold">Due today</dt>
+                    <dd className="font-semibold">
+                      {formatMoney(dueToday, offer.currency)}
+                    </dd>
+                  </>
+                )}
               </div>
             </dl>
           ) : null}
@@ -281,14 +292,14 @@ export function ProposalClientView({
           <section className="rounded-xl bg-background p-4 text-sm text-muted">
             <h2 className="font-medium text-foreground">Proposal terms</h2>
             <p className="mt-2 leading-6">
-              One-time charges are due at checkout. Recurring services renew at
-              the billing frequency shown above until canceled under the
-              applicable agreement.
+              {proposalOnly
+                ? "Billing will be handled separately. No payment or Stripe billing change occurs when this proposal is accepted."
+                : "One-time charges are due at checkout. Recurring services renew at the billing frequency shown above until canceled under the applicable agreement."}
             </p>
             {offer.requires_terms_acceptance ? (
               <p className="mt-2 leading-6">
                 Acceptance of the applicable Terms of Service and Statement of
-                Work is required before payment.
+                Work is required before {proposalOnly ? "acceptance" : "payment"}.
               </p>
             ) : null}
           </section>
@@ -296,7 +307,7 @@ export function ProposalClientView({
 
         <section>
           <h2 className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">
-            Acceptance &amp; Checkout
+            {proposalOnly ? "Acceptance" : "Acceptance & Checkout"}
           </h2>
           <div className="mt-4">
             {preview ? (
@@ -306,7 +317,9 @@ export function ProposalClientView({
                   disabled
                   className="rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white opacity-50"
                 >
-                  Checkout disabled in preview mode
+                  {proposalOnly
+                    ? "Accept Proposal (disabled in preview mode)"
+                    : "Checkout disabled in preview mode"}
                 </button>
                 <p className="text-xs text-muted">
                   Previewing does not accept, publish, send, or create billing.

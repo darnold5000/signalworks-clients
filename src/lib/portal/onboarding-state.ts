@@ -9,6 +9,7 @@ import type { OnboardingAction } from "@/lib/portal/onboarding-actions";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import type { Client } from "@/lib/types";
+import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 
 export type OnboardingState = {
   profile: TenantProfile | null;
@@ -70,8 +71,13 @@ export async function getOnboardingState(
     clientChurnedFromPaidSubscription(client);
 
   let nextAction: OnboardingAction = "none";
+  const proposalOnlyAccepted = Boolean(
+    activeOffer &&
+      resolveOfferBillingMethod(activeOffer) === "proposal_only" &&
+      activeOffer.status === "accepted",
+  );
 
-  if (!hasSubscription) {
+  if (!hasSubscription && !proposalOnlyAccepted) {
     if (
       !tenantProfile ||
       onboardingStatus === "invited" ||
