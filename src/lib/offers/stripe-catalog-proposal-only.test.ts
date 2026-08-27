@@ -19,11 +19,10 @@ describe("Proposal Only publication", () => {
   it("returns before constructing Stripe or touching the database", async () => {
     await syncPublishedOfferCatalog(
       { billing_method: "proposal_only" } as ClientOffer,
-      [{} as ClientOfferItem],
+      [{ billing_type: "recurring", billing_interval: "year", billing_interval_count: 1 } as ClientOfferItem],
     );
 
     expect(mocks.getStripe).not.toHaveBeenCalled();
     expect(mocks.createServiceClient).not.toHaveBeenCalled();
   });
 });
-

@@ -17,6 +17,12 @@ import {
 } from "@/lib/offers/proposal-investment-display";
 import { formatMoney } from "@/lib/utils";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
+import {
+  cadenceAggregateLabel,
+  cadenceDescription,
+  cadenceKey,
+  cadenceSuffix,
+} from "@/lib/offers/billing-cadence";
 
 function itemDiscountCents(item: ClientOfferItem): number {
   const original = item.unit_amount_cents * item.quantity;
@@ -31,11 +37,7 @@ function itemDiscountCents(item: ClientOfferItem): number {
 
 function billingLabel(item: ClientOfferItem): string {
   if (item.billing_type === "one_time") return "One-time";
-  const interval = item.billing_interval ?? "month";
-  const count = item.billing_interval_count || 1;
-  return count === 1
-    ? `Billed every ${interval}`
-    : `Billed every ${count} ${interval}s`;
+  return cadenceDescription(item);
 }
 
 function BillableInvestmentRow({
@@ -72,7 +74,7 @@ function BillableInvestmentRow({
         <p className="font-semibold">
           {formatMoney(finalPrice, currency)}
           {item.billing_type === "recurring"
-            ? `/${item.billing_interval ?? "month"}`
+            ? cadenceSuffix(item)
             : ""}
         </p>
       </div>
@@ -83,9 +85,11 @@ function BillableInvestmentRow({
 function DiscountInvestmentRow({
   item,
   currency,
+  cadenceItem,
 }: {
   item: ClientOfferItem;
   currency: string;
+  cadenceItem?: ClientOfferItem;
 }) {
   const durationNote = formatClientDiscountDurationNote(item);
   const secondaryNote = formatClientDiscountSecondaryNote(item);
@@ -104,7 +108,7 @@ function DiscountInvestmentRow({
         ) : null}
       </div>
       <p className="text-sm font-semibold text-success sm:text-right">
-        {formatClientDiscountAmountLabel(item, currency)}
+        {formatClientDiscountAmountLabel(item, currency, cadenceItem)}
       </p>
     </div>
   );
@@ -131,6 +135,11 @@ export function ProposalClientView({
   const planInclusions = offer.plan_inclusions ?? [];
   const setupInclusions = offer.setup_inclusions ?? [];
   const proposalOnly = resolveOfferBillingMethod(offer) === "proposal_only";
+  const recurringItems = investmentLayout.groups
+    .map((group) => group.billable)
+    .filter((item) => item.billing_type === "recurring");
+  const recurringCadences = new Set(recurringItems.map(cadenceKey));
+  const sharedRecurringCadence = recurringCadences.size === 1 ? recurringItems[0] : null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
@@ -232,6 +241,7 @@ export function ProposalClientView({
                         key={discount.id}
                         item={discount}
                         currency={offer.currency}
+                        cadenceItem={group.billable}
                       />
                     ))}
                   </div>
@@ -263,12 +273,24 @@ export function ProposalClientView({
                   {formatMoney(totals.initial_total_cents, offer.currency)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-6">
-                <dt className="text-muted">Recurring monthly</dt>
-                <dd className="font-medium">
-                  {formatMoney(totals.recurring_total_cents, offer.currency)}/mo
-                </dd>
-              </div>
+              {sharedRecurringCadence ? (
+                <div className="flex justify-between gap-6">
+                  <dt className="text-muted">{cadenceAggregateLabel(sharedRecurringCadence)}</dt>
+                  <dd className="font-medium">
+                    {formatMoney(totals.recurring_total_cents, offer.currency)}{cadenceSuffix(sharedRecurringCadence)}
+                  </dd>
+                </div>
+              ) : recurringItems.length > 0 ? (
+                <div className="space-y-1 border-t border-border pt-2">
+                  <dt className="text-muted">Recurring charges</dt>
+                  {recurringItems.map((item) => (
+                    <dd key={item.id} className="flex justify-between gap-6">
+                      <span>{item.name}</span>
+                      <span className="font-medium">{formatMoney(item.unit_amount_cents * item.quantity, offer.currency)}{cadenceSuffix(item)}</span>
+                    </dd>
+                  ))}
+                </div>
+              ) : null}
               <div className="flex justify-between gap-6 border-t border-border pt-3 text-base">
                 {proposalOnly ? (
                   <>

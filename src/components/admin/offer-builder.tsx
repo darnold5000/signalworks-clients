@@ -33,7 +33,8 @@ type ItemFormState = {
   quantity: number;
   unitAmountDollars: string;
   billingType: "one_time" | "recurring";
-  billingInterval: "day" | "week" | "month" | "year";
+  billingInterval: "month" | "year";
+  billingIntervalCount: number;
   discountType: "" | "amount" | "percent";
   discountAmountDollars: string;
   discountPercent: string;
@@ -53,6 +54,7 @@ const EMPTY_ITEM: ItemFormState = {
   unitAmountDollars: "",
   billingType: "recurring",
   billingInterval: "month",
+  billingIntervalCount: 1,
   discountType: "",
   discountAmountDollars: "",
   discountPercent: "",
@@ -87,6 +89,7 @@ export function OfferBuilder({
     useState<ProposalBillingMethod>("stripe_checkout");
   const [newFeature, setNewFeature] = useState("");
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_ITEM);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -262,7 +265,7 @@ export function OfferBuilder({
     updateSelected({ features });
   }
 
-  async function addItem() {
+  async function saveItem() {
     if (!selected) return;
     setBusy(true);
     setError(null);
@@ -274,7 +277,8 @@ export function OfferBuilder({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            addItem: {
+            [editingItemId ? "updateItem" : "addItem"]: {
+              ...(editingItemId ? { id: editingItemId } : {}),
               itemType: itemForm.itemType,
               name: itemForm.name,
               description: itemForm.description || undefined,
@@ -285,6 +289,10 @@ export function OfferBuilder({
                 itemForm.billingType === "recurring"
                   ? itemForm.billingInterval
                   : undefined,
+              billingIntervalCount:
+                itemForm.billingType === "recurring"
+                  ? itemForm.billingIntervalCount
+                  : 1,
               discountType:
                 itemForm.itemType === "discount"
                   ? "amount"
@@ -333,9 +341,58 @@ export function OfferBuilder({
         ),
       );
       setItemForm(EMPTY_ITEM);
-      setMessage("Line item added.");
+      setEditingItemId(null);
+      setMessage(editingItemId ? "Line item updated." : "Line item added.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add item");
+      setError(err instanceof Error ? err.message : "Could not save item");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function editItem(item: ClientOfferItem) {
+    setEditingItemId(item.id);
+    setItemForm({
+      itemType: item.item_type,
+      name: item.name,
+      description: item.description ?? "",
+      productKey: typeof item.metadata?.product_key === "string" ? item.metadata.product_key : "",
+      quantity: item.quantity,
+      unitAmountDollars: (item.unit_amount_cents / 100).toFixed(2),
+      billingType: item.billing_type,
+      billingInterval: item.billing_interval === "year" ? "year" : "month",
+      billingIntervalCount: item.billing_interval_count || 1,
+      discountType: item.discount_type ?? "",
+      discountAmountDollars: item.discount_amount_cents ? (item.discount_amount_cents / 100).toFixed(2) : "",
+      discountPercent: item.discount_percent ? String(item.discount_percent) : "",
+      discountDurationType: item.discount_duration_type ?? "repeating",
+      discountDurationMonths: item.discount_duration_months ?? 6,
+      discountScope: item.metadata?.discount_scope === DISCOUNT_SCOPE.FIRST_CYCLE
+        ? DISCOUNT_SCOPE.FIRST_CYCLE
+        : DISCOUNT_SCOPE.RECURRING,
+    });
+  }
+
+  async function removeItem(item: ClientOfferItem) {
+    if (!selected || selected.status !== "draft") return;
+    if (!window.confirm(`Remove line item?\n\n“${item.name}” will be removed from this draft proposal.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/clients/${tenantId}/offers/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteItemId: item.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not remove item");
+      setOffers((current) => current.map((offer) => offer.id === selected.id ? data.offer : offer));
+      if (editingItemId === item.id) {
+        setEditingItemId(null);
+        setItemForm(EMPTY_ITEM);
+      }
+      setMessage("Line item removed. No billing was affected.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove item");
     } finally {
       setBusy(false);
     }
@@ -729,6 +786,12 @@ export function OfferBuilder({
                               selected.currency,
                             )}
                           </p>
+                          {selected.status === "draft" ? (
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => editItem(item)} className="text-xs text-muted hover:text-foreground">Edit</button>
+                              <button type="button" onClick={() => void removeItem(item)} className="text-xs text-danger">Remove</button>
+                            </div>
+                          ) : null}
                         </div>
                       </li>
                     ))}
@@ -756,7 +819,7 @@ export function OfferBuilder({
               </Panel>
 
               {selected.status === "draft" ? (
-                <Panel title="Add line item">
+                <Panel title={editingItemId ? "Edit line item" : "Add line item"}>
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
                       value={itemForm.itemType}
@@ -780,6 +843,40 @@ export function OfferBuilder({
                       <option value="discount">Discount</option>
                       <option value="credit">Credit</option>
                     </select>
+                    {itemForm.billingType === "recurring" ? (
+                      <>
+                        <select
+                          aria-label="Frequency"
+                          value={`${itemForm.billingInterval}:${itemForm.billingIntervalCount}`}
+                          onChange={(e) => {
+                            const [interval, count] = e.target.value.split(":");
+                            if (interval === "custom") {
+                              setItemForm((current) => ({ ...current, billingInterval: "month", billingIntervalCount: 4 }));
+                              return;
+                            }
+                            setItemForm((current) => ({ ...current, billingInterval: interval as "month" | "year", billingIntervalCount: Number(count) }));
+                          }}
+                          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="month:1">Monthly</option>
+                          <option value="month:2">Every 2 months</option>
+                          <option value="month:3">Quarterly</option>
+                          <option value="month:6">Every 6 months</option>
+                          <option value="year:1">Annually</option>
+                          <option value="custom:0">Custom</option>
+                        </select>
+                        {!["month:1", "month:2", "month:3", "month:6", "year:1"].includes(`${itemForm.billingInterval}:${itemForm.billingIntervalCount}`) ? (
+                          <div className="flex gap-2">
+                            <span className="self-center text-sm">Every</span>
+                            <input type="number" min={1} max={36} value={itemForm.billingIntervalCount} onChange={(e) => setItemForm((current) => ({ ...current, billingIntervalCount: Number.parseInt(e.target.value, 10) || 1 }))} className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm" />
+                            <select value={itemForm.billingInterval} onChange={(e) => setItemForm((current) => ({ ...current, billingInterval: e.target.value as "month" | "year" }))} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+                              <option value="month">months</option>
+                              <option value="year">years</option>
+                            </select>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                     <input
                       value={itemForm.productKey}
                       onChange={(e) =>
@@ -931,9 +1028,10 @@ export function OfferBuilder({
                       </>
                     ) : null}
                   </div>
-                  <Button className="mt-4" onClick={addItem} disabled={busy}>
-                    Add item
-                  </Button>
+                  <div className="mt-4 flex gap-2">
+                    <Button onClick={saveItem} disabled={busy}>{editingItemId ? "Save item" : "Add item"}</Button>
+                    {editingItemId ? <Button variant="secondary" onClick={() => { setEditingItemId(null); setItemForm(EMPTY_ITEM); }} disabled={busy}>Cancel</Button> : null}
+                  </div>
                 </Panel>
               ) : null}
             </div>

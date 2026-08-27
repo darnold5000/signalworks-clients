@@ -379,4 +379,25 @@ describe("ProposalClientView", () => {
     expect(html).not.toContain("Due today");
     expect(html).not.toContain("Acceptance &amp; Checkout");
   });
+
+  it("renders annual and quarterly prices with human-readable cadence", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[
+          { ...recurringProduct, id: "annual", name: "Domain Name Service", unit_amount_cents: 2500, billing_interval: "year", billing_interval_count: 1 },
+          { ...recurringProduct, id: "quarterly", name: "Website Maintenance", unit_amount_cents: 15000, billing_interval: "month", billing_interval_count: 3 },
+        ]}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("$25.00/year");
+    expect(html).toContain("Billed annually");
+    expect(html).toContain("$150.00 every 3 months");
+    expect(html).toContain("Billed every 3 months");
+    expect(html).toContain("Recurring charges");
+    expect(html).not.toContain("Recurring monthly");
+  });
 });

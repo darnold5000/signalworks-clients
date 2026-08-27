@@ -3,6 +3,7 @@ import {
   DISCOUNT_SCOPE,
   discountScopeFromMetadata,
 } from "@/lib/offers/discount-scope";
+import { cadenceDescription } from "@/lib/offers/billing-cadence";
 
 const ITEM_TYPE_LABELS: Record<ClientOfferItem["item_type"], string> = {
   base_plan: "Base plan",
@@ -47,10 +48,7 @@ export function formatOfferLineItemSubtitle(item: ClientOfferItem): string {
     item.item_type.replaceAll("_", " ");
 
   if (item.billing_type === "recurring") {
-    if (item.billing_interval === "year") {
-      return `${typeLabel} · annual`;
-    }
-    return `${typeLabel} · monthly`;
+    return `${typeLabel} · ${cadenceDescription(item).replace("Billed ", "").toLowerCase()}`;
   }
 
   return `${typeLabel} · one-time`;

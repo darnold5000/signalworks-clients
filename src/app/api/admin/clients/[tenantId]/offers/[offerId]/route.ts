@@ -26,7 +26,7 @@ const itemSchema = z.object({
   quantity: z.number().int().positive().default(1),
   unitAmountCents: z.number().int().nonnegative(),
   billingType: z.enum(["one_time", "recurring"]),
-  billingInterval: z.enum(["day", "week", "month", "year"]).optional(),
+  billingInterval: z.enum(["month", "year"]).optional(),
   billingIntervalCount: z.number().int().positive().default(1),
   discountType: z.enum(["amount", "percent"]).optional(),
   discountAmountCents: z.number().int().nonnegative().optional(),

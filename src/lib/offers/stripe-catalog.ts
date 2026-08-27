@@ -10,6 +10,12 @@ import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
 import { formatStripeSyncError } from "@/lib/stripe-error";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
+import { recurringCadence } from "@/lib/offers/billing-cadence";
+
+export function stripeRecurringParams(item: ClientOfferItem): Stripe.PriceCreateParams.Recurring {
+  const cadence = recurringCadence(item);
+  return { interval: cadence.interval, interval_count: cadence.intervalCount };
+}
 
 async function createCouponForItem(
   stripe: Stripe,
@@ -124,10 +130,7 @@ export async function syncOfferItemToStripe(
   };
 
   if (item.billing_type === "recurring") {
-    priceParams.recurring = {
-      interval: item.billing_interval ?? "month",
-      interval_count: item.billing_interval_count,
-    };
+    priceParams.recurring = stripeRecurringParams(item);
   }
 
   const price = await stripe.prices.create(priceParams);

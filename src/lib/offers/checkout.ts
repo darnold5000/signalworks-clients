@@ -12,6 +12,7 @@ import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
+import { cadenceKey } from "@/lib/offers/billing-cadence";
 
 function selectedBillableItems(items: ClientOfferItem[]) {
   return items.filter(
@@ -22,6 +23,19 @@ function selectedBillableItems(items: ClientOfferItem[]) {
       item.item_type !== "credit" &&
       !isEntitlementOfferItem(item),
   );
+}
+
+export function assertCheckoutCompatibleCadences(items: ClientOfferItem[]) {
+  const recurringCadences = new Set(
+    items
+      .filter((item) => item.billing_type === "recurring")
+      .map(cadenceKey),
+  );
+  if (recurringCadences.size > 1) {
+    throw new Error(
+      "Stripe Checkout cannot create one subscription with mixed billing frequencies. Use Proposal Only or make all recurring items share one frequency.",
+    );
+  }
 }
 
 export async function createOfferCheckoutSession(args: {
@@ -43,6 +57,7 @@ export async function createOfferCheckoutSession(args: {
   if (billable.length === 0) {
     throw new Error("Offer has no billable Stripe prices. Publish the offer first.");
   }
+  assertCheckoutCompatibleCadences(billable);
 
   const hasRecurring = billable.some((item) => item.billing_type === "recurring");
   const mode: Stripe.Checkout.SessionCreateParams.Mode = hasRecurring

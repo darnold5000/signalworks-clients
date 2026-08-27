@@ -5,6 +5,7 @@ import {
 } from "@/lib/offers/discount-scope";
 import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import { formatMoney } from "@/lib/utils";
+import { cadenceSuffix } from "@/lib/offers/billing-cadence";
 
 export type ProposalInvestmentGroup = {
   billable: ClientOfferItem;
@@ -112,12 +113,13 @@ export function formatClientDiscountSecondaryNote(
 export function formatClientDiscountAmountLabel(
   item: ClientOfferItem,
   currency: string,
+  cadenceItem?: ClientOfferItem,
 ): string {
   const amount = formatMoney(discountLineAmountCents(item), currency);
   const scope = discountScopeFromMetadata(item);
 
   if (scope === DISCOUNT_SCOPE.RECURRING) {
-    return `-${amount}/month`;
+    return `-${amount}${cadenceSuffix(cadenceItem ?? item)}`;
   }
 
   return `-${amount}`;
