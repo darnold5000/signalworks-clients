@@ -24,8 +24,16 @@ import {
   infrastructureSnapshotFromProfile,
   type TechnicalInfrastructureSnapshot,
 } from "@/lib/technical/operations-inventory";
+import {
+  calculateRecurringFinancials,
+  legacyRecurringFinancials,
+  recurringSourcesFromPurchases,
+  type RecurringFinancials,
+  type RecurringFinancialSource,
+} from "@/lib/admin/recurring-financials";
 
 export type AdminClientListItem = Client & {
+  recurringFinancials: RecurringFinancials;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   internal_status: TenantInternalStatus | null;
@@ -37,6 +45,7 @@ export type AdminClientListItem = Client & {
 
 export type AdminClientBundle = {
   client: Client;
+  recurringFinancials: RecurringFinancials;
   profile: TenantProfile | null;
   technical: TenantTechnicalProfile | null;
   contacts: TenantContact[];
@@ -66,6 +75,7 @@ export const getAdminClientList = cache(
     if (!isSupabaseConfigured() || clients.length === 0) {
       return clients.map((client) => ({
         ...client,
+        recurringFinancials: legacyRecurringFinancials(client.monthly_price_cents, client.estimated_infra_cost_cents),
         primary_contact_name: null,
         primary_contact_email: client.support_email,
         internal_status: client.status === "active" ? "active" : "onboarding",
@@ -80,7 +90,7 @@ export const getAdminClientList = cache(
     const supabase = await createClient();
     const tenantIds = clients.map((c) => c.id);
 
-    const [{ data: profiles }, { data: contacts }, { data: activity }, { data: technicalRows }] =
+    const [{ data: profiles }, { data: contacts }, { data: activity }, { data: technicalRows }, { data: purchases }] =
       await Promise.all([
         supabase
           .from(TABLES.tenantProfiles)
@@ -100,7 +110,20 @@ export const getAdminClientList = cache(
           .from(TABLES.tenantTechnicalProfiles)
           .select("*")
           .in("tenant_id", tenantIds),
+        supabase
+          .from(TABLES.purchases)
+          .select("tenant_id, status, purchased_at, purchase_snapshot")
+          .in("tenant_id", tenantIds)
+          .in("status", ["active", "paid"]),
       ]);
+
+    const financialSourcesByTenant = new Map<string, RecurringFinancialSource[]>();
+    for (const purchase of purchases ?? []) {
+      const sources = recurringSourcesFromPurchases([purchase as Parameters<typeof recurringSourcesFromPurchases>[0][number]]);
+      if (!sources.length) continue;
+      const tenantId = purchase.tenant_id as string;
+      financialSourcesByTenant.set(tenantId, [...(financialSourcesByTenant.get(tenantId) ?? []), ...sources]);
+    }
 
     const profileByTenant = new Map(
       (profiles ?? []).map((row) => [row.tenant_id as string, row]),
@@ -128,6 +151,9 @@ export const getAdminClientList = cache(
       const technical = technicalByTenant.get(client.id) ?? null;
       return {
         ...client,
+        recurringFinancials: financialSourcesByTenant.has(client.id)
+          ? calculateRecurringFinancials(financialSourcesByTenant.get(client.id)!, client.estimated_infra_cost_cents)
+          : legacyRecurringFinancials(client.monthly_price_cents, client.estimated_infra_cost_cents),
         primary_contact_name:
           profile?.primary_contact_name ??
           (contact?.name as string | undefined) ??
@@ -153,14 +179,17 @@ export const getAdminClientList = cache(
 
 export const getAdminClientBundle = cache(
   async (tenantId: string): Promise<AdminClientBundle | null> => {
-    const client = await getClientById(tenantId);
+    const adminClient = (await getAdminClientList()).find((candidate) => candidate.id === tenantId);
+    const client = adminClient ?? await getClientById(tenantId);
     if (!client) return null;
+    const recurringFinancials = adminClient?.recurringFinancials ?? legacyRecurringFinancials(client.monthly_price_cents, client.estimated_infra_cost_cents);
 
     const requests = await getRequestsForClient(tenantId);
 
     if (!isSupabaseConfigured()) {
       return {
         client,
+        recurringFinancials,
         profile: null,
         technical: null,
         contacts: [],
@@ -227,6 +256,7 @@ export const getAdminClientBundle = cache(
 
     return {
       client,
+      recurringFinancials,
       profile: (profile as TenantProfile | null) ?? null,
       technical: (technical as TenantTechnicalProfile | null) ?? null,
       contacts: (contacts as TenantContact[]) ?? [],

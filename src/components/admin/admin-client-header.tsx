@@ -8,19 +8,15 @@ import {
   internalStatusTone,
 } from "@/lib/admin/labels";
 import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
-import { formatDate, formatMoney, monthlyMarginCents } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 
 export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
-  const { client, profile, owner } = bundle;
+  const { client, profile, owner, recurringFinancials } = bundle;
   const portalInvite = getPortalInviteDisplay({
     profile,
     owner,
     activity: bundle.activity,
   });
-  const margin = monthlyMarginCents(
-    client.monthly_price_cents,
-    client.estimated_infra_cost_cents,
-  );
   const internalStatus = profile?.internal_status ?? null;
 
   return (
@@ -47,9 +43,9 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
           <div className="flex flex-wrap gap-3 text-sm text-muted">
             <span>{client.plan_name}</span>
             <span>
-              {formatMoney(client.monthly_price_cents, client.currency)} / mo
+              {formatMoney(recurringFinancials.effectiveMrrCents, client.currency)} MRR
             </span>
-            <span>Margin {formatMoney(margin)}</span>
+            <span>Margin {formatMoney(recurringFinancials.effectiveMarginCents)}</span>
             <span>
               Billing{" "}
               <StatusPill

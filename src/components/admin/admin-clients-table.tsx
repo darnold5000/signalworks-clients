@@ -19,7 +19,7 @@ import {
 import { InfrastructureHealthChips } from "@/components/admin/infrastructure-health-chips";
 import { PortalClientRowActions } from "@/components/admin/portal-client-row-actions";
 import { StatusPill } from "@/components/ui";
-import { formatDate, formatMoney, monthlyMarginCents } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 
 type FilterKey =
   | "all"
@@ -342,10 +342,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
           </thead>
           <tbody>
             {filtered.map((client) => {
-              const margin = monthlyMarginCents(
-                client.monthly_price_cents,
-                client.estimated_infra_cost_cents,
-              );
+              const financials = client.recurringFinancials;
               const internalStatus = client.internal_status;
               const infraChips = buildInfrastructureHealthChips(
                 client.infrastructureProfile,
@@ -385,10 +382,12 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                   </td>
                   <td className="py-3 pr-4">
                     <p>{client.plan_name}</p>
-                    <p className="text-xs text-muted">
-                      {formatMoney(client.monthly_price_cents, client.currency)}{" "}
-                      · margin {formatMoney(margin)}
-                    </p>
+                    <p className="text-xs font-medium">{formatMoney(financials.effectiveMrrCents, client.currency)} MRR</p>
+                    {financials.activeRecurringDiscountMrrCents > 0 ? (
+                      <p className="text-xs text-muted">
+                        {formatMoney(financials.baseRecurringMrrCents, client.currency)} base · {formatMoney(financials.activeRecurringDiscountMrrCents, client.currency)} {financials.discountKind === "ongoing" ? "ongoing" : "temporary"} discount
+                      </p>
+                    ) : null}
                   </td>
                   <td className="py-3 pr-4">
                     <StatusPill

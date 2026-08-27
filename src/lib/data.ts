@@ -90,12 +90,12 @@ export async function getDocumentsForClient(
   return (data as Document[]) ?? [];
 }
 
-export function computeMrrCents(clients: Client[]): number {
+export function computeMrrCents(clients: Array<Client & { recurringFinancials?: { effectiveMrrCents: number } }>): number {
   return clients
     .filter(
       (c) =>
         c.subscription_status === "active" ||
         c.subscription_status === "trialing",
     )
-    .reduce((sum, c) => sum + c.monthly_price_cents, 0);
+    .reduce((sum, c) => sum + (c.recurringFinancials?.effectiveMrrCents ?? c.monthly_price_cents), 0);
 }

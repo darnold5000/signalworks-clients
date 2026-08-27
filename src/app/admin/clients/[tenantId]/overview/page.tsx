@@ -13,7 +13,7 @@ import {
   REQUEST_TYPE_LABELS,
 } from "@/lib/types";
 import { getClientAuditSummary } from "@/lib/audit/admin/queries";
-import { formatDate, formatDateTime, formatMoney, monthlyMarginCents } from "@/lib/utils";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 
 export default async function AdminClientOverviewPage({
   params,
@@ -27,17 +27,13 @@ export default async function AdminClientOverviewPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const { client, profile, requests, platformCategory, owner, activity } =
+  const { client, profile, requests, platformCategory, owner, activity, recurringFinancials } =
     bundle;
   const portalInvite = getPortalInviteDisplay({
     profile,
     owner,
     activity,
   });
-  const margin = monthlyMarginCents(
-    client.monthly_price_cents,
-    client.estimated_infra_cost_cents,
-  );
   const lastRequest = requests[0];
   const auditSummary = await getClientAuditSummary(tenantId);
   const websiteUrl = client.website_url ?? profile?.website_url ?? null;
@@ -78,10 +74,24 @@ export default async function AdminClientOverviewPage({
               />
               <MetaRow label="Plan" value={client.plan_name} />
               <MetaRow
-                label="Monthly price"
-                value={formatMoney(client.monthly_price_cents, client.currency)}
+                label="Base monthly recurring"
+                value={formatMoney(recurringFinancials.baseRecurringMrrCents, client.currency)}
               />
-              <MetaRow label="Monthly margin" value={formatMoney(margin)} />
+              <MetaRow label="Current monthly billing" value={formatMoney(recurringFinancials.effectiveMrrCents, client.currency)} />
+              {recurringFinancials.activeRecurringDiscountMrrCents > 0 ? (
+                <>
+                  <MetaRow label="Recurring discount" value={`-${formatMoney(recurringFinancials.activeRecurringDiscountMrrCents, client.currency)}`} />
+                  <MetaRow
+                    label="Discount"
+                    value={recurringFinancials.discountKind === "ongoing"
+                      ? "Ongoing"
+                      : recurringFinancials.discountPeriodsRemaining != null
+                        ? `${recurringFinancials.discountPeriodsRemaining} month${recurringFinancials.discountPeriodsRemaining === 1 ? "" : "s"} remaining`
+                        : "Temporary"}
+                  />
+                </>
+              ) : null}
+              <MetaRow label="Monthly margin" value={formatMoney(recurringFinancials.effectiveMarginCents)} />
               <MetaRow
                 label="Last deployment"
                 value={formatDate(client.last_deployment_at)}
