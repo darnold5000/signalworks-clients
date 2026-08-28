@@ -4,7 +4,7 @@ export function siteHealthLabel(status: SiteHealthStatus) {
   return ({
     healthy: "Healthy",
     needs_attention: "Needs Attention",
-    not_configured: "Not Configured",
+    not_configured: "Site Not Configured",
     checking: "Checking",
     error: "Error",
   } satisfies Record<SiteHealthStatus, string>)[status];

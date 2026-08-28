@@ -12,7 +12,13 @@ import {
 } from "@/lib/site-health/presentation";
 import type { SiteCheckState, SiteHealthResult, SiteHealthSite, SiteHealthStatus } from "@/lib/site-health/types";
 
-export function SiteHealthDashboard({ sites }: { sites: SiteHealthSite[] }) {
+export function SiteHealthDashboard({
+  sites,
+  excludedView,
+}: {
+  sites: SiteHealthSite[];
+  excludedView: boolean;
+}) {
   const router = useRouter();
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const [checkingAll, setCheckingAll] = useState(false);
@@ -52,9 +58,26 @@ export function SiteHealthDashboard({ sites }: { sites: SiteHealthSite[] }) {
     }
   }
 
+  async function resumeMonitoring(tenantId: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/site-health/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ monitoringEnabled: true }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not resume monitoring.");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not resume monitoring.");
+    }
+  }
+
   const counts = sites.reduce<Record<SiteHealthStatus, number>>(
     (acc, site) => {
-      acc[currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status)] += 1;
+      const status = currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
+      acc[site.isPreviewDomain && status !== "error" ? "needs_attention" : status] += 1;
       return acc;
     },
     { healthy: 0, needs_attention: 0, not_configured: 0, checking: 0, error: 0 },
@@ -71,11 +94,14 @@ export function SiteHealthDashboard({ sites }: { sites: SiteHealthSite[] }) {
         ))}
       </div>
       <div className="mb-4 flex items-center justify-between gap-4">
-        <p className="text-sm text-muted">Checks use each tenant&apos;s configured production URL.</p>
-        <Button onClick={runAll} disabled={checkingAll || sites.length === 0}>
+        <div className="flex items-center gap-4 text-sm">
+          <Link className={!excludedView ? "font-medium text-accent" : "text-muted"} href="/admin/site-health">Monitored sites</Link>
+          <Link className={excludedView ? "font-medium text-accent" : "text-muted"} href="/admin/site-health?view=excluded">Excluded sites</Link>
+        </div>
+        {!excludedView ? <Button onClick={runAll} disabled={checkingAll || sites.length === 0}>
           <RefreshCw className={`size-4 ${checkingAll ? "animate-spin" : ""}`} />
           {checkingAll ? "Checking all…" : "Check all sites"}
-        </Button>
+        </Button> : null}
       </div>
       {error ? <p role="alert" className="mb-4 rounded-md bg-red-50 p-3 text-sm text-danger">{error}</p> : null}
       <Panel className="overflow-x-auto p-0">
@@ -86,12 +112,13 @@ export function SiteHealthDashboard({ sites }: { sites: SiteHealthSite[] }) {
           <tbody>
             {sites.map((site) => {
               const isChecking = checking.has(site.tenantId) || checkingAll;
-              const status = isChecking ? "checking" : currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
+              const baseStatus = currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
+              const status = isChecking ? "checking" : site.isPreviewDomain && baseStatus !== "error" ? "needs_attention" : baseStatus;
               const result = isResult(site.record?.last_check_results) ? site.record.last_check_results : null;
               return (
                 <tr key={site.tenantId} className="border-b border-border last:border-0">
-                  <td className="px-4 py-4"><Link className="font-medium hover:text-accent" href={`/admin/site-health/${site.tenantId}`}>{site.name}</Link></td>
-                  <td className="max-w-48 px-4 py-4 text-xs break-all text-muted">{domainFor(site)}</td>
+                  <td className="px-4 py-4"><Link className="font-medium hover:text-accent" href={`/admin/site-health/${site.tenantId}`}>{site.name}</Link>{site.associatedTenants.length > 1 ? <p className="mt-1 text-xs text-muted">{site.associatedTenants.length} associated tenants</p> : null}</td>
+                  <td className="max-w-48 px-4 py-4 text-xs break-all text-muted">{domainFor(site)}{site.isPreviewDomain ? <span className="mt-1 block font-medium text-danger">Preview/hosting domain configured as production</span> : null}</td>
                   <td className="px-4 py-4"><StatusPill label={siteHealthLabel(status)} tone={siteHealthTone(status)} /></td>
                   <CheckCell state={checkState(result, "reachability")} />
                   <CheckCell state={checkState(result, "canonical")} />
@@ -101,13 +128,13 @@ export function SiteHealthDashboard({ sites }: { sites: SiteHealthSite[] }) {
                   <CheckCell state={checkState(result, "structured_data")} />
                   <td className="px-4 py-4 capitalize text-muted">{(site.record?.search_console_status ?? "not_configured").replaceAll("_", " ")}</td>
                   <td className="px-4 py-4 text-xs text-muted">{site.record?.last_checked_at ? new Date(site.record.last_checked_at).toLocaleString() : "Never"}</td>
-                  <td className="px-4 py-4"><div className="flex justify-end gap-2"><Button variant="secondary" disabled={isChecking || !site.configuredUrl} onClick={() => runOne(site.tenantId)}>{isChecking ? "Checking…" : "Run check"}</Button><Link className="inline-flex items-center gap-1 px-2 text-sm text-accent" href={`/admin/site-health/${site.tenantId}`}>Details <ExternalLink className="size-3.5" /></Link></div></td>
+                  <td className="px-4 py-4"><div className="flex justify-end gap-2">{excludedView ? <Button variant="secondary" onClick={() => resumeMonitoring(site.tenantId)}>Monitor in Site Health</Button> : site.configuredUrl ? <Button variant="secondary" disabled={isChecking} onClick={() => runOne(site.tenantId)}>{isChecking ? "Checking…" : "Run check"}</Button> : <Link className="inline-flex items-center rounded-md border border-border px-3 py-2 text-sm" href={`/admin/site-health/${site.tenantId}#configuration`}>Configure Site</Link>}<Link className="inline-flex items-center gap-1 px-2 text-sm text-accent" href={`/admin/site-health/${site.tenantId}`}>Details <ExternalLink className="size-3.5" /></Link></div></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {sites.length === 0 ? <p className="p-8 text-center text-sm text-muted">No tenant websites are available.</p> : null}
+        {sites.length === 0 ? <p className="p-8 text-center text-sm text-muted">{excludedView ? "No sites are excluded from monitoring." : "No monitored sites are available."}</p> : null}
       </Panel>
     </>
   );

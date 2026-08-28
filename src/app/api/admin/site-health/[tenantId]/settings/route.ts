@@ -5,7 +5,10 @@ import {
   requireAdminApiAuth,
 } from "@/lib/admin/require-admin-api-auth";
 import { MANUAL_CHECKLIST_KEYS } from "@/lib/site-health/types";
-import { updateSiteHealthSettings } from "@/lib/site-health/service";
+import {
+  setSiteHealthMonitoring,
+  updateSiteHealthSettings,
+} from "@/lib/site-health/service";
 
 const checklistShape = Object.fromEntries(
   MANUAL_CHECKLIST_KEYS.map((key) => [key, z.boolean().optional()]),
@@ -15,6 +18,7 @@ const schema = z.object({
   launchChecklist: z.object(checklistShape).optional(),
   searchConsoleStatus: z.enum(["not_configured", "manual_setup", "connected"]).optional(),
   searchConsoleProperty: z.string().trim().max(500).nullable().optional(),
+  monitoringEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -29,7 +33,21 @@ export async function PATCH(
   }
   const { tenantId } = await params;
   try {
-    const record = await updateSiteHealthSettings(tenantId, parsed.data, auth.supabase);
+    if (parsed.data.monitoringEnabled !== undefined) {
+      await setSiteHealthMonitoring(
+        tenantId,
+        parsed.data.monitoringEnabled,
+        auth.supabase,
+      );
+    }
+    const hasRecordSettings = Boolean(
+      parsed.data.launchChecklist
+      || parsed.data.searchConsoleStatus
+      || parsed.data.searchConsoleProperty !== undefined,
+    );
+    const record = hasRecordSettings
+      ? await updateSiteHealthSettings(tenantId, parsed.data, auth.supabase)
+      : null;
     return jsonWithSessionCookies(auth.sessionCookies, { record });
   } catch (error) {
     return jsonWithSessionCookies(

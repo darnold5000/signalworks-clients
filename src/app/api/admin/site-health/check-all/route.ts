@@ -11,7 +11,9 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdminApiAuth(request);
   if (!auth.ok) return auth.response;
   try {
-    const sites = await listSiteHealthSites(auth.supabase);
+    const sites = (await listSiteHealthSites(auth.supabase)).filter(
+      (site) => site.monitoringEnabled && site.configuredUrl,
+    );
     const completed: Array<{ tenantId: string; ok: boolean }> = [];
     for (let index = 0; index < sites.length; index += 3) {
       const batch = sites.slice(index, index + 3);

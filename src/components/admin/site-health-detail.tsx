@@ -35,7 +35,9 @@ export function SiteHealthDetail({ site }: { site: SiteHealthSite }) {
   const [checklist, setChecklist] = useState<LaunchChecklistState>(record?.launch_checklist ?? {});
   const [gscStatus, setGscStatus] = useState(record?.search_console_status ?? "not_configured");
   const [gscProperty, setGscProperty] = useState(record?.search_console_property ?? "");
-  const status = checking ? "checking" : currentSiteHealthStatus(site.configuredUrl, record?.last_check_status);
+  const [productionUrl, setProductionUrl] = useState(site.configuredUrl ?? "");
+  const baseStatus = currentSiteHealthStatus(site.configuredUrl, record?.last_check_status);
+  const status = checking ? "checking" : site.isPreviewDomain && baseStatus !== "error" ? "needs_attention" : baseStatus;
 
   async function runCheck() {
     setChecking(true); setError(null);
@@ -69,6 +71,43 @@ export function SiteHealthDetail({ site }: { site: SiteHealthSite }) {
     void saveSettings(next);
   }
 
+  async function saveProductionUrl() {
+    setSaving(true); setError(null);
+    try {
+      const response = await fetch(`/api/admin/site-health/${site.tenantId}/configuration`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productionUrl }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not configure the site.");
+      router.refresh();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not configure the site."); }
+    finally { setSaving(false); }
+  }
+
+  async function changeMonitoring(enabled: boolean) {
+    if (!enabled) {
+      const confirmed = window.confirm(
+        "Stop monitoring this website in Site Health? This only disables Site Health checks and dashboard visibility. It will not delete or change any tenant, client, user, membership, purchase, proposal, Stripe, website, or Supabase customer data.",
+      );
+      if (!confirmed) return;
+    }
+    setSaving(true); setError(null);
+    try {
+      const response = await fetch(`/api/admin/site-health/${site.tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ monitoringEnabled: enabled }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not update monitoring.");
+      router.push(enabled ? `/admin/site-health/${site.tenantId}` : "/admin/site-health");
+      router.refresh();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update monitoring."); }
+    finally { setSaving(false); }
+  }
+
   const autoItems = [
     { label: "Production domain connected", done: checkPassed(result, "reachability") },
     { label: "Primary hostname selected", done: checkPassed(result, "redirects") },
@@ -79,15 +118,21 @@ export function SiteHealthDetail({ site }: { site: SiteHealthSite }) {
   return (
     <div className="space-y-6">
       {error ? <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-danger">{error}</p> : null}
+      {site.isPreviewDomain ? <div className="rounded-md border border-red-200 bg-red-50 p-4"><p className="font-medium text-danger">Preview/hosting domain configured as production</p><p className="mt-1 text-sm text-danger">The configured hostname ends in <code>.vercel.app</code>. Confirm that it is intentionally production or configure the customer-facing domain.</p></div> : null}
       <Panel>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div><div className="flex items-center gap-3"><StatusPill label={siteHealthLabel(status)} tone={siteHealthTone(status)} /><span className="text-sm text-muted">{record?.last_checked_at ? `Checked ${new Date(record.last_checked_at).toLocaleString()}` : "Not checked yet"}</span></div><p className="mt-3 break-all text-sm">{site.configuredUrl ?? "No production URL configured in client settings."}</p></div>
-          <Button onClick={runCheck} disabled={checking || !site.configuredUrl}><RefreshCw className={`size-4 ${checking ? "animate-spin" : ""}`} />{checking ? "Checking…" : "Run check"}</Button>
+          <div><div className="flex items-center gap-3"><StatusPill label={siteHealthLabel(status)} tone={siteHealthTone(status)} /><span className="text-sm text-muted">{record?.last_checked_at ? `Checked ${new Date(record.last_checked_at).toLocaleString()}` : "Not checked yet"}</span></div><p className="mt-3 break-all text-sm">{site.configuredUrl ?? "No production website has been configured for Site Health."}</p>{site.associatedTenants.length > 1 ? <p className="mt-2 text-xs text-muted">Associated tenants: {site.associatedTenants.map((tenant) => tenant.name).join(", ")}</p> : null}</div>
+          <div className="flex flex-wrap gap-2"><Button onClick={runCheck} disabled={checking || !site.configuredUrl || !site.monitoringEnabled}><RefreshCw className={`size-4 ${checking ? "animate-spin" : ""}`} />{checking ? "Checking…" : "Run check"}</Button>{site.monitoringEnabled ? <Button variant="secondary" disabled={saving} onClick={() => changeMonitoring(false)}>Stop Monitoring</Button> : <Button variant="secondary" disabled={saving} onClick={() => changeMonitoring(true)}>Monitor in Site Health</Button>}</div>
         </div>
       </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Configuration">
+        <Panel title="Configuration" >
+          <div id="configuration" className="mb-4 scroll-mt-6 rounded-md bg-background p-4">
+            <label className="block text-sm font-medium">Production website URL<input className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2" placeholder="https://example.com" value={productionUrl} onChange={(event) => setProductionUrl(event.target.value)} /></label>
+            <p className="mt-2 text-xs text-muted">Saved to the existing tenant portal website URL and domain fields—the source of truth used throughout the admin.</p>
+            <Button className="mt-3" variant="secondary" disabled={saving || !productionUrl.trim()} onClick={saveProductionUrl}>{saving ? "Saving…" : site.configuredUrl ? "Update Site" : "Configure Site"}</Button>
+          </div>
           <Definition label="Production URL" value={result?.configuredUrl ?? site.configuredUrl ?? "Not configured"} />
           <Definition label="Final URL after redirects" value={result?.finalUrl ?? "Not checked"} />
           <Definition label="Live canonical URL" value={result?.canonicalUrl ?? "Not found or not checked"} />

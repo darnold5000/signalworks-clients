@@ -44,6 +44,7 @@ export type LaunchChecklistState = Partial<Record<ManualChecklistKey, boolean>>;
 
 export type SiteHealthRecord = {
   tenant_id: string;
+  monitoring_enabled: boolean;
   search_console_status: "not_configured" | "manual_setup" | "connected";
   search_console_property: string | null;
   last_check_status: Exclude<SiteHealthStatus, "checking">;
@@ -59,5 +60,14 @@ export type SiteHealthSite = {
   slug: string;
   configuredUrl: string | null;
   configuredDomain: string | null;
+  normalizedHostname: string | null;
+  monitoringEnabled: boolean;
+  isPreviewDomain: boolean;
+  associatedTenants: Array<{ tenantId: string; name: string; slug: string }>;
   record: SiteHealthRecord | null;
 };
+
+export type SiteHealthTenant = Omit<
+  SiteHealthSite,
+  "associatedTenants" | "normalizedHostname" | "monitoringEnabled" | "isPreviewDomain"
+>;

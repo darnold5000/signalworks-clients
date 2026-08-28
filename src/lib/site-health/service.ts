@@ -5,6 +5,7 @@ import type {
   SiteHealthRecord,
   SiteHealthResult,
   SiteHealthSite,
+  SiteHealthTenant,
 } from "@/lib/site-health/types";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -43,25 +44,17 @@ export async function listSiteHealthSites(
     .order("display_name");
 
   if (error) throw new Error(`Could not load Site Health: ${error.message}`);
-  return ((data ?? []) as unknown as SiteRow[]).map(mapSiteRow);
+  return groupSiteHealthSites(((data ?? []) as unknown as SiteRow[]).map(mapSiteRow));
 }
 
 export async function getSiteHealthSite(
   tenantId: string,
   client?: SupabaseClient,
 ): Promise<SiteHealthSite | null> {
-  const supabase = client ?? (await createClient());
-  const { data, error } = await supabase
-    .from(TABLES.tenants)
-    .select(`
-      id, slug, display_name,
-      tenant_portal_settings (website_url, domain),
-      tenant_site_health (*)
-    `)
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(`Could not load Site Health: ${error.message}`);
-  return data ? mapSiteRow(data as unknown as SiteRow) : null;
+  const sites = await listSiteHealthSites(client);
+  return sites.find((site) =>
+    site.associatedTenants.some((tenant) => tenant.tenantId === tenantId),
+  ) ?? null;
 }
 
 export async function runSiteHealthCheck(
@@ -70,6 +63,9 @@ export async function runSiteHealthCheck(
 ): Promise<SiteHealthResult | null> {
   const site = await getSiteHealthSite(tenantId, client);
   if (!site) throw new Error("Client website was not found.");
+  if (!site.monitoringEnabled) {
+    throw new Error("This website is excluded from Site Health monitoring.");
+  }
 
   if (!site.configuredUrl) {
     const { error } = await client.from(TABLES.tenantSiteHealth).upsert({
@@ -134,7 +130,59 @@ export async function updateSiteHealthSettings(
   return data;
 }
 
-function mapSiteRow(row: SiteRow): SiteHealthSite {
+export async function setSiteHealthMonitoring(
+  tenantId: string,
+  enabled: boolean,
+  client: SupabaseClient,
+) {
+  const site = await getSiteHealthSite(tenantId, client);
+  if (!site) throw new Error("Client website was not found.");
+  const rows = site.associatedTenants.map((tenant) => ({
+    tenant_id: tenant.tenantId,
+    monitoring_enabled: enabled,
+  }));
+  const { error } = await client.from(TABLES.tenantSiteHealth).upsert(rows);
+  if (error) throw new Error(`Could not update Site Health monitoring: ${error.message}`);
+}
+
+export function normalizeProductionHostname(rawUrl: string | null): string | null {
+  if (!rawUrl) return null;
+  try {
+    const url = new URL(rawUrl.includes("://") ? rawUrl : `https://${rawUrl}`);
+    return url.hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
+  } catch {
+    return null;
+  }
+}
+
+export function groupSiteHealthSites(tenants: SiteHealthTenant[]): SiteHealthSite[] {
+  const groups = new Map<string, SiteHealthTenant[]>();
+  for (const tenant of tenants) {
+    const hostname = normalizeProductionHostname(tenant.configuredUrl);
+    const key = hostname ? `host:${hostname}` : `tenant:${tenant.tenantId}`;
+    groups.set(key, [...(groups.get(key) ?? []), tenant]);
+  }
+
+  return [...groups.values()].map((members) => {
+    const representative = [...members].sort((a, b) =>
+      b.name.length - a.name.length || a.name.localeCompare(b.name),
+    )[0];
+    const recordOwner = members.filter((member) => member.record).sort((a, b) =>
+      Date.parse(b.record?.last_checked_at ?? "0") - Date.parse(a.record?.last_checked_at ?? "0"),
+    )[0] ?? representative;
+    const normalizedHostname = normalizeProductionHostname(representative.configuredUrl);
+    return {
+      ...representative,
+      normalizedHostname,
+      monitoringEnabled: members.some((member) => member.record?.monitoring_enabled !== false),
+      isPreviewDomain: normalizedHostname?.endsWith(".vercel.app") ?? false,
+      record: recordOwner.record,
+      associatedTenants: members.map(({ tenantId: id, name, slug }) => ({ tenantId: id, name, slug })),
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function mapSiteRow(row: SiteRow): SiteHealthTenant {
   const settings = first(row.tenant_portal_settings);
   return {
     tenantId: row.id,

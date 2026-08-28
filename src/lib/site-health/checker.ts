@@ -36,6 +36,15 @@ export async function checkConfiguredSite(
   };
   const checks: SiteHealthCheck[] = [];
 
+  checks.push(primaryHostname.endsWith(".vercel.app")
+    ? fail(
+      "production_domain",
+      "Production hostname",
+      "A Vercel preview/hosting domain is configured as production.",
+      "Configure the intended customer-facing production domain, or explicitly confirm this hostname is intentional.",
+    )
+    : pass("production_domain", "Production hostname", "A customer-facing hostname is configured."));
+
   let homepage: SafeFetchResponse;
   try {
     homepage = await fetchConfiguredHost(safeFetch, configured.normalizedUrl, rootHostname, fetchOptions);

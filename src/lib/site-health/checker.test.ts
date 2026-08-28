@@ -190,6 +190,16 @@ describe("checkConfiguredSite", () => {
     timeout.name = "AbortError";
     const result = await run({ "https://example.com/": timeout });
     expect(result.status).toBe("error");
-    expect(result.checks[0].explanation).toContain("timed out");
+    expect(result.checks.find((check) => check.key === "reachability")?.explanation).toContain("timed out");
+  });
+
+  it("flags a Vercel hostname configured as production", async () => {
+    const safeFetch: SafeFetchFn = async (rawUrl) => {
+      const url = new URL(rawUrl).toString();
+      return response(url, healthyHtml.replaceAll("example.com", "preview.vercel.app"));
+    };
+    const result = await checkConfiguredSite("https://preview.vercel.app/", { safeFetch });
+    expect(result.checks.find((check) => check.key === "production_domain")?.state).toBe("fail");
+    expect(result.status).toBe("needs_attention");
   });
 });
