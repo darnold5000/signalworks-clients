@@ -22,9 +22,12 @@ export async function checkConfiguredSite(
   const configured = normalizeAuditUrl(rawUrl);
   const rootHostname = configured.normalizedDomain;
   const primaryHostname = configured.hostname;
-  const alternateHostname = primaryHostname.startsWith("www.")
-    ? rootHostname
-    : `www.${rootHostname}`;
+  const isPlatformHostedDomain = primaryHostname.endsWith(".vercel.app");
+  const alternateHostname = isPlatformHostedDomain
+    ? null
+    : primaryHostname.startsWith("www.")
+      ? rootHostname
+      : `www.${rootHostname}`;
   const origin = `${new URL(configured.normalizedUrl).protocol}//${primaryHostname}`;
   let resolvedSitemapUrl = `${origin}/sitemap.xml`;
   let sitemapUrlCount: number | null = null;
@@ -32,18 +35,21 @@ export async function checkConfiguredSite(
   const safeFetch = dependencies.safeFetch ?? createSafeFetch();
   const fetchOptions = {
     ...FETCH_OPTIONS,
-    allowedHostnames: new Set([rootHostname, `www.${rootHostname}`]),
+    allowedHostnames: new Set(
+      isPlatformHostedDomain
+        ? [primaryHostname]
+        : [rootHostname, `www.${rootHostname}`],
+    ),
   };
   const checks: SiteHealthCheck[] = [];
 
-  checks.push(primaryHostname.endsWith(".vercel.app")
-    ? fail(
-      "production_domain",
-      "Production hostname",
-      "A Vercel preview/hosting domain is configured as production.",
-      "Configure the intended customer-facing production domain, or explicitly confirm this hostname is intentional.",
-    )
-    : pass("production_domain", "Production hostname", "A customer-facing hostname is configured."));
+  checks.push(pass(
+    "production_domain",
+    "Production hostname",
+    isPlatformHostedDomain
+      ? "The configured platform-hosted domain is the authoritative production hostname."
+      : "A customer-facing hostname is configured.",
+  ));
 
   let homepage: SafeFetchResponse;
   try {
@@ -81,7 +87,13 @@ export async function checkConfiguredSite(
     ? pass("redirects", "Redirects and primary hostname", `Requests resolve to ${final.hostname}.`, homepage.redirectChain.join(" → "))
     : fail("redirects", "Redirects and primary hostname", "The configured URL redirected outside its configured hostname pair.", "Choose one primary hostname and redirect the alternate hostname to it."));
 
-  try {
+  if (!alternateHostname) {
+    checks.push(pass(
+      "www",
+      "Alternate www hostname",
+      "No www alternate is expected for this platform-hosted production domain.",
+    ));
+  } else try {
     const alternateUrl = `${final.protocol}//${alternateHostname}/`;
     const alternate = await fetchConfiguredHost(safeFetch, alternateUrl, rootHostname, fetchOptions);
     const alternateFinal = new URL(alternate.finalUrl);
@@ -102,7 +114,6 @@ export async function checkConfiguredSite(
       const canonicalValid = absoluteCanonical.protocol === "https:"
         && canonical.toLowerCase().startsWith("https://")
         && absoluteCanonical.hostname === final.hostname
-        && !absoluteCanonical.hostname.endsWith(".vercel.app")
         && normalizePath(absoluteCanonical.pathname) === normalizePath(final.pathname);
       checks.push(canonicalValid
         ? pass("canonical", "Canonical URL", "The homepage canonical matches the final primary URL.", absoluteCanonical.toString())
@@ -155,9 +166,12 @@ export async function checkConfiguredSite(
     "og:image": extractMetaContent(homepage.bodyText, "og:image"),
   };
   const missingMetadata = Object.entries(metadata).filter(([, value]) => !value).map(([key]) => key);
-  checks.push(missingMetadata.length === 0
-    ? pass("metadata", "Homepage metadata", "Title, description, and required Open Graph metadata are present.")
-    : warn("metadata", "Homepage metadata", `Missing: ${missingMetadata.join(", ")}.`, "Add complete homepage and Open Graph metadata."));
+  const metadataLeaks = findMetadataHostnameLeaks(metadata, rootHostname);
+  checks.push(metadataLeaks.length > 0
+    ? fail("metadata", "Homepage metadata", `Metadata references a different deployment hostname: ${metadataLeaks.join(", ")}.`, "Point production metadata to the configured production hostname.")
+    : missingMetadata.length === 0
+      ? pass("metadata", "Homepage metadata", "Title, description, and required Open Graph metadata are present.")
+      : warn("metadata", "Homepage metadata", `Missing: ${missingMetadata.join(", ")}.`, "Add complete homepage and Open Graph metadata."));
 
   const jsonLd = extractJsonLdBlocks(homepage.bodyText);
   const jsonLdTagCount = [...homepage.bodyText.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>/gi)].length;
@@ -220,6 +234,28 @@ function isHostileSitemapUrl(raw: string, rootHostname: string) {
     const url = new URL(raw);
     return url.protocol !== "https:" || url.hostname.replace(/^www\./, "") !== rootHostname || /\/\//.test(url.pathname);
   } catch { return true; }
+}
+
+function findMetadataHostnameLeaks(
+  metadata: Record<string, string | null>,
+  rootHostname: string,
+): string[] {
+  const leaks: string[] = [];
+  for (const key of ["og:url", "og:image"] as const) {
+    const raw = metadata[key];
+    if (!raw) continue;
+    try {
+      const hostname = new URL(raw).hostname.toLowerCase().replace(/^www\./, "");
+      const mismatchedOgUrl = key === "og:url" && hostname !== rootHostname;
+      const leakedVercelAsset = key === "og:image"
+        && hostname.endsWith(".vercel.app")
+        && hostname !== rootHostname;
+      if (mismatchedOgUrl || leakedVercelAsset) leaks.push(`${key} → ${hostname}`);
+    } catch {
+      leaks.push(`${key} is malformed`);
+    }
+  }
+  return leaks;
 }
 
 function normalizePath(path: string) { return path.replace(/\/+$/, "") || "/"; }

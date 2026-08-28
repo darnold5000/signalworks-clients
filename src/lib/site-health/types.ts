@@ -24,7 +24,7 @@ export type SiteHealthResult = {
   finalUrl: string | null;
   canonicalUrl: string | null;
   primaryHostname: string;
-  alternateHostname: string;
+  alternateHostname: string | null;
   sitemapUrl: string;
   sitemapUrlCount: number | null;
   robotsUrl: string;
@@ -62,12 +62,12 @@ export type SiteHealthSite = {
   configuredDomain: string | null;
   normalizedHostname: string | null;
   monitoringEnabled: boolean;
-  isPreviewDomain: boolean;
+  isPlatformHostedDomain: boolean;
   associatedTenants: Array<{ tenantId: string; name: string; slug: string }>;
   record: SiteHealthRecord | null;
 };
 
 export type SiteHealthTenant = Omit<
   SiteHealthSite,
-  "associatedTenants" | "normalizedHostname" | "monitoringEnabled" | "isPreviewDomain"
+  "associatedTenants" | "normalizedHostname" | "monitoringEnabled" | "isPlatformHostedDomain"
 >;

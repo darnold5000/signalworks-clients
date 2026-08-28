@@ -166,7 +166,7 @@ describe("checkConfiguredSite", () => {
     expect(state(result, "sitemap")).toBe("fail");
   });
 
-  it("detects Vercel preview URLs in a sitemap", async () => {
+  it("fails when a custom production domain leaks a Vercel URL in its sitemap", async () => {
     const xml = `<?xml version="1.0"?><urlset><url><loc>https://preview.vercel.app/page</loc></url></urlset>`;
     const result = await run({ "https://example.com/sitemap.xml": response("https://example.com/sitemap.xml", xml) });
     expect(state(result, "sitemap")).toBe("fail");
@@ -193,13 +193,60 @@ describe("checkConfiguredSite", () => {
     expect(result.checks.find((check) => check.key === "reachability")?.explanation).toContain("timed out");
   });
 
-  it("flags a Vercel hostname configured as production", async () => {
+  it("treats an intentional Vercel production hostname as healthy", async () => {
+    const hostname = "dawg-ashen.vercel.app";
+    const html = healthyHtml.replaceAll("example.com", hostname);
     const safeFetch: SafeFetchFn = async (rawUrl) => {
       const url = new URL(rawUrl).toString();
-      return response(url, healthyHtml.replaceAll("example.com", "preview.vercel.app"));
+      if (url === `https://${hostname}/`) return response(url, html);
+      if (url === `http://${hostname}/`) {
+        return response(url, html, {
+          finalUrl: `https://${hostname}/`,
+          redirectChain: [url, `https://${hostname}/`],
+          redirectStatuses: [308],
+        });
+      }
+      if (url === `https://${hostname}/robots.txt`) {
+        return response(url, `User-agent: *\nAllow: /\nSitemap: https://${hostname}/sitemap.xml`);
+      }
+      if (url === `https://${hostname}/sitemap.xml`) {
+        return response(url, `<?xml version="1.0"?><urlset><url><loc>https://${hostname}/</loc></url></urlset>`);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
     };
-    const result = await checkConfiguredSite("https://preview.vercel.app/", { safeFetch });
-    expect(result.checks.find((check) => check.key === "production_domain")?.state).toBe("fail");
-    expect(result.status).toBe("needs_attention");
+    const result = await checkConfiguredSite(`https://${hostname}/`, { safeFetch });
+    expect(result.checks.find((check) => check.key === "production_domain")?.state).toBe("pass");
+    expect(result.checks.find((check) => check.key === "www")?.state).toBe("pass");
+    expect(result.status).toBe("healthy");
+  });
+
+  it("fails when a custom production domain leaks a Vercel canonical", async () => {
+    const html = healthyHtml.replace(
+      '<link rel="canonical" href="https://example.com/">',
+      '<link rel="canonical" href="https://example-preview.vercel.app/">',
+    );
+    const result = await run({ "https://example.com/": response("https://example.com/", html) });
+    expect(state(result, "canonical")).toBe("fail");
+  });
+
+  it("fails when a custom production domain redirects to an unrelated Vercel hostname", async () => {
+    const result = await run({
+      "https://example.com/": response("https://example.com/", healthyHtml, {
+        finalUrl: "https://unrelated.vercel.app/",
+        redirectChain: ["https://example.com/", "https://unrelated.vercel.app/"],
+        redirectStatuses: [302],
+      }),
+    });
+    expect(result.status).toBe("error");
+    expect(result.checks.find((check) => check.key === "reachability")?.explanation).toContain("configured tenant hostname");
+  });
+
+  it("fails metadata that leaks a different Vercel deployment", async () => {
+    const html = healthyHtml.replace(
+      'content="https://example.com/image.jpg"',
+      'content="https://example-preview.vercel.app/image.jpg"',
+    );
+    const result = await run({ "https://example.com/": response("https://example.com/", html) });
+    expect(state(result, "metadata")).toBe("fail");
   });
 });

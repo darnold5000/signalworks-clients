@@ -36,8 +36,7 @@ export function SiteHealthDetail({ site }: { site: SiteHealthSite }) {
   const [gscStatus, setGscStatus] = useState(record?.search_console_status ?? "not_configured");
   const [gscProperty, setGscProperty] = useState(record?.search_console_property ?? "");
   const [productionUrl, setProductionUrl] = useState(site.configuredUrl ?? "");
-  const baseStatus = currentSiteHealthStatus(site.configuredUrl, record?.last_check_status);
-  const status = checking ? "checking" : site.isPreviewDomain && baseStatus !== "error" ? "needs_attention" : baseStatus;
+  const status = checking ? "checking" : currentSiteHealthStatus(site.configuredUrl, record?.last_check_status);
 
   async function runCheck() {
     setChecking(true); setError(null);
@@ -118,7 +117,7 @@ export function SiteHealthDetail({ site }: { site: SiteHealthSite }) {
   return (
     <div className="space-y-6">
       {error ? <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-danger">{error}</p> : null}
-      {site.isPreviewDomain ? <div className="rounded-md border border-red-200 bg-red-50 p-4"><p className="font-medium text-danger">Preview/hosting domain configured as production</p><p className="mt-1 text-sm text-danger">The configured hostname ends in <code>.vercel.app</code>. Confirm that it is intentionally production or configure the customer-facing domain.</p></div> : null}
+      {site.isPlatformHostedDomain ? <div className="rounded-md border border-border bg-background p-4"><p className="font-medium">Platform-hosted production domain</p><p className="mt-1 text-sm text-muted">This configured Vercel hostname is treated as the authoritative public production URL and does not reduce Site Health.</p></div> : null}
       <Panel>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div><div className="flex items-center gap-3"><StatusPill label={siteHealthLabel(status)} tone={siteHealthTone(status)} /><span className="text-sm text-muted">{record?.last_checked_at ? `Checked ${new Date(record.last_checked_at).toLocaleString()}` : "Not checked yet"}</span></div><p className="mt-3 break-all text-sm">{site.configuredUrl ?? "No production website has been configured for Site Health."}</p>{site.associatedTenants.length > 1 ? <p className="mt-2 text-xs text-muted">Associated tenants: {site.associatedTenants.map((tenant) => tenant.name).join(", ")}</p> : null}</div>

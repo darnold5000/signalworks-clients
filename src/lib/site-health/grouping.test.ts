@@ -80,7 +80,7 @@ describe("Site Health website grouping", () => {
     const [site] = groupSiteHealthSites([
       tenant("dawg", "Dawg", "https://dawg-ashen.vercel.app/"),
     ]);
-    expect(site.isPreviewDomain).toBe(true);
+    expect(site.isPlatformHostedDomain).toBe(true);
     expect(site.configuredUrl).toBe("https://dawg-ashen.vercel.app/");
   });
 });

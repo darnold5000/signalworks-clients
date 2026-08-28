@@ -175,7 +175,7 @@ export function groupSiteHealthSites(tenants: SiteHealthTenant[]): SiteHealthSit
       ...representative,
       normalizedHostname,
       monitoringEnabled: members.some((member) => member.record?.monitoring_enabled !== false),
-      isPreviewDomain: normalizedHostname?.endsWith(".vercel.app") ?? false,
+      isPlatformHostedDomain: normalizedHostname?.endsWith(".vercel.app") ?? false,
       record: recordOwner.record,
       associatedTenants: members.map(({ tenantId: id, name, slug }) => ({ tenantId: id, name, slug })),
     };
@@ -184,12 +184,47 @@ export function groupSiteHealthSites(tenants: SiteHealthTenant[]): SiteHealthSit
 
 function mapSiteRow(row: SiteRow): SiteHealthTenant {
   const settings = first(row.tenant_portal_settings);
+  const configuredUrl = configuredSiteUrl(settings);
   return {
     tenantId: row.id,
     name: row.display_name,
     slug: row.slug,
-    configuredUrl: configuredSiteUrl(settings),
+    configuredUrl,
     configuredDomain: settings?.domain ?? null,
-    record: first(row.tenant_site_health),
+    record: normalizeLegacyPlatformHostedRecord(
+      first(row.tenant_site_health),
+      configuredUrl,
+    ),
+  };
+}
+
+function normalizeLegacyPlatformHostedRecord(
+  record: SiteHealthRecord | null,
+  configuredUrl: string | null,
+): SiteHealthRecord | null {
+  if (!record || !normalizeProductionHostname(configuredUrl)?.endsWith(".vercel.app")) {
+    return record;
+  }
+  const result = record.last_check_results;
+  if (!("checks" in result) || !Array.isArray(result.checks)) return record;
+  const checks = result.checks.map((check) =>
+    check.key === "production_domain"
+      ? {
+        ...check,
+        state: "pass" as const,
+        explanation: "The configured platform-hosted domain is the authoritative production hostname.",
+        recommendation: undefined,
+      }
+      : check,
+  );
+  const projectedStatus = record.last_check_status === "error"
+    ? "error"
+    : checks.some((check) => check.state === "fail" || check.state === "warning")
+      ? "needs_attention"
+      : "healthy";
+  return {
+    ...record,
+    last_check_status: projectedStatus,
+    last_check_results: { ...result, status: projectedStatus, checks },
   };
 }

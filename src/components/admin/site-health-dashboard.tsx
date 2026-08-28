@@ -77,7 +77,7 @@ export function SiteHealthDashboard({
   const counts = sites.reduce<Record<SiteHealthStatus, number>>(
     (acc, site) => {
       const status = currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
-      acc[site.isPreviewDomain && status !== "error" ? "needs_attention" : status] += 1;
+      acc[status] += 1;
       return acc;
     },
     { healthy: 0, needs_attention: 0, not_configured: 0, checking: 0, error: 0 },
@@ -112,13 +112,12 @@ export function SiteHealthDashboard({
           <tbody>
             {sites.map((site) => {
               const isChecking = checking.has(site.tenantId) || checkingAll;
-              const baseStatus = currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
-              const status = isChecking ? "checking" : site.isPreviewDomain && baseStatus !== "error" ? "needs_attention" : baseStatus;
+              const status = isChecking ? "checking" : currentSiteHealthStatus(site.configuredUrl, site.record?.last_check_status);
               const result = isResult(site.record?.last_check_results) ? site.record.last_check_results : null;
               return (
                 <tr key={site.tenantId} className="border-b border-border last:border-0">
                   <td className="px-4 py-4"><Link className="font-medium hover:text-accent" href={`/admin/site-health/${site.tenantId}`}>{site.name}</Link>{site.associatedTenants.length > 1 ? <p className="mt-1 text-xs text-muted">{site.associatedTenants.length} associated tenants</p> : null}</td>
-                  <td className="max-w-48 px-4 py-4 text-xs break-all text-muted">{domainFor(site)}{site.isPreviewDomain ? <span className="mt-1 block font-medium text-danger">Preview/hosting domain configured as production</span> : null}</td>
+                  <td className="max-w-48 px-4 py-4 text-xs break-all text-muted">{domainFor(site)}{site.isPlatformHostedDomain ? <span className="mt-1 block text-muted">Platform-hosted production domain</span> : null}</td>
                   <td className="px-4 py-4"><StatusPill label={siteHealthLabel(status)} tone={siteHealthTone(status)} /></td>
                   <CheckCell state={checkState(result, "reachability")} />
                   <CheckCell state={checkState(result, "canonical")} />
