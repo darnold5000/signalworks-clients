@@ -79,17 +79,17 @@ export default async function AdminClientOverviewPage({
               />
               <MetaRow label="Current monthly billing" value={formatMoney(recurringFinancials.effectiveMrrCents, client.currency)} />
               {recurringFinancials.activeRecurringDiscountMrrCents > 0 ? (
-                <>
                   <MetaRow label="Recurring discount" value={`-${formatMoney(recurringFinancials.activeRecurringDiscountMrrCents, client.currency)}`} />
-                  <MetaRow
-                    label="Discount"
-                    value={recurringFinancials.discountKind === "ongoing"
-                      ? "Ongoing"
-                      : recurringFinancials.discountPeriodsRemaining != null
-                        ? `${recurringFinancials.discountPeriodsRemaining} month${recurringFinancials.discountPeriodsRemaining === 1 ? "" : "s"} remaining`
-                        : "Temporary"}
-                  />
-                </>
+              ) : null}
+              {recurringFinancials.discountKind !== "none" ? (
+                <MetaRow
+                  label="Discount term"
+                  value={recurringFinancials.discountKind === "ongoing"
+                    ? "Ongoing"
+                    : recurringFinancials.discountEndsAt
+                      ? `Ends ${formatDate(recurringFinancials.discountEndsAt)}`
+                      : "Temporary"}
+                />
               ) : null}
               <MetaRow label="Monthly margin" value={formatMoney(recurringFinancials.effectiveMarginCents)} />
               <MetaRow

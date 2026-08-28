@@ -9,13 +9,14 @@ export type RecurringFinancials = {
   effectiveMrrCents: number;
   recurringCostsCents: number;
   effectiveMarginCents: number;
-  discountKind: "none" | "ongoing" | "temporary" | "mixed";
+  discountKind: "none" | "ongoing" | "temporary" | "temporary_unknown" | "mixed";
   discountPeriodsRemaining: number | null;
+  discountEndsAt: string | null;
 };
 
 export type RecurringFinancialSource = {
   items: ClientOfferItem[];
-  purchasedAt: string;
+  finiteDiscountState?: Record<string, { active: boolean; endsAt: string | null }>;
 };
 
 export type PurchaseFinancialRecord = {
@@ -36,7 +37,7 @@ export function recurringSourcesFromPurchases(records: PurchaseFinancialRecord[]
       !snapshot?.items?.length ||
       !purchase.purchased_at
     ) return [];
-    return [{ items: snapshot.items, purchasedAt: purchase.purchased_at }];
+    return [{ items: snapshot.items }];
   });
 }
 
@@ -46,23 +47,15 @@ function normalizeToMrr(cents: number, item: ClientOfferItem): number {
   return Math.round(cents / months);
 }
 
-function elapsedCalendarMonths(start: Date, end: Date): number {
-  let months = (end.getUTCFullYear() - start.getUTCFullYear()) * 12;
-  months += end.getUTCMonth() - start.getUTCMonth();
-  if (end.getUTCDate() < start.getUTCDate()) months -= 1;
-  return Math.max(0, months);
-}
-
-function discountState(item: ClientOfferItem, purchasedAt: string, asOf: Date) {
+function discountState(item: ClientOfferItem, source: RecurringFinancialSource) {
   if (item.discount_duration_type === "once") return { active: false, ongoing: false, remaining: 0 };
   if (item.discount_duration_type === "repeating" && item.discount_duration_months) {
-    const elapsed = elapsedCalendarMonths(new Date(purchasedAt), asOf);
-    const active = elapsed < item.discount_duration_months;
-    // The checkout invoice consumes the first discounted billing period.
-    const remaining = Math.max(0, item.discount_duration_months - elapsed - 1);
-    return { active, ongoing: false, remaining };
+    const authoritative = source.finiteDiscountState?.[item.id];
+    return authoritative
+      ? { active: authoritative.active, ongoing: false, remaining: null, endsAt: authoritative.endsAt, known: true }
+      : { active: false, ongoing: false, remaining: null, endsAt: null, known: false };
   }
-  return { active: true, ongoing: true, remaining: null };
+  return { active: true, ongoing: true, remaining: null, endsAt: null, known: true };
 }
 
 function inlineDiscountCents(item: ClientOfferItem): number {
@@ -75,13 +68,14 @@ function inlineDiscountCents(item: ClientOfferItem): number {
 export function calculateRecurringFinancials(
   sources: RecurringFinancialSource[],
   recurringCostsCents = 0,
-  asOf = new Date(),
 ): RecurringFinancials {
   let base = 0;
   let discount = 0;
   let sawOngoing = false;
   let sawTemporary = false;
+  let sawUnknownTemporary = false;
   const remainingPeriods: number[] = [];
+  const discountEndDates: string[] = [];
 
   for (const source of sources) {
     const selected = source.items.filter((item) => item.is_selected).sort((a, b) => a.sort_order - b.sort_order);
@@ -89,12 +83,14 @@ export function calculateRecurringFinancials(
     for (const item of selected) {
       if (item.item_type === "discount" || item.item_type === "credit") {
         if (discountScopeFromMetadata(item) !== DISCOUNT_SCOPE.RECURRING || !precedingRecurring) continue;
-        const state = discountState(item, source.purchasedAt, asOf);
+        const state = discountState(item, source);
+        sawUnknownTemporary ||= state.known === false;
         if (!state.active) continue;
         discount += normalizeToMrr(item.unit_amount_cents * item.quantity, precedingRecurring);
         sawOngoing ||= state.ongoing;
         sawTemporary ||= !state.ongoing;
         if (state.remaining != null) remainingPeriods.push(state.remaining);
+        if (state.endsAt) discountEndDates.push(state.endsAt);
         continue;
       }
       if (item.billing_type !== "recurring" || isEntitlementOfferItem(item)) continue;
@@ -102,12 +98,14 @@ export function calculateRecurringFinancials(
       base += normalizeToMrr(item.unit_amount_cents * item.quantity, item);
       const inline = inlineDiscountCents(item);
       if (inline > 0) {
-        const state = discountState(item, source.purchasedAt, asOf);
+        const state = discountState(item, source);
+        sawUnknownTemporary ||= state.known === false;
         if (state.active) {
           discount += normalizeToMrr(inline, item);
           sawOngoing ||= state.ongoing;
           sawTemporary ||= !state.ongoing;
           if (state.remaining != null) remainingPeriods.push(state.remaining);
+          if (state.endsAt) discountEndDates.push(state.endsAt);
         }
       }
     }
@@ -120,8 +118,11 @@ export function calculateRecurringFinancials(
     effectiveMrrCents: effective,
     recurringCostsCents,
     effectiveMarginCents: effective - recurringCostsCents,
-    discountKind: sawOngoing && sawTemporary ? "mixed" : sawOngoing ? "ongoing" : sawTemporary ? "temporary" : "none",
+    discountKind: sawUnknownTemporary
+      ? (sawOngoing || sawTemporary ? "mixed" : "temporary_unknown")
+      : sawOngoing && sawTemporary ? "mixed" : sawOngoing ? "ongoing" : sawTemporary ? "temporary" : "none",
     discountPeriodsRemaining: remainingPeriods.length ? Math.min(...remainingPeriods) : null,
+    discountEndsAt: discountEndDates.sort()[0] ?? null,
   };
 }
 
@@ -134,5 +135,6 @@ export function legacyRecurringFinancials(monthlyPriceCents: number, recurringCo
     effectiveMarginCents: monthlyPriceCents - recurringCostsCents,
     discountKind: "none",
     discountPeriodsRemaining: null,
+    discountEndsAt: null,
   };
 }

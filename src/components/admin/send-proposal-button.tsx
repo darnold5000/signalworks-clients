@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import type { ClientOfferStatus } from "@/lib/database/phase1-types";
+import {
+  proposalCanBeSent,
+  proposalSendDisabledReason,
+  proposalSendLabel,
+} from "@/lib/admin/proposal-send-policy";
 
 export function SendProposalButton({
   tenantId,
@@ -11,7 +17,7 @@ export function SendProposalButton({
 }: {
   tenantId: string;
   offerId: string;
-  offerStatus: string;
+  offerStatus: ClientOfferStatus;
   ownerEmail?: string | null;
 }) {
   const [loading, setLoading] = useState(false);
@@ -22,7 +28,8 @@ export function SendProposalButton({
     email: string;
   } | null>(null);
 
-  const disabled = offerStatus !== "published";
+  const disabled = !proposalCanBeSent(offerStatus);
+  const disabledReason = proposalSendDisabledReason(offerStatus);
 
   async function onSend() {
     setLoading(true);
@@ -59,7 +66,7 @@ export function SendProposalButton({
           disabled={loading || disabled}
           onClick={() => void onSend()}
         >
-          {loading ? "Sending…" : "Send proposal to client"}
+          {loading ? "Sending…" : proposalSendLabel(offerStatus)}
         </Button>
         {ownerEmail ? (
           <p className="text-sm text-muted">Portal email: {ownerEmail}</p>
@@ -67,10 +74,7 @@ export function SendProposalButton({
       </div>
 
       {disabled ? (
-        <p className="text-xs text-muted">
-          Publish the offer first, then send it. Existing clients sign in to
-          review — this does not create a new account.
-        </p>
+        <p className="text-xs text-muted">{disabledReason}</p>
       ) : (
         <p className="text-xs text-muted">
           Emails a link to review this proposal. Clients who already have a

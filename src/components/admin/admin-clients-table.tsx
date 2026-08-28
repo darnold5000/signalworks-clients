@@ -334,7 +334,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
               <th className="pb-3 font-medium">Infrastructure health</th>
               <th className="pb-3 font-medium">Contact</th>
               <th className="pb-3 font-medium">Status</th>
-              <th className="pb-3 font-medium">Plan / MRR</th>
+              <th className="pb-3 font-medium">Plan / Effective MRR</th>
               <th className="pb-3 font-medium">Billing</th>
               <th className="pb-3 font-medium">Last activity</th>
               <th className="pb-3 font-medium">Actions</th>

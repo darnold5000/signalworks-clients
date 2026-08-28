@@ -7,6 +7,10 @@ import {
 import { getOfferWithItems } from "@/lib/offers/queries";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import {
+  proposalCanBeSent,
+  proposalSendDisabledReason,
+} from "@/lib/admin/proposal-send-policy";
 
 export type SendProposalResult =
   | {
@@ -30,10 +34,12 @@ export async function sendProposalToClient(args: {
     return { ok: false, error: "Offer not found." };
   }
 
-  if (offer.status !== "published") {
+  if (!proposalCanBeSent(offer.status)) {
     return {
       ok: false,
-      error: "Publish the offer before sending it to the client.",
+      error:
+        proposalSendDisabledReason(offer.status) ??
+        "This proposal cannot be sent in its current state.",
     };
   }
 
@@ -71,7 +77,7 @@ export async function sendProposalToClient(args: {
     .from(TABLES.tenantProfiles)
     .update({
       internal_status: "awaiting_agreement",
-      onboarding_status: "invited",
+      ...(offer.status === "published" ? { onboarding_status: "invited" } : {}),
     })
     .eq("tenant_id", args.tenantId);
 

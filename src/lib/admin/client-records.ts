@@ -1,6 +1,8 @@
 import { cache } from "react";
 import type {
   TenantActivityLogEntry,
+  ClientOfferItem,
+  ClientOfferStatus,
   TenantContact,
   TenantInternalNote,
   TenantInternalStatus,
@@ -31,6 +33,8 @@ import {
   type RecurringFinancials,
   type RecurringFinancialSource,
 } from "@/lib/admin/recurring-financials";
+import { getStripeFiniteDiscountState } from "@/lib/admin/stripe-discount-state";
+import { resolveAgreementAwareInternalStatus } from "@/lib/admin/agreement-status";
 
 export type AdminClientListItem = Client & {
   recurringFinancials: RecurringFinancials;
@@ -90,7 +94,7 @@ export const getAdminClientList = cache(
     const supabase = await createClient();
     const tenantIds = clients.map((c) => c.id);
 
-    const [{ data: profiles }, { data: contacts }, { data: activity }, { data: technicalRows }, { data: purchases }] =
+    const [{ data: profiles }, { data: contacts }, { data: activity }, { data: technicalRows }, { data: purchases }, { data: subscriptions }, { data: offers }] =
       await Promise.all([
         supabase
           .from(TABLES.tenantProfiles)
@@ -112,17 +116,43 @@ export const getAdminClientList = cache(
           .in("tenant_id", tenantIds),
         supabase
           .from(TABLES.purchases)
-          .select("tenant_id, status, purchased_at, purchase_snapshot")
+          .select("id, tenant_id, status, purchased_at, purchase_snapshot")
           .in("tenant_id", tenantIds)
           .in("status", ["active", "paid"]),
+        supabase
+          .from(TABLES.tenantSubscriptions)
+          .select("tenant_id, purchase_id, stripe_subscription_id, subscription_status")
+          .in("tenant_id", tenantIds)
+          .in("subscription_status", ["active", "trialing", "past_due"]),
+        supabase
+          .from(TABLES.clientOffers)
+          .select("tenant_id, status")
+          .in("tenant_id", tenantIds),
       ]);
 
     const financialSourcesByTenant = new Map<string, RecurringFinancialSource[]>();
     for (const purchase of purchases ?? []) {
       const sources = recurringSourcesFromPurchases([purchase as Parameters<typeof recurringSourcesFromPurchases>[0][number]]);
       if (!sources.length) continue;
+      const items = sources[0]!.items;
+      const finiteDiscountIds = items
+        .filter((item: ClientOfferItem) => item.discount_duration_type === "repeating")
+        .map((item: ClientOfferItem) => item.id);
+      const subscription = (subscriptions ?? []).find(
+        (candidate) => candidate.purchase_id === purchase.id && candidate.stripe_subscription_id,
+      );
+      const finiteDiscountState =
+        finiteDiscountIds.length && subscription?.stripe_subscription_id
+          ? await getStripeFiniteDiscountState(
+              subscription.stripe_subscription_id as string,
+              finiteDiscountIds,
+            )
+          : null;
       const tenantId = purchase.tenant_id as string;
-      financialSourcesByTenant.set(tenantId, [...(financialSourcesByTenant.get(tenantId) ?? []), ...sources]);
+      financialSourcesByTenant.set(tenantId, [
+        ...(financialSourcesByTenant.get(tenantId) ?? []),
+        { ...sources[0]!, finiteDiscountState: finiteDiscountState ?? undefined },
+      ]);
     }
 
     const profileByTenant = new Map(
@@ -144,6 +174,14 @@ export const getAdminClientList = cache(
         row as TenantTechnicalProfile,
       ]),
     );
+    const offerStatusesByTenant = new Map<string, ClientOfferStatus[]>();
+    for (const offer of offers ?? []) {
+      const tenantId = offer.tenant_id as string;
+      offerStatusesByTenant.set(tenantId, [
+        ...(offerStatusesByTenant.get(tenantId) ?? []),
+        offer.status as ClientOfferStatus,
+      ]);
+    }
 
     return clients.map((client) => {
       const profile = profileByTenant.get(client.id);
@@ -162,9 +200,12 @@ export const getAdminClientList = cache(
           profile?.primary_contact_email ??
           (contact?.email as string | undefined) ??
           client.support_email,
-        internal_status:
-          (profile?.internal_status as TenantInternalStatus | undefined) ??
-          null,
+        internal_status: resolveAgreementAwareInternalStatus({
+          storedStatus:
+            (profile?.internal_status as TenantInternalStatus | undefined) ?? null,
+          tenantStatus: client.status,
+          offerStatuses: offerStatusesByTenant.get(client.id) ?? [],
+        }),
         onboarding_status:
           (profile?.onboarding_status as TenantOnboardingStatus | undefined) ??
           null,
@@ -257,7 +298,14 @@ export const getAdminClientBundle = cache(
     return {
       client,
       recurringFinancials,
-      profile: (profile as TenantProfile | null) ?? null,
+      profile: profile
+        ? {
+            ...(profile as TenantProfile),
+            internal_status:
+              adminClient?.internal_status ??
+              (profile.internal_status as TenantInternalStatus),
+          }
+        : null,
       technical: (technical as TenantTechnicalProfile | null) ?? null,
       contacts: (contacts as TenantContact[]) ?? [],
       internalNotes: (internalNotes as TenantInternalNote[]) ?? [],
