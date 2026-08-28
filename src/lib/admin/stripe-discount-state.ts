@@ -6,9 +6,15 @@ export type FiniteDiscountState = Record<
   { active: boolean; endsAt: string | null }
 >;
 
-function expandedCoupon(discount: Stripe.Discount): Stripe.Coupon | null {
+async function resolveCoupon(
+  stripe: Stripe,
+  discount: Stripe.Discount,
+): Promise<Stripe.Coupon | null> {
   const coupon = discount.source.coupon;
-  return coupon && typeof coupon !== "string" ? coupon : null;
+  if (!coupon) return null;
+  if (typeof coupon !== "string") return coupon;
+  const retrieved = await stripe.coupons.retrieve(coupon);
+  return "deleted" in retrieved && retrieved.deleted ? null : retrieved;
 }
 
 /** Read-only Stripe authority for currently attached finite discounts. */
@@ -25,7 +31,6 @@ export async function getStripeFiniteDiscountState(
         "discounts",
         "discounts.source.coupon",
         "items.data.discounts",
-        "items.data.discounts.source.coupon",
       ],
     });
     const discounts = [
@@ -36,7 +41,7 @@ export async function getStripeFiniteDiscountState(
     const result: FiniteDiscountState = {};
     const requested = new Set(finiteOfferItemIds);
     for (const discount of discounts) {
-      const coupon = expandedCoupon(discount);
+      const coupon = await resolveCoupon(stripe, discount);
       const offerItemId = coupon?.metadata?.offer_item_id;
       if (!offerItemId || !requested.has(offerItemId)) continue;
       result[offerItemId] = {

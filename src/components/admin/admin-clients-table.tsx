@@ -385,7 +385,12 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                     <p className="text-xs font-medium">{formatMoney(financials.effectiveMrrCents, client.currency)} MRR</p>
                     {financials.activeRecurringDiscountMrrCents > 0 ? (
                       <p className="text-xs text-muted">
-                        {formatMoney(financials.baseRecurringMrrCents, client.currency)} base · {formatMoney(financials.activeRecurringDiscountMrrCents, client.currency)} {financials.discountKind === "ongoing" ? "ongoing" : "temporary"} discount
+                        {formatMoney(financials.baseRecurringMrrCents, client.currency)} base · {formatMoney(financials.activeRecurringDiscountMrrCents, client.currency)} {financials.activeDiscountCount > 1 ? "discounts" : `${financials.discountKind === "ongoing" ? "ongoing" : "temporary"} discount`}
+                      </p>
+                    ) : null}
+                    {financials.scheduled ? (
+                      <p className="text-xs text-muted">
+                        Scheduled {formatDate(financials.scheduled.effectiveAt)}: {formatMoney(financials.scheduled.effectiveMrrCents, client.currency)} MRR
                       </p>
                     ) : null}
                   </td>

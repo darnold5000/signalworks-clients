@@ -1,7 +1,6 @@
 import { cache } from "react";
 import type {
   TenantActivityLogEntry,
-  ClientOfferItem,
   ClientOfferStatus,
   TenantContact,
   TenantInternalNote,
@@ -30,11 +29,31 @@ import {
   calculateRecurringFinancials,
   legacyRecurringFinancials,
   recurringSourcesFromPurchases,
+  recurringFinancialsFromStripeSnapshot,
   type RecurringFinancials,
   type RecurringFinancialSource,
 } from "@/lib/admin/recurring-financials";
-import { getStripeFiniteDiscountState } from "@/lib/admin/stripe-discount-state";
 import { resolveAgreementAwareInternalStatus } from "@/lib/admin/agreement-status";
+import { loadStripeBillingSnapshot } from "@/lib/admin/stripe-billing-snapshot";
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(values[index]!);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
+  );
+  return results;
+}
 
 export type AdminClientListItem = Client & {
   recurringFinancials: RecurringFinancials;
@@ -134,26 +153,31 @@ export const getAdminClientList = cache(
     for (const purchase of purchases ?? []) {
       const sources = recurringSourcesFromPurchases([purchase as Parameters<typeof recurringSourcesFromPurchases>[0][number]]);
       if (!sources.length) continue;
-      const items = sources[0]!.items;
-      const finiteDiscountIds = items
-        .filter((item: ClientOfferItem) => item.discount_duration_type === "repeating")
-        .map((item: ClientOfferItem) => item.id);
-      const subscription = (subscriptions ?? []).find(
-        (candidate) => candidate.purchase_id === purchase.id && candidate.stripe_subscription_id,
-      );
-      const finiteDiscountState =
-        finiteDiscountIds.length && subscription?.stripe_subscription_id
-          ? await getStripeFiniteDiscountState(
-              subscription.stripe_subscription_id as string,
-              finiteDiscountIds,
-            )
-          : null;
       const tenantId = purchase.tenant_id as string;
       financialSourcesByTenant.set(tenantId, [
         ...(financialSourcesByTenant.get(tenantId) ?? []),
-        { ...sources[0]!, finiteDiscountState: finiteDiscountState ?? undefined },
+        ...sources,
       ]);
     }
+
+    const subscriptionIdsByTenant = new Map<string, string[]>();
+    for (const subscription of subscriptions ?? []) {
+      if (!subscription.stripe_subscription_id) continue;
+      const tenantId = subscription.tenant_id as string;
+      subscriptionIdsByTenant.set(tenantId, [
+        ...(subscriptionIdsByTenant.get(tenantId) ?? []),
+        subscription.stripe_subscription_id as string,
+      ]);
+    }
+    const stripeEntries = await mapWithConcurrency(
+      [...subscriptionIdsByTenant.entries()],
+      4,
+      async ([tenantId, subscriptionIds]) => [
+        tenantId,
+        await loadStripeBillingSnapshot(subscriptionIds),
+      ] as const,
+    );
+    const stripeSnapshotByTenant = new Map(stripeEntries);
 
     const profileByTenant = new Map(
       (profiles ?? []).map((row) => [row.tenant_id as string, row]),
@@ -187,11 +211,24 @@ export const getAdminClientList = cache(
       const profile = profileByTenant.get(client.id);
       const contact = contactByTenant.get(client.id);
       const technical = technicalByTenant.get(client.id) ?? null;
+      const stripeSnapshot = stripeSnapshotByTenant.get(client.id);
       return {
         ...client,
-        recurringFinancials: financialSourcesByTenant.has(client.id)
-          ? calculateRecurringFinancials(financialSourcesByTenant.get(client.id)!, client.estimated_infra_cost_cents)
-          : legacyRecurringFinancials(client.monthly_price_cents, client.estimated_infra_cost_cents),
+        recurringFinancials:
+          stripeSnapshot && stripeSnapshot.current.items.length > 0
+            ? recurringFinancialsFromStripeSnapshot(
+                stripeSnapshot,
+                client.estimated_infra_cost_cents,
+              )
+            : financialSourcesByTenant.has(client.id)
+              ? calculateRecurringFinancials(
+                  financialSourcesByTenant.get(client.id)!,
+                  client.estimated_infra_cost_cents,
+                )
+              : legacyRecurringFinancials(
+                  client.monthly_price_cents,
+                  client.estimated_infra_cost_cents,
+                ),
         primary_contact_name:
           profile?.primary_contact_name ??
           (contact?.name as string | undefined) ??

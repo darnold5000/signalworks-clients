@@ -2,6 +2,15 @@ import type { ClientOfferItem } from "@/lib/database/phase1-types";
 import { recurringCadence } from "@/lib/offers/billing-cadence";
 import { DISCOUNT_SCOPE, discountScopeFromMetadata } from "@/lib/offers/discount-scope";
 import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
+import type { StripeBillingSnapshot } from "@/lib/admin/stripe-billing-snapshot";
+
+export type ScheduledRecurringFinancials = {
+  effectiveAt: string;
+  baseRecurringMrrCents: number;
+  activeRecurringDiscountMrrCents: number;
+  effectiveMrrCents: number;
+  activeDiscountCount: number;
+};
 
 export type RecurringFinancials = {
   baseRecurringMrrCents: number;
@@ -12,6 +21,9 @@ export type RecurringFinancials = {
   discountKind: "none" | "ongoing" | "temporary" | "temporary_unknown" | "mixed";
   discountPeriodsRemaining: number | null;
   discountEndsAt: string | null;
+  activeDiscountCount: number;
+  source: "stripe" | "purchase_snapshot_fallback";
+  scheduled: ScheduledRecurringFinancials | null;
 };
 
 export type RecurringFinancialSource = {
@@ -74,6 +86,7 @@ export function calculateRecurringFinancials(
   let sawOngoing = false;
   let sawTemporary = false;
   let sawUnknownTemporary = false;
+  let activeDiscountCount = 0;
   const remainingPeriods: number[] = [];
   const discountEndDates: string[] = [];
 
@@ -87,6 +100,7 @@ export function calculateRecurringFinancials(
         sawUnknownTemporary ||= state.known === false;
         if (!state.active) continue;
         discount += normalizeToMrr(item.unit_amount_cents * item.quantity, precedingRecurring);
+        activeDiscountCount += 1;
         sawOngoing ||= state.ongoing;
         sawTemporary ||= !state.ongoing;
         if (state.remaining != null) remainingPeriods.push(state.remaining);
@@ -102,6 +116,7 @@ export function calculateRecurringFinancials(
         sawUnknownTemporary ||= state.known === false;
         if (state.active) {
           discount += normalizeToMrr(inline, item);
+          activeDiscountCount += 1;
           sawOngoing ||= state.ongoing;
           sawTemporary ||= !state.ongoing;
           if (state.remaining != null) remainingPeriods.push(state.remaining);
@@ -123,6 +138,46 @@ export function calculateRecurringFinancials(
       : sawOngoing && sawTemporary ? "mixed" : sawOngoing ? "ongoing" : sawTemporary ? "temporary" : "none",
     discountPeriodsRemaining: remainingPeriods.length ? Math.min(...remainingPeriods) : null,
     discountEndsAt: discountEndDates.sort()[0] ?? null,
+    activeDiscountCount,
+    source: "purchase_snapshot_fallback",
+    scheduled: null,
+  };
+}
+
+function stripeDiscountKind(snapshot: StripeBillingSnapshot): RecurringFinancials["discountKind"] {
+  const discounts = snapshot.current.discounts;
+  const ongoing = discounts.some((discount) => discount.duration === "forever");
+  const temporary = discounts.some((discount) => discount.duration !== "forever");
+  return ongoing && temporary ? "mixed" : ongoing ? "ongoing" : temporary ? "temporary" : "none";
+}
+
+export function recurringFinancialsFromStripeSnapshot(
+  snapshot: StripeBillingSnapshot,
+  recurringCostsCents = 0,
+): RecurringFinancials {
+  const ends = snapshot.current.discounts
+    .flatMap((discount) => discount.end ?? [])
+    .sort();
+  return {
+    baseRecurringMrrCents: snapshot.current.baseMrrCents,
+    activeRecurringDiscountMrrCents: snapshot.current.discountMrrCents,
+    effectiveMrrCents: snapshot.current.effectiveMrrCents,
+    recurringCostsCents,
+    effectiveMarginCents: snapshot.current.effectiveMrrCents - recurringCostsCents,
+    discountKind: stripeDiscountKind(snapshot),
+    discountPeriodsRemaining: null,
+    discountEndsAt: ends[0] ?? null,
+    activeDiscountCount: snapshot.current.discounts.length,
+    source: "stripe",
+    scheduled: snapshot.scheduled
+      ? {
+          effectiveAt: snapshot.scheduled.effectiveAt,
+          baseRecurringMrrCents: snapshot.scheduled.baseMrrCents,
+          activeRecurringDiscountMrrCents: snapshot.scheduled.discountMrrCents,
+          effectiveMrrCents: snapshot.scheduled.effectiveMrrCents,
+          activeDiscountCount: snapshot.scheduled.discounts.length,
+        }
+      : null,
   };
 }
 
@@ -136,5 +191,8 @@ export function legacyRecurringFinancials(monthlyPriceCents: number, recurringCo
     discountKind: "none",
     discountPeriodsRemaining: null,
     discountEndsAt: null,
+    activeDiscountCount: 0,
+    source: "purchase_snapshot_fallback",
+    scheduled: null,
   };
 }

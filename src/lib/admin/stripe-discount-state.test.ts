@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const retrieve = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ subscriptions: { retrieve } }) }));
+const retrieveCoupon = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/stripe", () => ({
+  getStripe: () => ({
+    subscriptions: { retrieve },
+    coupons: { retrieve: retrieveCoupon },
+  }),
+}));
 
 import { getStripeFiniteDiscountState } from "@/lib/admin/stripe-discount-state";
 
 describe("Stripe finite discount state", () => {
-  beforeEach(() => retrieve.mockReset());
+  beforeEach(() => {
+    retrieve.mockReset();
+    retrieveCoupon.mockReset();
+  });
 
   it("uses an expanded current Stripe discount and its authoritative end", async () => {
     const end = Math.floor(Date.now() / 1000) + 3600;
@@ -25,5 +34,21 @@ describe("Stripe finite discount state", () => {
     await expect(getStripeFiniteDiscountState("sub_1", ["discount-1"])).resolves.toEqual({
       "discount-1": { active: false, endsAt: null },
     });
+  });
+
+  it("resolves item discount coupons in a supported second read", async () => {
+    const end = Math.floor(Date.now() / 1000) + 3600;
+    retrieve.mockResolvedValue({
+      discounts: [],
+      items: { data: [{ discounts: [{ end, source: { coupon: "coupon-1" } }] }] },
+    });
+    retrieveCoupon.mockResolvedValue({ metadata: { offer_item_id: "discount-1" } });
+
+    await expect(getStripeFiniteDiscountState("sub_1", ["discount-1"])).resolves.toEqual({
+      "discount-1": { active: true, endsAt: new Date(end * 1000).toISOString() },
+    });
+    expect(retrieve.mock.calls[0]?.[1]?.expand).not.toContain(
+      "items.data.discounts.source.coupon",
+    );
   });
 });

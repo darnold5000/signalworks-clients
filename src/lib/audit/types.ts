@@ -90,6 +90,8 @@ export type SafeFetchOptions = {
   maxRedirects?: number;
   maxResponseBytes?: number;
   userAgent?: string;
+  /** Optional hostname allowlist enforced before the first request and every redirect. */
+  allowedHostnames?: ReadonlySet<string>;
 };
 
 export type SafeFetchResponse = {
@@ -99,6 +101,7 @@ export type SafeFetchResponse = {
   headers: Record<string, string>;
   bodyText: string;
   redirectChain: string[];
+  redirectStatuses?: number[];
 };
 
 export type SafeFetchFn = (

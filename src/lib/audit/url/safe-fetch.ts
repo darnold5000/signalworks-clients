@@ -20,9 +20,11 @@ export function createSafeFetch(
     };
 
     const normalized = normalizeAuditUrl(rawUrl);
+    assertAllowlistedHostname(normalized.hostname, options.allowedHostnames);
     await resolveHostnameForAudit(normalized.hostname);
 
     const redirectChain: string[] = [normalized.normalizedUrl];
+    const redirectStatuses: number[] = [];
     let currentUrl = normalized.normalizedUrl;
 
     for (let hop = 0; hop <= limits.maxRedirects; hop += 1) {
@@ -61,7 +63,12 @@ export function createSafeFetch(
         }
 
         await validateRedirectTarget(nextUrl);
+        assertAllowlistedHostname(
+          new URL(nextUrl).hostname,
+          options.allowedHostnames,
+        );
         redirectChain.push(nextUrl);
+        redirectStatuses.push(response.status);
         currentUrl = nextUrl;
         continue;
       }
@@ -79,11 +86,26 @@ export function createSafeFetch(
         headers,
         bodyText,
         redirectChain,
+        redirectStatuses,
       } satisfies SafeFetchResponse;
     }
 
     throw new SsrfBlockedError("too_many_redirects", "Too many redirects.");
   };
+}
+
+function assertAllowlistedHostname(
+  hostname: string,
+  allowedHostnames?: ReadonlySet<string>,
+): void {
+  if (!allowedHostnames) return;
+  const normalized = hostname.toLowerCase();
+  if (![...allowedHostnames].some((allowed) => allowed.toLowerCase() === normalized)) {
+    throw new SsrfBlockedError(
+      "hostname_not_allowlisted",
+      "Redirect left the configured website hostname.",
+    );
+  }
 }
 
 function isRedirectStatus(status: number): boolean {

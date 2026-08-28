@@ -11,6 +11,7 @@ export const TABLES = {
   // Phase 1 — client management
   tenantProfiles: "tenant_profiles",
   tenantTechnicalProfiles: "tenant_technical_profiles",
+  tenantSiteHealth: "tenant_site_health",
   tenantContacts: "tenant_contacts",
   legalDocuments: "legal_documents",
   clientOffers: "client_offers",
