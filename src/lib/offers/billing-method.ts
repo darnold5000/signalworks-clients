@@ -24,7 +24,7 @@ export function offerBillingMethodLabel(
 export function buildOfferAcceptanceSnapshot(args: {
   offer: ClientOffer;
   items: ClientOfferItem[];
-  acceptedByUserId: string;
+  acceptedByUserId: string | null;
   acceptedName: string;
   acceptedEmail: string;
 }) {
@@ -39,4 +39,3 @@ export function buildOfferAcceptanceSnapshot(args: {
     captured_at: new Date().toISOString(),
   };
 }
-

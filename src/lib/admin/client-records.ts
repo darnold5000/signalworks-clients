@@ -64,6 +64,7 @@ export type AdminClientListItem = Client & {
   last_activity_at: string | null;
   infrastructure: TechnicalInfrastructureSnapshot | null;
   infrastructureProfile: TenantTechnicalProfile | null;
+  proposal_status: ClientOfferStatus | null;
 };
 
 export type AdminClientBundle = {
@@ -107,6 +108,7 @@ export const getAdminClientList = cache(
         last_activity_at: client.updated_at,
         infrastructure: null,
         infrastructureProfile: null,
+        proposal_status: null,
       }));
     }
 
@@ -145,8 +147,9 @@ export const getAdminClientList = cache(
           .in("subscription_status", ["active", "trialing", "past_due"]),
         supabase
           .from(TABLES.clientOffers)
-          .select("tenant_id, status")
-          .in("tenant_id", tenantIds),
+          .select("tenant_id, status, created_at")
+          .in("tenant_id", tenantIds)
+          .order("created_at", { ascending: false }),
       ]);
 
     const financialSourcesByTenant = new Map<string, RecurringFinancialSource[]>();
@@ -250,6 +253,7 @@ export const getAdminClientList = cache(
           lastActivityByTenant.get(client.id) ?? client.updated_at,
         infrastructure: infrastructureSnapshotFromProfile(technical),
         infrastructureProfile: technical,
+        proposal_status: offerStatusesByTenant.get(client.id)?.[0] ?? null,
       };
     });
   },

@@ -1,22 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type {
-  PlatformPlanTemplate,
-  PlatformProductCatalogItem,
-} from "@/lib/catalog/types";
-import { InviteClientForm } from "@/components/invite-client-form";
+import { CreateClientForm } from "@/components/admin/create-client-form";
 import { Button, Panel } from "@/components/ui";
 
-export function InviteClientPanel({
-  plans,
-  platformComponents,
-  serviceAddOns,
-}: {
-  plans: PlatformPlanTemplate[];
-  platformComponents: PlatformProductCatalogItem[];
-  serviceAddOns: PlatformProductCatalogItem[];
-}) {
+export function InviteClientPanel() {
   const [open, setOpen] = useState(false);
 
   return (
@@ -25,8 +13,8 @@ export function InviteClientPanel({
         <div>
           <h2 className="font-medium">Add client</h2>
           <p className="mt-1 text-sm text-muted">
-            Invite a new client with a plan, platform components, and service
-            add-ons. For existing clients, use Offers → Send proposal.
+            Create the business and its contacts. Proposals, portal access, and
+            billing are separate actions after the client is saved.
           </p>
         </div>
         {!open ? (
@@ -41,11 +29,7 @@ export function InviteClientPanel({
       </div>
       {open ? (
         <div className="mt-6 border-t border-border pt-6">
-          <InviteClientForm
-            plans={plans}
-            platformComponents={platformComponents}
-            serviceAddOns={serviceAddOns}
-          />
+          <CreateClientForm onSaved={() => setOpen(false)} />
         </div>
       ) : null}
     </Panel>

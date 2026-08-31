@@ -3,6 +3,7 @@ import type {
   ClientOfferItem,
   ClientOfferFeature,
   LegalDocument,
+  ProposalRecipient,
 } from "@/lib/database/phase1-types";
 import {
   renderOfferSowHtml,
@@ -20,6 +21,12 @@ export type OfferWithItems = ClientOffer & {
   items: ClientOfferItem[];
   features: ClientOfferFeature[];
 };
+
+export async function listProposalRecipientsForTenant(tenantId: string): Promise<ProposalRecipient[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from(TABLES.proposalRecipients).select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  return (data as ProposalRecipient[]) ?? [];
+}
 
 export async function listOffersForTenant(
   tenantId: string,

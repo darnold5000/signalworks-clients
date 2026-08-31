@@ -83,7 +83,7 @@ function discountSummary(item: ClientOfferItem): string | null {
 export async function createPurchaseFromOffer(args: {
   offer: ClientOffer;
   items: ClientOfferItem[];
-  purchasedBy: string;
+  purchasedBy: string | null;
 }): Promise<{ purchase: Purchase; items: PurchaseItem[] }> {
   const totals = calculateOfferTotals(args.items);
   const snapshot = {

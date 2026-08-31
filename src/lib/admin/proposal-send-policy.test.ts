@@ -6,6 +6,10 @@ import {
 } from "@/lib/admin/proposal-send-policy";
 
 describe("proposal send policy", () => {
+  it("allows an explicitly selected draft to enter the send workflow", () => {
+    expect(proposalCanBeSent("draft")).toBe(true);
+    expect(proposalSendDisabledReason("draft")).toBeNull();
+  });
   it("allows sending published offers", () => {
     expect(proposalCanBeSent("published")).toBe(true);
     expect(proposalSendDisabledReason("published")).toBeNull();

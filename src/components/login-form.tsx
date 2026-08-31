@@ -139,7 +139,7 @@ export function LoginForm() {
     <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-sm">
       <p className="font-display text-3xl text-foreground">{siteConfig.name}</p>
       <h1 className="mt-2 text-lg font-medium text-foreground">
-        Client Portal
+        Website Management
       </h1>
       <p className="mt-2 text-sm text-muted">
         Sign in to view your website status, billing, and update requests.

@@ -1,7 +1,7 @@
 import type { ClientOfferStatus } from "@/lib/database/phase1-types";
 
 export function proposalCanBeSent(status: ClientOfferStatus): boolean {
-  return status === "published" || status === "viewed";
+  return status === "draft" || status === "published" || status === "viewed";
 }
 
 export function proposalSendLabel(status: ClientOfferStatus): string {
@@ -15,6 +15,6 @@ export function proposalSendDisabledReason(status: ClientOfferStatus): string | 
   if (status === "accepted" || status === "purchased") {
     return "This agreement has already been accepted and cannot be resent.";
   }
-  if (!proposalCanBeSent(status)) return "Publish the offer first, then send it.";
+  if (!proposalCanBeSent(status)) return "This proposal cannot be sent in its current state.";
   return null;
 }

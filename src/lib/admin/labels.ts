@@ -17,6 +17,7 @@ export const INTERNAL_STATUS_LABELS: Record<TenantInternalStatus, string> = {
 };
 
 export const ONBOARDING_STATUS_LABELS: Record<TenantOnboardingStatus, string> = {
+  not_started: "Not started",
   invited: "Invited",
   account_created: "Account created",
   company_information_confirmed: "Company info confirmed",

@@ -6,6 +6,8 @@ import type {
   ClientOfferFeature,
   ClientOfferItem,
   ClientOfferItemType,
+  TenantContact,
+  ProposalRecipient,
   ProposalBillingMethod,
 } from "@/lib/database/phase1-types";
 import {
@@ -69,14 +71,21 @@ function dollarsToCents(value: string): number {
   return Math.round(parsed * 100);
 }
 
+function offerStatusLabel(status: ClientOffer["status"]): string {
+  if (status === "published") return "Sent";
+  return status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function OfferBuilder({
   tenantId,
   initialOffers,
-  ownerEmail,
+  contacts,
+  recipientDeliveries,
 }: {
   tenantId: string;
   initialOffers: OfferWithItems[];
-  ownerEmail?: string | null;
+  contacts: TenantContact[];
+  recipientDeliveries: ProposalRecipient[];
 }) {
   const [offers, setOffers] = useState(initialOffers);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -398,28 +407,6 @@ export function OfferBuilder({
     }
   }
 
-  async function publishOffer() {
-    if (!selected) return;
-    if (!(await saveProposal())) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const res = await fetch(
-        `/api/admin/clients/${tenantId}/offers/${selected.id}/publish`,
-        { method: "POST" },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not publish offer");
-      await refreshOffers(selected.id);
-      setMessage("Offer published. Client can review it in the portal.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not publish offer");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <Panel title="Create draft offer">
@@ -511,7 +498,7 @@ export function OfferBuilder({
                     }`}
                   >
                     <p className="font-medium">{offer.title}</p>
-                    <StatusPill label={offer.status} tone="neutral" />
+                    <StatusPill label={offerStatusLabel(offer.status)} tone="neutral" />
                     <p className="mt-1 text-xs text-muted">
                       Billing: {offerBillingMethodLabel(offer)}
                     </p>
@@ -525,7 +512,7 @@ export function OfferBuilder({
             <div className="space-y-6">
               <Panel title={selected.title}>
                 <div className="mb-4 flex flex-wrap items-center gap-2">
-                  <StatusPill label={selected.status} tone="warning" />
+                  <StatusPill label={offerStatusLabel(selected.status)} tone="warning" />
                   <span className="text-sm font-medium">
                     Billing: {offerBillingMethodLabel(selected)}
                   </span>
@@ -798,24 +785,27 @@ export function OfferBuilder({
                   </ul>
                 )}
 
-                {selected.status === "draft" ? (
-                  <Button
-                    className="mt-4"
-                    onClick={publishOffer}
-                    disabled={busy || selected.items.length === 0}
-                  >
-                    Publish offer
-                  </Button>
-                ) : (
-                  <div className="mt-4">
-                    <SendProposalButton
-                      tenantId={tenantId}
-                      offerId={selected.id}
-                      offerStatus={selected.status}
-                      ownerEmail={ownerEmail}
-                    />
+                <div className="mt-4">
+                  <SendProposalButton
+                    tenantId={tenantId}
+                    offerId={selected.id}
+                    offerStatus={selected.status}
+                    contacts={contacts}
+                  />
+                </div>
+                {recipientDeliveries.some((recipient) => recipient.offer_id === selected.id) ? (
+                  <div className="mt-4 rounded-lg border border-border p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">Recipient delivery</p>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {recipientDeliveries.filter((recipient) => recipient.offer_id === selected.id).map((recipient) => (
+                        <li key={recipient.id} className="flex flex-wrap justify-between gap-2">
+                          <span>{recipient.name ?? recipient.email} · {recipient.email}</span>
+                          <span className="text-muted">{recipient.delivery_status.replace("_", " ")}{recipient.viewed_at ? " · viewed" : ""}{recipient.accepted_at ? " · accepted" : ""}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                )}
+                ) : null}
               </Panel>
 
               {selected.status === "draft" ? (

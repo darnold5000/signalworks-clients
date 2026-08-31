@@ -61,6 +61,12 @@ function toggleInList<T extends string>(list: T[], value: T): T[] {
     : [...list, value];
 }
 
+function proposalStatusLabel(status: AdminClientListItem["proposal_status"]): string {
+  if (!status) return "No proposal yet";
+  if (status === "published") return "Sent";
+  return status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function InfrastructureFilterPanel({
   filters,
   onChange,
@@ -271,7 +277,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
   if (clients.length === 0) {
     return (
       <p className="text-sm text-muted">
-        No clients yet. Invite your first client above.
+        No clients yet. Create your first client above.
       </p>
     );
   }
@@ -334,6 +340,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
               <th className="pb-3 font-medium">Infrastructure health</th>
               <th className="pb-3 font-medium">Contact</th>
               <th className="pb-3 font-medium">Status</th>
+              <th className="pb-3 font-medium">Proposal</th>
               <th className="pb-3 font-medium">Plan / Effective MRR</th>
               <th className="pb-3 font-medium">Billing</th>
               <th className="pb-3 font-medium">Last activity</th>
@@ -379,6 +386,12 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                     ) : (
                       <StatusPill label={client.status} tone="warning" />
                     )}
+                  </td>
+                  <td className="py-3 pr-4">
+                    <StatusPill
+                      label={proposalStatusLabel(client.proposal_status)}
+                      tone={client.proposal_status === "accepted" || client.proposal_status === "purchased" ? "success" : client.proposal_status === "published" || client.proposal_status === "viewed" ? "warning" : "neutral"}
+                    />
                   </td>
                   <td className="py-3 pr-4">
                     <p>{client.plan_name}</p>

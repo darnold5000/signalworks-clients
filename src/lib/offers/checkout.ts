@@ -40,7 +40,7 @@ export function assertCheckoutCompatibleCadences(items: ClientOfferItem[]) {
 
 export async function createOfferCheckoutSession(args: {
   offer: OfferWithItems;
-  purchaserUserId: string;
+  purchaserUserId: string | null;
   purchaserEmail: string;
   request: Request;
   existingCustomerId?: string | null;

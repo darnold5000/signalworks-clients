@@ -508,7 +508,7 @@ export async function deliverClientProposalLink(args: {
   businessName: string;
   offerTitle: string;
   portalLink: string;
-  linkType: "invite" | "recovery" | "magiclink" | "login";
+  linkType: "invite" | "recovery" | "magiclink" | "login" | "proposal";
 }): Promise<{
   deliveryMethod: "email" | "link";
   emailError: string | null;

@@ -104,7 +104,7 @@ export function isLocalAppUrl(appUrl: string): boolean {
 
 export const siteConfig = {
   name: "Signal Works",
-  productName: "Client Portal",
+  productName: "Website Management",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   marketingUrl: "https://hiresignalworks.com",
   supportEmail: "hello@hiresignalworks.com",

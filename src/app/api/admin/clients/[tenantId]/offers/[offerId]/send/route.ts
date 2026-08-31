@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { sendProposalToClient } from "@/lib/admin/send-proposal-service";
 import { getCurrentProfile, isPlatformAdmin } from "@/lib/auth";
+import { z } from "zod";
+
+const bodySchema = z.object({ contactIds: z.array(z.string().uuid()).min(1).max(25) });
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ tenantId: string; offerId: string }> },
 ) {
   const profile = await getCurrentProfile();
@@ -12,10 +15,15 @@ export async function POST(
   }
 
   const { tenantId, offerId } = await params;
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Select at least one valid proposal recipient." }, { status: 400 });
+  }
   const result = await sendProposalToClient({
     tenantId,
     offerId,
     actorUserId: profile.id,
+    contactIds: parsed.data.contactIds,
   });
 
   if (!result.ok) {
@@ -24,8 +32,6 @@ export async function POST(
 
   return NextResponse.json({
     message: result.message,
-    email: result.email,
-    deliveryMethod: result.deliveryMethod,
-    portalLink: result.portalLink,
+    deliveries: result.deliveries,
   });
 }

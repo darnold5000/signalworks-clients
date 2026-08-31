@@ -3,21 +3,13 @@ import { AdminClientsTable } from "@/components/admin/admin-clients-table";
 import { OperationsInventorySummaryPanel } from "@/components/admin/operations-inventory-summary-panel";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAdminClientList, getOperationsInventorySummary } from "@/lib/admin/client-records";
-import {
-  getActivePlanTemplates,
-  getActivePlatformComponents,
-  getActiveServiceAddOns,
-} from "@/lib/catalog/queries";
 import { computeMrrCents } from "@/lib/data";
 import { formatMoney } from "@/lib/utils";
 
 export default async function AdminClientsPage() {
-  const [clients, plans, platformComponents, serviceAddOns, opsSummary] =
+  const [clients, opsSummary] =
     await Promise.all([
     getAdminClientList(),
-    getActivePlanTemplates(),
-    getActivePlatformComponents(),
-    getActiveServiceAddOns(),
     getOperationsInventorySummary(),
   ]);
   const mrr = computeMrrCents(clients);
@@ -56,11 +48,7 @@ export default async function AdminClientsPage() {
 
       <OperationsInventorySummaryPanel summary={opsSummary} />
 
-      <InviteClientPanel
-        plans={plans}
-        platformComponents={platformComponents}
-        serviceAddOns={serviceAddOns}
-      />
+      <InviteClientPanel />
 
       <Panel title="All clients">
         <AdminClientsTable clients={clients} />

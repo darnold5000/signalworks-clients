@@ -12,7 +12,7 @@ function escapeHtml(value: string): string {
 type ProposalLinkType = Extract<
   ClientPortalAccessLinkResult,
   { inviteLink: string }
->["linkType"];
+>["linkType"] | "proposal";
 
 export async function sendClientProposalEmail(args: {
   email: string;

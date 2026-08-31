@@ -72,7 +72,7 @@ export function AppShell({
                 {siteConfig.name}
               </p>
               <p className="text-xs tracking-wide text-muted uppercase">
-                {isAdmin ? "Admin" : "Client Portal"}
+                {isAdmin ? "Admin" : "Website Management"}
               </p>
             </Link>
             {businessName ? (

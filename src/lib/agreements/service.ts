@@ -8,7 +8,7 @@ import { TABLES } from "@/lib/supabase/tables";
 export async function hasAcceptedLegalDocument(args: {
   tenantId: string;
   offerId: string;
-  userId: string;
+  userId: string | null;
   legalDocumentId: string;
 }): Promise<boolean> {
   const supabase = createServiceClient();
@@ -27,7 +27,7 @@ export async function hasAcceptedLegalDocument(args: {
 export async function hasAcceptedOfferTerms(args: {
   tenantId: string;
   offerId: string;
-  userId: string;
+  userId: string | null;
   legalDocumentId: string;
 }): Promise<boolean> {
   return hasAcceptedLegalDocument(args);
@@ -36,7 +36,7 @@ export async function hasAcceptedOfferTerms(args: {
 export async function hasAcceptedRequiredOfferAgreements(args: {
   tenantId: string;
   offerId: string;
-  userId: string;
+  userId: string | null;
   termsDocumentId?: string | null;
   sowDocumentId?: string | null;
   requiresTerms?: boolean;
@@ -66,7 +66,7 @@ export async function hasAcceptedRequiredOfferAgreements(args: {
 
 async function insertAgreementAcceptance(args: {
   tenantId: string;
-  userId: string;
+  userId: string | null;
   offerId: string;
   document: LegalDocument;
   acceptedName: string;
@@ -111,7 +111,7 @@ async function insertAgreementAcceptance(args: {
 
 export async function recordAgreementAcceptance(args: {
   tenantId: string;
-  userId: string;
+  userId: string | null;
   offerId: string;
   document: LegalDocument;
   acceptedName: string;
@@ -137,7 +137,7 @@ export async function recordAgreementAcceptance(args: {
 
 export async function recordOfferAcceptance(args: {
   tenantId: string;
-  userId: string;
+  userId: string | null;
   offerId: string;
   acceptanceSnapshot?: Record<string, unknown> | null;
 }) {
@@ -163,7 +163,7 @@ export async function recordOfferAcceptance(args: {
 
 export async function recordOfferAgreementsAcceptance(args: {
   tenantId: string;
-  userId: string;
+  userId: string | null;
   offerId: string;
   termsDocument?: LegalDocument | null;
   sowDocument?: LegalDocument | null;

@@ -1,6 +1,6 @@
 import { OfferBuilder } from "@/components/admin/offer-builder";
 import { PageHeader } from "@/components/ui";
-import { listOffersForTenant } from "@/lib/offers/queries";
+import { listOffersForTenant, listProposalRecipientsForTenant } from "@/lib/offers/queries";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
 import { notFound } from "next/navigation";
 
@@ -13,7 +13,7 @@ export default async function AdminClientOffersPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const offers = await listOffersForTenant(tenantId);
+  const [offers, recipients] = await Promise.all([listOffersForTenant(tenantId), listProposalRecipientsForTenant(tenantId)]);
 
   return (
     <>
@@ -24,7 +24,8 @@ export default async function AdminClientOffersPage({
       <OfferBuilder
         tenantId={tenantId}
         initialOffers={offers}
-        ownerEmail={bundle.owner?.email}
+        contacts={bundle.contacts}
+        recipientDeliveries={recipients}
       />
     </>
   );

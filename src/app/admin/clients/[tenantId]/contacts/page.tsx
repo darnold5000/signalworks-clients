@@ -11,5 +11,5 @@ export default async function AdminClientContactsPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  return <ContactsList contacts={bundle.contacts} />;
+  return <ContactsList tenantId={tenantId} contacts={bundle.contacts} />;
 }

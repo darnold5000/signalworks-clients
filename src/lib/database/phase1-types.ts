@@ -20,6 +20,7 @@ export type TenantInternalStatus =
   | "archived";
 
 export type TenantOnboardingStatus =
+  | "not_started"
   | "invited"
   | "account_created"
   | "company_information_confirmed"
@@ -198,6 +199,32 @@ export type TenantContact = {
   is_primary: boolean;
   is_billing_contact: boolean;
   is_technical_contact: boolean;
+  receives_proposals: boolean;
+  receives_billing: boolean;
+  receives_notifications: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProposalRecipientDeliveryStatus =
+  | "pending"
+  | "sent"
+  | "failed"
+  | "link_ready";
+
+export type ProposalRecipient = {
+  id: string;
+  offer_id: string;
+  tenant_id: string;
+  contact_id: string | null;
+  email: string;
+  name: string | null;
+  access_token_hash: string;
+  delivery_status: ProposalRecipientDeliveryStatus;
+  sent_at: string | null;
+  last_error: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
   created_at: string;
   updated_at: string;
 };

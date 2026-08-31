@@ -71,6 +71,15 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
           <ButtonLink href="/admin/clients" variant="secondary">
             ← All clients
           </ButtonLink>
+          <ButtonLink href={`/admin/clients/${client.id}/offers`}>
+            Create Proposal
+          </ButtonLink>
+          <ButtonLink href={`/admin/clients/${client.id}/contacts`} variant="secondary">
+            Add Contact
+          </ButtonLink>
+          <ButtonLink href={`/admin/clients/${client.id}/overview?edit=1`} variant="secondary">
+            Edit Client
+          </ButtonLink>
           {client.website_url ? (
             <ButtonLink href={client.website_url} variant="secondary">
               Open website

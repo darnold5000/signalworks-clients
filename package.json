@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:provision-portal-client": "node scripts/db-provision-portal-client.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
