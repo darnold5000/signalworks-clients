@@ -264,7 +264,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
         client.domain,
         client.primary_contact_name,
         client.primary_contact_email,
-        client.plan_name,
+        client.commercialSummary.planName,
         chipText,
       ]
         .filter(Boolean)
@@ -350,6 +350,7 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
           <tbody>
             {filtered.map((client) => {
               const financials = client.recurringFinancials;
+              const commercial = client.commercialSummary;
               const internalStatus = client.internal_status;
               const infraChips = buildInfrastructureHealthChips(
                 client.infrastructureProfile,
@@ -394,9 +395,9 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                     />
                   </td>
                   <td className="py-3 pr-4">
-                    <p>{client.plan_name}</p>
-                    <p className="text-xs font-medium">{formatMoney(financials.effectiveMrrCents, client.currency)} MRR</p>
-                    {financials.activeRecurringDiscountMrrCents > 0 ? (
+                    <p>{commercial.planName ?? "—"}</p>
+                    <p className="text-xs font-medium">{commercial.currentRecurringCents == null ? "—" : `${formatMoney(commercial.currentRecurringCents, client.currency)} MRR`}</p>
+                    {commercial.commercialState === "active" && financials.activeRecurringDiscountMrrCents > 0 ? (
                       <p className="text-xs text-muted">
                         {formatMoney(financials.baseRecurringMrrCents, client.currency)} base · {formatMoney(financials.activeRecurringDiscountMrrCents, client.currency)} {financials.activeDiscountCount > 1 ? "discounts" : `${financials.discountKind === "ongoing" ? "ongoing" : "temporary"} discount`}
                       </p>

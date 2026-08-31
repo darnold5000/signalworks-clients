@@ -35,6 +35,13 @@ import {
 } from "@/lib/admin/recurring-financials";
 import { resolveAgreementAwareInternalStatus } from "@/lib/admin/agreement-status";
 import { loadStripeBillingSnapshot } from "@/lib/admin/stripe-billing-snapshot";
+import {
+  resolveCommercialAccountSummary,
+  type CommercialAccountSummary,
+  type CommercialOffer,
+  type CommercialPurchase,
+  type CommercialSubscription,
+} from "@/lib/admin/commercial-account-summary";
 
 async function mapWithConcurrency<T, R>(
   values: T[],
@@ -65,6 +72,7 @@ export type AdminClientListItem = Client & {
   infrastructure: TechnicalInfrastructureSnapshot | null;
   infrastructureProfile: TenantTechnicalProfile | null;
   proposal_status: ClientOfferStatus | null;
+  commercialSummary: CommercialAccountSummary;
 };
 
 export type AdminClientBundle = {
@@ -78,6 +86,7 @@ export type AdminClientBundle = {
   requests: ServiceRequest[];
   owner: TenantOwnerInviteTarget | null;
   platformCategory: string;
+  commercialSummary: CommercialAccountSummary;
 };
 
 export const INTERNAL_STATUS_FILTERS: TenantInternalStatus[] = [
@@ -109,6 +118,14 @@ export const getAdminClientList = cache(
         infrastructure: null,
         infrastructureProfile: null,
         proposal_status: null,
+        commercialSummary: resolveCommercialAccountSummary({
+          tenantStatus: client.status,
+          offers: [],
+          purchases: [],
+          subscriptions: [],
+          stripeSnapshot: null,
+          recurringCostsCents: client.estimated_infra_cost_cents,
+        }),
       }));
     }
 
@@ -138,19 +155,34 @@ export const getAdminClientList = cache(
         supabase
           .from(TABLES.purchases)
           .select("id, tenant_id, status, purchased_at, purchase_snapshot")
-          .in("tenant_id", tenantIds)
-          .in("status", ["active", "paid"]),
+          .in("tenant_id", tenantIds),
         supabase
           .from(TABLES.tenantSubscriptions)
           .select("tenant_id, purchase_id, stripe_subscription_id, subscription_status")
-          .in("tenant_id", tenantIds)
-          .in("subscription_status", ["active", "trialing", "past_due"]),
+          .in("tenant_id", tenantIds),
         supabase
           .from(TABLES.clientOffers)
-          .select("tenant_id, status, created_at")
+          .select("*")
           .in("tenant_id", tenantIds)
           .order("created_at", { ascending: false }),
       ]);
+
+    const offerIds = (offers ?? []).map((offer) => offer.id as string);
+    const { data: offerItems } = offerIds.length
+      ? await supabase
+          .from(TABLES.clientOfferItems)
+          .select("*")
+          .in("offer_id", offerIds)
+          .order("sort_order", { ascending: true })
+      : { data: [] };
+    const offerItemsByOffer = new Map<string, import("@/lib/database/phase1-types").ClientOfferItem[]>();
+    for (const item of offerItems ?? []) {
+      const offerId = item.offer_id as string;
+      offerItemsByOffer.set(offerId, [
+        ...(offerItemsByOffer.get(offerId) ?? []),
+        item as import("@/lib/database/phase1-types").ClientOfferItem,
+      ]);
+    }
 
     const financialSourcesByTenant = new Map<string, RecurringFinancialSource[]>();
     for (const purchase of purchases ?? []) {
@@ -165,6 +197,7 @@ export const getAdminClientList = cache(
 
     const subscriptionIdsByTenant = new Map<string, string[]>();
     for (const subscription of subscriptions ?? []) {
+      if (!["active", "trialing", "past_due"].includes(String(subscription.subscription_status))) continue;
       if (!subscription.stripe_subscription_id) continue;
       const tenantId = subscription.tenant_id as string;
       subscriptionIdsByTenant.set(tenantId, [
@@ -202,11 +235,35 @@ export const getAdminClientList = cache(
       ]),
     );
     const offerStatusesByTenant = new Map<string, ClientOfferStatus[]>();
+    const offersByTenant = new Map<string, CommercialOffer[]>();
     for (const offer of offers ?? []) {
       const tenantId = offer.tenant_id as string;
       offerStatusesByTenant.set(tenantId, [
         ...(offerStatusesByTenant.get(tenantId) ?? []),
         offer.status as ClientOfferStatus,
+      ]);
+      offersByTenant.set(tenantId, [
+        ...(offersByTenant.get(tenantId) ?? []),
+        {
+          ...(offer as unknown as CommercialOffer),
+          items: offerItemsByOffer.get(offer.id as string) ?? [],
+        },
+      ]);
+    }
+    const purchasesByTenant = new Map<string, CommercialPurchase[]>();
+    for (const purchase of purchases ?? []) {
+      const tenantId = purchase.tenant_id as string;
+      purchasesByTenant.set(tenantId, [
+        ...(purchasesByTenant.get(tenantId) ?? []),
+        purchase as unknown as CommercialPurchase,
+      ]);
+    }
+    const subscriptionsByTenant = new Map<string, CommercialSubscription[]>();
+    for (const subscription of subscriptions ?? []) {
+      const tenantId = subscription.tenant_id as string;
+      subscriptionsByTenant.set(tenantId, [
+        ...(subscriptionsByTenant.get(tenantId) ?? []),
+        subscription as CommercialSubscription,
       ]);
     }
 
@@ -254,6 +311,14 @@ export const getAdminClientList = cache(
         infrastructure: infrastructureSnapshotFromProfile(technical),
         infrastructureProfile: technical,
         proposal_status: offerStatusesByTenant.get(client.id)?.[0] ?? null,
+        commercialSummary: resolveCommercialAccountSummary({
+          tenantStatus: client.status,
+          offers: offersByTenant.get(client.id) ?? [],
+          purchases: purchasesByTenant.get(client.id) ?? [],
+          subscriptions: subscriptionsByTenant.get(client.id) ?? [],
+          stripeSnapshot: stripeSnapshot ?? null,
+          recurringCostsCents: client.estimated_infra_cost_cents,
+        }),
       };
     });
   },
@@ -280,6 +345,14 @@ export const getAdminClientBundle = cache(
         requests,
         owner: null,
         platformCategory: "services",
+        commercialSummary: resolveCommercialAccountSummary({
+          tenantStatus: client.status,
+          offers: [],
+          purchases: [],
+          subscriptions: [],
+          stripeSnapshot: null,
+          recurringCostsCents: client.estimated_infra_cost_cents,
+        }),
       };
     }
 
@@ -354,6 +427,16 @@ export const getAdminClientBundle = cache(
       requests,
       owner,
       platformCategory,
+      commercialSummary:
+        adminClient?.commercialSummary ??
+        resolveCommercialAccountSummary({
+          tenantStatus: client.status,
+          offers: [],
+          purchases: [],
+          subscriptions: [],
+          stripeSnapshot: null,
+          recurringCostsCents: client.estimated_infra_cost_cents,
+        }),
     };
   },
 );

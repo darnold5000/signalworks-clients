@@ -27,10 +27,10 @@ type PortalSettingsRow = {
   website_security_cert_expires_at?: string | null;
   website_last_updated_at?: string | null;
   database_platform?: string | null;
-  plan_name?: string;
+  plan_name?: string | null;
   plan_inclusions?: string[] | null;
   setup_inclusions?: string[] | null;
-  monthly_price_cents?: number;
+  monthly_price_cents?: number | null;
   currency?: string;
   intro_price_cents?: number | null;
   intro_expires_on?: string | null;
@@ -139,7 +139,7 @@ export function mapTenantToClient(row: TenantRow): Client {
     support_email: settings?.support_email ?? null,
     support_phone: settings?.support_phone ?? null,
     notes: settings?.notes ?? null,
-    created_at: settings?.created_at ?? row.created_at,
+    created_at: row.created_at,
     updated_at: settings?.updated_at ?? row.updated_at,
   };
 }

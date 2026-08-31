@@ -11,7 +11,7 @@ import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
 import { formatDate, formatMoney } from "@/lib/utils";
 
 export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
-  const { client, profile, owner, recurringFinancials } = bundle;
+  const { client, profile, owner, commercialSummary } = bundle;
   const portalInvite = getPortalInviteDisplay({
     profile,
     owner,
@@ -41,11 +41,17 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
             {client.domain ? ` · ${client.domain}` : ""}
           </p>
           <div className="flex flex-wrap gap-3 text-sm text-muted">
-            <span>{client.plan_name}</span>
+            <span>{commercialSummary.planName ?? "No plan established"}</span>
             <span>
-              {formatMoney(recurringFinancials.effectiveMrrCents, client.currency)} MRR
+              {commercialSummary.currentRecurringCents == null
+                ? "MRR —"
+                : `${formatMoney(commercialSummary.currentRecurringCents, client.currency)} MRR`}
             </span>
-            <span>Margin {formatMoney(recurringFinancials.effectiveMarginCents)}</span>
+            <span>
+              Margin {commercialSummary.marginCents == null
+                ? "—"
+                : formatMoney(commercialSummary.marginCents, client.currency)}
+            </span>
             <span>
               Billing{" "}
               <StatusPill

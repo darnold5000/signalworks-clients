@@ -99,7 +99,9 @@ export async function createClientRecord(
       website_url: input.websiteUrl || null,
       domain: input.domain || null,
       support_phone: input.businessPhone || null,
-      monthly_price_cents: 0,
+      plan_name: null,
+      monthly_price_cents: null,
+      contract_start_on: null,
     });
     if (settingsError) throw new Error(settingsError.message);
 

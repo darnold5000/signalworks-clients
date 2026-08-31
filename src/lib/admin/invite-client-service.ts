@@ -295,22 +295,6 @@ export async function inviteClientWithOffer(
       return { ok: false, error: "Could not create portal settings." };
     }
 
-    const { error: subscriptionError } = await supabase
-      .from(TABLES.tenantSubscriptions)
-      .insert({
-        tenant_id: tenantId,
-        stripe_price_id: null,
-        subscription_status: "none",
-        standard_amount_cents: monthlyPriceCents,
-        current_effective_amount_cents: monthlyPriceCents,
-      });
-
-    if (subscriptionError) {
-      console.error("inviteClientWithOffer.subscription", subscriptionError.message);
-      await rollbackInviteResources(supabase, created);
-      return { ok: false, error: "Could not create subscription record." };
-    }
-
     const offerTitle = `${input.businessName} — ${planTemplate.name}`;
     const termsDocument = await ensurePlatformTermsDocument(actorUserId);
     const { data: offer, error: offerError } = await supabase

@@ -29,6 +29,7 @@ export default async function AdminClientOverviewPage({
 
   const { client, profile, requests, platformCategory, owner, activity, recurringFinancials } =
     bundle;
+  const commercial = bundle.commercialSummary;
   const portalInvite = getPortalInviteDisplay({
     profile,
     owner,
@@ -56,7 +57,7 @@ export default async function AdminClientOverviewPage({
                 label="Tenant status"
                 value={
                   <StatusPill
-                    label={client.status}
+                    label={client.status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     tone={client.status === "active" ? "success" : "warning"}
                   />
                 }
@@ -65,23 +66,32 @@ export default async function AdminClientOverviewPage({
                 label="Website"
                 value={
                   <StatusPill
-                    label={client.website_status}
+                    label={client.website_status.replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     tone={
                       client.website_status === "live" ? "success" : "warning"
                     }
                   />
                 }
               />
-              <MetaRow label="Plan" value={client.plan_name} />
+              <MetaRow
+                label="Website Management"
+                value={
+                  <StatusPill
+                    label={commercial.websiteManagementStatus}
+                    tone={commercial.commercialState === "active" ? "success" : commercial.commercialState === "inactive" ? "danger" : "warning"}
+                  />
+                }
+              />
+              <MetaRow label="Plan" value={commercial.planName ?? "—"} />
               <MetaRow
                 label="Base monthly recurring"
-                value={formatMoney(recurringFinancials.baseRecurringMrrCents, client.currency)}
+                value={commercial.baseRecurringCents == null ? "—" : formatMoney(commercial.baseRecurringCents, client.currency)}
               />
-              <MetaRow label="Current monthly billing" value={formatMoney(recurringFinancials.effectiveMrrCents, client.currency)} />
-              {recurringFinancials.activeRecurringDiscountMrrCents > 0 ? (
+              <MetaRow label="Current monthly billing" value={commercial.currentRecurringCents == null ? "—" : formatMoney(commercial.currentRecurringCents, client.currency)} />
+              {commercial.commercialState === "active" && recurringFinancials.activeRecurringDiscountMrrCents > 0 ? (
                   <MetaRow label="Recurring discount" value={`-${formatMoney(recurringFinancials.activeRecurringDiscountMrrCents, client.currency)}`} />
               ) : null}
-              {recurringFinancials.discountKind !== "none" ? (
+              {commercial.commercialState === "active" && recurringFinancials.discountKind !== "none" ? (
                 <MetaRow
                   label="Discount term"
                   value={recurringFinancials.discountKind === "ongoing"
@@ -91,7 +101,7 @@ export default async function AdminClientOverviewPage({
                       : "Temporary"}
                 />
               ) : null}
-              <MetaRow label="Monthly margin" value={formatMoney(recurringFinancials.effectiveMarginCents)} />
+              <MetaRow label="Monthly margin" value={commercial.marginCents == null ? "—" : formatMoney(commercial.marginCents, client.currency)} />
               <MetaRow
                 label="Last deployment"
                 value={formatDate(client.last_deployment_at)}
