@@ -1,5 +1,10 @@
 import { OfferBuilder } from "@/components/admin/offer-builder";
 import { PageHeader } from "@/components/ui";
+import {
+  getActivePlanTemplates,
+  getActivePlatformComponents,
+  getActiveServiceAddOns,
+} from "@/lib/catalog/queries";
 import { listOffersForTenant, listProposalRecipientsForTenant } from "@/lib/offers/queries";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
 import { notFound } from "next/navigation";
@@ -13,7 +18,14 @@ export default async function AdminClientOffersPage({
   const bundle = await getAdminClientBundle(tenantId);
   if (!bundle) notFound();
 
-  const [offers, recipients] = await Promise.all([listOffersForTenant(tenantId), listProposalRecipientsForTenant(tenantId)]);
+  const [offers, recipients, plans, platformComponents, serviceAddOns] =
+    await Promise.all([
+      listOffersForTenant(tenantId),
+      listProposalRecipientsForTenant(tenantId),
+      getActivePlanTemplates(),
+      getActivePlatformComponents(),
+      getActiveServiceAddOns(),
+    ]);
 
   return (
     <>
@@ -26,6 +38,9 @@ export default async function AdminClientOffersPage({
         initialOffers={offers}
         contacts={bundle.contacts}
         recipientDeliveries={recipients}
+        plans={plans}
+        platformComponents={platformComponents}
+        serviceAddOns={serviceAddOns}
       />
     </>
   );

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { commercialOfferConfigSchema } from "@/lib/catalog/commercial-config-validation";
+import { applyCommercialConfigToOffer } from "@/lib/offers/apply-commercial-config-to-offer";
 import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
 import {
   defaultBillingForItemType,
@@ -58,6 +60,7 @@ const patchSchema = z.object({
     .extend({ id: z.string().uuid() })
     .optional(),
   deleteItemId: z.string().uuid().optional(),
+  applyCommercialConfig: commercialOfferConfigSchema.optional(),
 });
 
 async function recalculateOfferTotals(offerId: string) {
@@ -236,6 +239,21 @@ export async function PATCH(
       .delete()
       .eq("id", parsed.data.deleteItemId)
       .eq("offer_id", offerId);
+  }
+
+  if (parsed.data.applyCommercialConfig) {
+    try {
+      const offer = await applyCommercialConfigToOffer({
+        tenantId,
+        offerId,
+        config: parsed.data.applyCommercialConfig,
+      });
+      return NextResponse.json({ offer });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not apply commercial pricing.";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
   }
 
   await recalculateOfferTotals(offerId);
