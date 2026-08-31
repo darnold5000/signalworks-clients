@@ -79,6 +79,13 @@ export async function getOfferWithItems(
   offerId: string,
 ): Promise<OfferWithItems | null> {
   const supabase = await createClient();
+  return getOfferWithItemsWithServiceClient(offerId, supabase);
+}
+
+export async function getOfferWithItemsWithServiceClient(
+  offerId: string,
+  supabase: ReturnType<typeof createServiceClient> | Awaited<ReturnType<typeof createClient>>,
+): Promise<OfferWithItems | null> {
   const { data: offer } = await supabase
     .from(TABLES.clientOffers)
     .select("*")

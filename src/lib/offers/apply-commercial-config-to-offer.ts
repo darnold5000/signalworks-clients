@@ -12,7 +12,7 @@ import {
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
 import { calculateOfferTotals } from "@/lib/offers/calculate-totals";
 import { isManagedCommercialOfferItem } from "@/lib/offers/managed-commercial-items";
-import { getOfferWithItems } from "@/lib/offers/queries";
+import { getOfferWithItemsWithServiceClient } from "@/lib/offers/queries";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
@@ -125,7 +125,7 @@ export async function applyCommercialConfigToOffer(args: {
     .filter((row) => row.name.length > 0);
 
   const supabase = createServiceClient();
-  const offer = await getOfferWithItems(args.offerId);
+  const offer = await getOfferWithItemsWithServiceClient(args.offerId, supabase);
   if (!offer || offer.tenant_id !== args.tenantId) {
     throw new Error("Offer not found.");
   }
@@ -225,5 +225,5 @@ export async function applyCommercialConfigToOffer(args: {
     throw new Error("Could not update proposal totals.");
   }
 
-  return getOfferWithItems(args.offerId);
+  return getOfferWithItemsWithServiceClient(args.offerId, supabase);
 }

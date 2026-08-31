@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   getPlanTemplateByKey: vi.fn(),
   getProductsByKeys: vi.fn(),
   getPaidAddOnsByKeys: vi.fn(),
-  getOfferWithItems: vi.fn(),
+  getOfferWithItemsWithServiceClient: vi.fn(),
   from: vi.fn(),
   deleteIn: vi.fn(),
 }));
@@ -19,7 +19,7 @@ vi.mock("@/lib/catalog/queries", () => ({
 }));
 
 vi.mock("@/lib/offers/queries", () => ({
-  getOfferWithItems: mocks.getOfferWithItems,
+  getOfferWithItemsWithServiceClient: mocks.getOfferWithItemsWithServiceClient,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -104,7 +104,7 @@ describe("applyCommercialConfigToOffer", () => {
       updated_at: new Date().toISOString(),
     }));
 
-    mocks.getOfferWithItems.mockImplementation(async () => ({
+    mocks.getOfferWithItemsWithServiceClient.mockImplementation(async () => ({
       id: "offer-1",
       tenant_id: "tenant-1",
       status: "draft",
