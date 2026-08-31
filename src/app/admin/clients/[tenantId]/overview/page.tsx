@@ -8,6 +8,7 @@ import { InfrastructureSummaryCard } from "@/components/admin/infrastructure-sum
 import { MetaRow, Panel, StatusPill } from "@/components/ui";
 import { getAdminClientBundle } from "@/lib/admin/client-records";
 import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
+import { resolveAdminOnboardingStage } from "@/lib/admin/onboarding-display";
 import {
   REQUEST_STATUS_LABELS,
   REQUEST_TYPE_LABELS,
@@ -35,6 +36,11 @@ export default async function AdminClientOverviewPage({
     owner,
     activity,
   });
+  const onboardingStage = resolveAdminOnboardingStage({
+    storedStatus: profile?.onboarding_status,
+    portalActive: owner?.hasSignedIn ?? false,
+    commercialState: commercial.commercialState,
+  });
   const lastRequest = requests[0];
   const auditSummary = await getClientAuditSummary(tenantId);
   const websiteUrl = client.website_url ?? profile?.website_url ?? null;
@@ -48,6 +54,7 @@ export default async function AdminClientOverviewPage({
             client={client}
             profile={profile}
             portalInvite={portalInvite}
+            onboardingStage={onboardingStage}
             startEditing={edit === "1"}
           />
 
@@ -66,9 +73,9 @@ export default async function AdminClientOverviewPage({
                 label="Website"
                 value={
                   <StatusPill
-                    label={client.website_status.replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                    label={client.website_status === "not_set" ? "Not Set" : client.website_status.replace(/\b\w/g, (letter) => letter.toUpperCase())}
                     tone={
-                      client.website_status === "live" ? "success" : "warning"
+                      client.website_status === "live" ? "success" : client.website_status === "not_set" ? "neutral" : "warning"
                     }
                   />
                 }

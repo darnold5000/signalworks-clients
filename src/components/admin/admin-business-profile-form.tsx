@@ -6,7 +6,6 @@ import { Button, Panel, StatusPill } from "@/components/ui";
 import { PortalInviteStatusBadge } from "@/components/admin/portal-invite-status-badge";
 import {
   INTERNAL_STATUS_LABELS,
-  ONBOARDING_STATUS_LABELS,
   internalStatusTone,
 } from "@/lib/admin/labels";
 import type { PortalInviteDisplay } from "@/lib/admin/portal-invite-status";
@@ -90,12 +89,14 @@ export function AdminBusinessProfileForm({
   client,
   profile,
   portalInvite = null,
+  onboardingStage,
   startEditing = false,
 }: {
   tenantId: string;
   client: Client;
   profile: TenantProfile | null;
   portalInvite?: PortalInviteDisplay | null;
+  onboardingStage: "Not Started" | "In Progress" | "Complete";
   startEditing?: boolean;
 }) {
   const router = useRouter();
@@ -146,11 +147,7 @@ export function AdminBusinessProfileForm({
             ) : null}
             <PortalInviteStatusBadge display={portalInvite} />
           </div>
-          {profile?.onboarding_status ? (
-            <p className="text-xs text-muted">
-              Onboarding: {ONBOARDING_STATUS_LABELS[profile.onboarding_status]}
-            </p>
-          ) : null}
+          <p className="text-xs text-muted">Onboarding: {onboardingStage}</p>
           {!editing ? (
             <Button
               type="button"

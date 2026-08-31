@@ -7,7 +7,12 @@ export type ClientStatus =
   | "canceled"
   | "past_due";
 
-export type WebsiteStatus = "live" | "building" | "staging" | "offline";
+export type WebsiteStatus =
+  | "not_set"
+  | "live"
+  | "building"
+  | "staging"
+  | "offline";
 export type HostingStatus = "active" | "pending" | "error" | "none";
 export type SslStatus = "active" | "pending" | "error" | "none";
 

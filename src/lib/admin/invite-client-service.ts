@@ -196,7 +196,7 @@ export async function inviteClientWithOffer(
     if (existingClient.tenantId) {
       return {
         ok: false,
-        error: `“${input.email}” already belongs to ${clientLabel}. Open that client and use Offers → Send proposal for add-ons or new services.`,
+        error: `“${input.email}” already belongs to ${clientLabel}. Open that client and use Proposals → Send proposal for add-ons or new services.`,
         tenantId: existingClient.tenantId,
       };
     }

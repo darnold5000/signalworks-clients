@@ -33,6 +33,9 @@ export function CreateClientForm({ onSaved }: { onSaved?: () => void }) {
   const [domain, setDomain] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [status, setStatus] = useState<"prospect" | "active" | "inactive">("prospect");
+  const [websiteStatus, setWebsiteStatus] = useState<
+    "not_set" | "building" | "live" | "staging" | "offline"
+  >("not_set");
   const [contacts, setContacts] = useState<ContactDraft[]>([newContact(true)]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function CreateClientForm({ onSaved }: { onSaved?: () => void }) {
       const res = await fetch("/api/admin/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, websiteUrl, domain, businessPhone, status, contacts }),
+        body: JSON.stringify({ businessName, websiteUrl, domain, businessPhone, status, websiteStatus, contacts }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not create client.");
@@ -73,6 +76,16 @@ export function CreateClientForm({ onSaved }: { onSaved?: () => void }) {
         <label className="text-sm"><span className="mb-1 block text-muted">Client status</span><select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="w-full rounded-md border border-border bg-background px-3 py-2"><option value="prospect">Prospect</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
         <label className="text-sm"><span className="mb-1 block text-muted">Website URL (optional)</span><input type="url" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2" /></label>
         <label className="text-sm"><span className="mb-1 block text-muted">Domain (optional)</span><input value={domain} onChange={(e) => setDomain(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2" /></label>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Website status</span>
+          <select value={websiteStatus} onChange={(e) => setWebsiteStatus(e.target.value as typeof websiteStatus)} className="w-full rounded-md border border-border bg-background px-3 py-2">
+            <option value="not_set">Not Set</option>
+            <option value="building">Building</option>
+            <option value="live">Live</option>
+            <option value="staging">Staging</option>
+            <option value="offline">Inactive</option>
+          </select>
+        </label>
         <label className="text-sm"><span className="mb-1 block text-muted">Business phone (optional)</span><input value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2" /></label>
       </div>
 

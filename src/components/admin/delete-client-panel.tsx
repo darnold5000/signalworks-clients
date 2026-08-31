@@ -65,7 +65,7 @@ export function DeleteClientPanel({
     <Panel title="Delete client">
       <p className="text-sm text-muted">
         Remove <strong className="font-medium text-foreground">{displayName}</strong>{" "}
-        from the client portal. Offers, billing records, and portal access for this
+        from the client portal. Proposals, billing records, and portal access for this
         tenant are deleted. The owner&apos;s Signal Works login is kept so they can
         still use other apps (for example DAWG or MA5).
       </p>

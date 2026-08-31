@@ -19,7 +19,7 @@ export const portalWebsiteSettingsUpdateSchema = z.object({
   domain: z.string().trim().max(255).nullable().optional(),
   hosting_status: hostingStatus.optional(),
   website_last_updated_at: optionalIsoDate,
-  website_security_status: websiteSecurityStatus.optional(),
+  website_security_status: websiteSecurityStatus.nullable().optional(),
   website_security_https_enabled: z.boolean().nullable().optional(),
   website_security_cert_valid: z.boolean().nullable().optional(),
   website_security_cert_expires_at: optionalIsoDate,

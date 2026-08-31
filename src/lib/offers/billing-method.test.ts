@@ -44,12 +44,12 @@ const discount = {
 } as ClientOfferItem;
 
 describe("proposal billing method", () => {
-  it("defaults missing and null legacy values to Stripe Checkout", () => {
+  it("defaults missing and null legacy values to online payment", () => {
     expect(resolveOfferBillingMethod(offer)).toBe("stripe_checkout");
     expect(resolveOfferBillingMethod({ ...offer, billing_method: null })).toBe(
       "stripe_checkout",
     );
-    expect(offerBillingMethodLabel(offer)).toBe("Stripe Checkout");
+    expect(offerBillingMethodLabel(offer)).toBe("Online Payment / Subscription");
   });
 
   it("captures Proposal Only pricing and discount duration immutably", () => {

@@ -18,8 +18,8 @@ export default async function AdminClientOffersPage({
   return (
     <>
       <PageHeader
-        title="Offers"
-        description="Build, publish, and track client proposals and checkout."
+        title="Proposals"
+        description="Build, publish, and track client proposals."
       />
       <OfferBuilder
         tenantId={tenantId}

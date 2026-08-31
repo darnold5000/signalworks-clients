@@ -12,7 +12,6 @@ import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 import {
   clientCanUseBillingPortal,
-  clientHasHealthySubscription,
   clientNeedsOfferCheckout,
   subscriptionStatusTone,
 } from "@/lib/portal/billing-access";
@@ -27,6 +26,7 @@ import {
 import { notFound } from "next/navigation";
 
 function websiteTone(status: string) {
+  if (status === "not_set") return "neutral" as const;
   if (status === "live") return "success" as const;
   if (status === "building" || status === "staging") return "warning" as const;
   return "danger" as const;
@@ -39,7 +39,6 @@ export default async function OverviewPage() {
 
   const onboarding = await getOnboardingState(client, profile.id);
   const canManageBilling = clientCanUseBillingPortal(client);
-  const hasHealthySubscription = clientHasHealthySubscription(client);
   const needsOfferCheckout = clientNeedsOfferCheckout(client, onboarding);
   const commercialPricing = await resolveCommercialPricing(client);
 
@@ -87,7 +86,7 @@ export default async function OverviewPage() {
               label="Website status"
               value={
                 <StatusPill
-                  label={client.website_status}
+                  label={client.website_status === "not_set" ? "Not Set" : client.website_status}
                   tone={websiteTone(client.website_status)}
                 />
               }
@@ -155,7 +154,7 @@ export default async function OverviewPage() {
               label="Hosting status"
               value={
                 <StatusPill
-                  label={client.hosting_status}
+                  label={client.hosting_status === "none" ? "Not Set" : client.hosting_status}
                   tone={
                     client.hosting_status === "active" ? "success" : "warning"
                   }

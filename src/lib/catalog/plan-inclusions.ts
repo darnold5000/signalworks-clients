@@ -32,14 +32,14 @@ export const DEFAULT_SETUP_INCLUSIONS = INCLUDED_SETUP_ITEMS.map(
   (row) => row.name,
 );
 
-/** A null database value identifies a legacy client that needs the defaults. */
+/** Missing configuration is unknown, not evidence that standard inclusions were established. */
 export function resolvePlanInclusions(value: string[] | null | undefined): string[] {
-  return value == null ? [...DEFAULT_PLAN_INCLUSIONS] : value;
+  return value ?? [];
 }
 
-/** An explicitly saved empty array stays empty so its card can be hidden. */
+/** Setup inclusions are displayed only when they were explicitly saved. */
 export function resolveSetupInclusions(value: string[] | null | undefined): string[] {
-  return value == null ? [...DEFAULT_SETUP_INCLUSIONS] : value;
+  return value ?? [];
 }
 
 /** Legacy paid add-on key — still on old offers; new invites use managed_email_delivery. */

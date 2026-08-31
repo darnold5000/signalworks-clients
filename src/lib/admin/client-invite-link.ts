@@ -243,7 +243,7 @@ export function formatAuthInviteError(
   const lower = message.toLowerCase();
 
   if (lower.includes("already been registered") || lower.includes("already exists")) {
-    return "That email already has a portal account. Open the existing client and use Send proposal on their Offers page.";
+    return "That email already has a portal account. Open the existing client and use Send proposal on their Proposals page.";
   }
 
   if (lower.includes("redirect") || lower.includes("invalid url")) {

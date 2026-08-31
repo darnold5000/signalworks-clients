@@ -21,6 +21,9 @@ export const createClientSchema = z
     domain: z.string().trim().max(255).optional().default(""),
     businessPhone: z.string().trim().max(50).optional().default(""),
     status: z.enum(["prospect", "active", "inactive"]).default("prospect"),
+    websiteStatus: z
+      .enum(["not_set", "building", "live", "staging", "offline"])
+      .default("not_set"),
     contacts: z.array(contactSchema).max(25).default([]),
   })
   .superRefine((value, ctx) => {
@@ -46,6 +49,30 @@ export const createClientSchema = z
   });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
+export const NEW_CLIENT_ONBOARDING_STATUS = "not_started" as const;
+
+export function buildNewClientPortalSettings(
+  tenantId: string,
+  input: CreateClientInput,
+) {
+  return {
+    tenant_id: tenantId,
+    website_url: input.websiteUrl || null,
+    domain: input.domain || null,
+    support_phone: input.businessPhone || null,
+    website_status: input.websiteStatus,
+    hosting_status: "none" as const,
+    website_security_status: null,
+    website_security_https_enabled: null,
+    website_security_cert_valid: null,
+    website_security_cert_expires_at: null,
+    plan_inclusions: [] as string[],
+    setup_inclusions: [] as string[],
+    plan_name: null,
+    monthly_price_cents: null,
+    contract_start_on: null,
+  };
+}
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
@@ -90,19 +117,13 @@ export async function createClientRecord(
       website_url: input.websiteUrl || null,
       primary_domain: input.domain || null,
       internal_status: internalStatus,
-      onboarding_status: input.status === "active" ? "onboarding_complete" : "not_started",
+      onboarding_status: NEW_CLIENT_ONBOARDING_STATUS,
     });
     if (profileError) throw new Error(profileError.message);
 
-    const { error: settingsError } = await supabase.from(TABLES.tenantPortalSettings).insert({
-      tenant_id: tenantId,
-      website_url: input.websiteUrl || null,
-      domain: input.domain || null,
-      support_phone: input.businessPhone || null,
-      plan_name: null,
-      monthly_price_cents: null,
-      contract_start_on: null,
-    });
+    const { error: settingsError } = await supabase
+      .from(TABLES.tenantPortalSettings)
+      .insert(buildNewClientPortalSettings(tenantId, input));
     if (settingsError) throw new Error(settingsError.message);
 
     if (input.contacts.length > 0) {

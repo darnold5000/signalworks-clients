@@ -4,9 +4,9 @@ import { ButtonLink, MetaRow, Panel, StatusPill } from "@/components/ui";
 import type { AdminClientBundle } from "@/lib/admin/client-records";
 import {
   INTERNAL_STATUS_LABELS,
-  ONBOARDING_STATUS_LABELS,
   internalStatusTone,
 } from "@/lib/admin/labels";
+import { resolveAdminOnboardingStage } from "@/lib/admin/onboarding-display";
 import { getPortalInviteDisplay } from "@/lib/admin/portal-invite-status";
 import { formatDate, formatMoney } from "@/lib/utils";
 
@@ -18,6 +18,11 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
     activity: bundle.activity,
   });
   const internalStatus = profile?.internal_status ?? null;
+  const onboardingStage = resolveAdminOnboardingStage({
+    storedStatus: profile?.onboarding_status,
+    portalActive: owner?.hasSignedIn ?? false,
+    commercialState: commercialSummary.commercialState,
+  });
 
   return (
     <div className="mb-6 space-y-6">
@@ -66,11 +71,7 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
               />
             </span>
           </div>
-          {profile?.onboarding_status ? (
-            <p className="text-xs text-muted">
-              Onboarding: {ONBOARDING_STATUS_LABELS[profile.onboarding_status]}
-            </p>
-          ) : null}
+          <p className="text-xs text-muted">Onboarding: {onboardingStage}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">

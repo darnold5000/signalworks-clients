@@ -18,7 +18,7 @@ export function offerBillingMethodLabel(
 ): string {
   return resolveOfferBillingMethod(offer) === "proposal_only"
     ? "Proposal Only"
-    : "Stripe Checkout";
+    : "Online Payment / Subscription";
 }
 
 export function buildOfferAcceptanceSnapshot(args: {

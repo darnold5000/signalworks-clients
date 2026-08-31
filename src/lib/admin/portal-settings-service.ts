@@ -19,7 +19,9 @@ export async function updateTenantPortalWebsiteSettings(
   if (input.website_security_status !== undefined) {
     patch.website_security_status = input.website_security_status;
     patch.ssl_status =
-      input.website_security_status === "protected"
+      input.website_security_status == null
+        ? "none"
+        : input.website_security_status === "protected"
         ? "active"
         : input.website_security_status === "issue_detected"
           ? "error"

@@ -100,7 +100,7 @@ export function mapTenantToClient(row: TenantRow): Client {
     slug: row.slug,
     business_name: row.display_name,
     status: row.status,
-    website_status: settings?.website_status ?? "building",
+    website_status: settings?.website_status ?? "not_set",
     website_url: settings?.website_url ?? null,
     domain: settings?.domain ?? null,
     domain_owner: settings?.domain_owner ?? null,

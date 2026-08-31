@@ -111,7 +111,7 @@ export function OfferBuilder({
   async function refreshOffers(selectId?: string) {
     const res = await fetch(`/api/admin/clients/${tenantId}/offers`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Could not load offers");
+    if (!res.ok) throw new Error(data.error ?? "Could not load proposals");
     setOffers(data.offers);
     if (selectId) setSelectedId(selectId);
     else if (!selectedId && data.offers[0]) setSelectedId(data.offers[0].id);
@@ -133,15 +133,15 @@ export function OfferBuilder({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not create offer");
+      if (!res.ok) throw new Error(data.error ?? "Could not create proposal");
       setTitle("");
       setShortSummary("");
       setDescription("");
       setBillingMethod("stripe_checkout");
       await refreshOffers(data.offer.id);
-      setMessage("Draft offer created.");
+      setMessage("Draft proposal created. Continue editing below.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create offer");
+      setError(err instanceof Error ? err.message : "Could not create proposal");
     } finally {
       setBusy(false);
     }
@@ -409,7 +409,7 @@ export function OfferBuilder({
 
   return (
     <div className="space-y-6">
-      <Panel title="Create draft offer">
+      <Panel title="Create Proposal">
         <div className="grid gap-3 md:grid-cols-2">
           <input
             value={title}
@@ -420,13 +420,13 @@ export function OfferBuilder({
           <input
             value={shortSummary}
             onChange={(e) => setShortSummary(e.target.value)}
-            placeholder="Short summary (optional)"
+            placeholder="Proposal summary (optional)"
             className="rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Detailed description / scope (optional)"
+            placeholder="Proposal scope (optional)"
             rows={4}
             className="rounded-md border border-border bg-background px-3 py-2 text-sm md:col-span-2"
           />
@@ -440,15 +440,15 @@ export function OfferBuilder({
               [
                 {
                   value: "stripe_checkout",
-                  title: "Stripe Checkout",
+                  title: "Online Payment / Subscription",
                   description:
-                    "Client accepts the proposal and continues to Stripe for payment or subscription setup.",
+                    "Client accepts the proposal and continues to online payment or subscription setup.",
                 },
                 {
                   value: "proposal_only",
                   title: "Proposal Only",
                   description:
-                    "Client accepts the proposal without making any Stripe changes. Billing will be handled separately.",
+                    "Client accepts the proposal. Billing will be configured separately.",
                 },
               ] as const
             ).map((option) => (
@@ -478,13 +478,13 @@ export function OfferBuilder({
           </div>
         </fieldset>
         <Button className="mt-4" onClick={createOffer} disabled={busy}>
-          Create draft
+          Create & Edit Proposal
         </Button>
       </Panel>
 
       {offers.length > 0 ? (
         <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-          <Panel title="Offers">
+          <Panel title="Proposals">
             <ul className="space-y-2">
               {offers.map((offer) => (
                 <li key={offer.id}>
@@ -568,7 +568,7 @@ export function OfferBuilder({
                       </label>
                       <label className="text-sm">
                         <span className="mb-1 block text-xs font-medium text-muted">
-                          Short summary
+                          Proposal summary
                         </span>
                         <input
                           value={selected.short_summary ?? ""}
@@ -582,7 +582,7 @@ export function OfferBuilder({
                       </label>
                       <label className="text-sm">
                         <span className="mb-1 block text-xs font-medium text-muted">
-                          Detailed description / overview
+                          Proposal scope
                         </span>
                         <textarea
                           value={selected.description ?? ""}
@@ -602,15 +602,15 @@ export function OfferBuilder({
                           [
                             {
                               value: "stripe_checkout",
-                              title: "Stripe Checkout",
+                              title: "Online Payment / Subscription",
                               description:
-                                "Client accepts the proposal and continues to Stripe for payment or subscription setup.",
+                                "Client accepts the proposal and continues to online payment or subscription setup.",
                             },
                             {
                               value: "proposal_only",
                               title: "Proposal Only",
                               description:
-                                "Client accepts the proposal without making any Stripe changes. Billing will be handled separately.",
+                                "Client accepts the proposal. Billing will be configured separately.",
                             },
                           ] as const
                         ).map((option) => (
@@ -1027,7 +1027,9 @@ export function OfferBuilder({
             </div>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <p className="text-sm text-muted">No proposals yet. Create a proposal above to begin.</p>
+      )}
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       {message ? <p className="text-sm text-success">{message}</p> : null}

@@ -42,10 +42,10 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
   const [websiteSecurityStatus, setWebsiteSecurityStatus] =
     useState<WebsiteSecurityStatus>(securityStatus);
   const [httpsEnabled, setHttpsEnabled] = useState(
-    client.website_security_https_enabled ?? true,
+    client.website_security_https_enabled,
   );
   const [certValid, setCertValid] = useState(
-    client.website_security_cert_valid ?? true,
+    client.website_security_cert_valid,
   );
   const [certExpires, setCertExpires] = useState(
     toDatetimeLocalValue(client.website_security_cert_expires_at),
@@ -68,7 +68,10 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
             domain: domain.trim() || null,
             hosting_status: hostingStatus,
             website_last_updated_at: fromDatetimeLocalValue(lastUpdated),
-            website_security_status: websiteSecurityStatus,
+            website_security_status:
+              websiteSecurityStatus === "not_assessed"
+                ? null
+                : websiteSecurityStatus,
             website_security_https_enabled: httpsEnabled,
             website_security_cert_valid: certValid,
             website_security_cert_expires_at: fromDatetimeLocalValue(certExpires),
@@ -104,7 +107,7 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
             className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
-            placeholder="example.com"
+            placeholder="—"
           />
         </label>
 
@@ -117,10 +120,10 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
               setHostingStatus(e.target.value as Client["hosting_status"])
             }
           >
-            <option value="active">active</option>
-            <option value="pending">pending</option>
-            <option value="error">error</option>
-            <option value="none">none</option>
+            <option value="none">Not set</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="error">Error</option>
           </select>
         </label>
 
@@ -156,21 +159,29 @@ export function AdminPortalWebsiteForm({ client }: { client: Client }) {
               )}
             </select>
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={httpsEnabled}
-              onChange={(e) => setHttpsEnabled(e.target.checked)}
-            />
-            HTTPS enabled
+          <label className="block text-sm">
+            <span className="font-medium">HTTPS enabled</span>
+            <select
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={httpsEnabled == null ? "unknown" : httpsEnabled ? "yes" : "no"}
+              onChange={(e) => setHttpsEnabled(e.target.value === "unknown" ? null : e.target.value === "yes")}
+            >
+              <option value="unknown">Unknown</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={certValid}
-              onChange={(e) => setCertValid(e.target.checked)}
-            />
-            SSL certificate valid
+          <label className="block text-sm">
+            <span className="font-medium">SSL certificate valid</span>
+            <select
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={certValid == null ? "unknown" : certValid ? "yes" : "no"}
+              onChange={(e) => setCertValid(e.target.value === "unknown" ? null : e.target.value === "yes")}
+            >
+              <option value="unknown">Unknown</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
           </label>
           <label className="block text-sm">
             <span className="font-medium">Certificate expires</span>
