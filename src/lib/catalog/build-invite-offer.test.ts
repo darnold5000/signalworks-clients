@@ -52,9 +52,55 @@ describe("build-invite-offer", () => {
     expect(optional?.metadata).toEqual({
       product_key: "online_booking",
       catalog_version: 2,
-      commercial_role: "bundled_product",
+      commercial_role: "platform_component",
       included_in_plan: true,
+      pricing_mode: "included",
+      configured_amount_cents: 0,
     });
+  });
+
+  it("prices included, monthly, one-time, and custom platform components through shared totals", () => {
+    const products = [
+      { product_key: "client_portal", name: "Client Portal" },
+      {
+        product_key: "online_booking",
+        name: "Online Booking",
+        pricing_mode: "monthly" as const,
+        unit_amount_cents: 1500,
+      },
+      {
+        product_key: "custom_setup",
+        name: "Custom Setup",
+        pricing_mode: "one_time" as const,
+        unit_amount_cents: 15000,
+      },
+    ];
+    const extras = {
+      custom_platform_components: [
+        {
+          name: "3rd Party Payment Platform Integration",
+          pricing_mode: "monthly" as const,
+          unit_amount_cents: 2500,
+        },
+      ],
+    };
+
+    const rows = buildInviteOfferItemRows({
+      tenantId: "tenant-1",
+      offerId: "offer-1",
+      plan,
+      products,
+      extras,
+    });
+    const totals = calculateInviteOfferTotals({ plan, products, extras });
+
+    expect(
+      rows.find((row) => row.metadata?.product_key === "client_portal")
+        ?.unit_amount_cents,
+    ).toBe(0);
+    expect(totals.recurring_total_cents).toBe(23900);
+    expect(totals.initial_total_cents).toBe(15000);
+    expect(calculateAmountDueFirstCycle(totals)).toBe(38900);
   });
 
   it("uses the selected inclusion arrays and preserves empty sections", () => {

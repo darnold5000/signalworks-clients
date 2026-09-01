@@ -9,7 +9,7 @@ import { calculateInviteOfferTotals } from "@/lib/catalog/build-invite-offer";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 import { formatMoney } from "@/lib/utils";
 
-function recurringAddOnCents(extras?: InviteCommercialExtras): number {
+function recurringServiceAddOnCents(extras?: InviteCommercialExtras): number {
   let total = 0;
   for (const addOn of extras?.paid_add_ons ?? []) {
     if (addOn.billing_type === "one_time") continue;
@@ -20,6 +20,15 @@ function recurringAddOnCents(extras?: InviteCommercialExtras): number {
     total += custom.unit_amount_cents * Math.max(1, custom.quantity ?? 1);
   }
   return total;
+}
+
+function platformPriceLabel(
+  component: Pick<InviteProductSelection, "pricing_mode" | "unit_amount_cents">,
+): string {
+  const mode = component.pricing_mode ?? "included";
+  if (mode === "included") return "Included";
+  const amount = formatMoney(component.unit_amount_cents ?? 0);
+  return mode === "monthly" ? `${amount}/mo` : `${amount} one-time`;
 }
 
 export function InviteClientFinancialSummary({
@@ -46,7 +55,7 @@ export function InviteClientFinancialSummary({
 
   const totals = calculateInviteOfferTotals({ plan, products, extras });
   const planMonthlyCents = plan.monthly_price_cents;
-  const addOnMonthlyCents = recurringAddOnCents(extras);
+  const serviceAddOnMonthlyCents = recurringServiceAddOnCents(extras);
   const arr = totals.recurring_total_cents * 12;
   const dueFirstCycle = calculateAmountDueFirstCycle(totals);
   const monthlyDiscountCents = extras?.monthly_discount_cents ?? 0;
@@ -56,6 +65,18 @@ export function InviteClientFinancialSummary({
     (extras?.custom_service_add_ons?.length ?? 0);
   const componentCount =
     products.length + (extras?.custom_platform_components?.length ?? 0);
+  const platformComponents = [
+    ...products.map((component) => ({
+      name: component.name,
+      pricing_mode: component.pricing_mode,
+      unit_amount_cents: component.unit_amount_cents,
+    })),
+    ...(extras?.custom_platform_components ?? []).map((component) => ({
+      name: component.name,
+      pricing_mode: component.pricing_mode,
+      unit_amount_cents: component.unit_amount_cents,
+    })),
+  ];
 
   return (
     <aside
@@ -69,16 +90,23 @@ export function InviteClientFinancialSummary({
             {formatMoney(planMonthlyCents)}/mo
           </dd>
         </div>
-        {addOnMonthlyCents > 0 ? (
-          <div className="flex items-start justify-between gap-4">
-            <dt className="text-muted">Recurring add-ons</dt>
-            <dd className="text-right">{formatMoney(addOnMonthlyCents)}/mo</dd>
+        {platformComponents.map((component, index) => (
+          <div
+            key={`${component.name}-${index}`}
+            className="flex items-start justify-between gap-4"
+          >
+            <dt className="text-muted">{component.name}</dt>
+            <dd className="text-right">
+              {platformPriceLabel(component)}
+            </dd>
           </div>
-        ) : null}
-        {addOnMonthlyCents > 0 ? (
+        ))}
+        {serviceAddOnMonthlyCents > 0 ? (
           <div className="flex items-start justify-between gap-4">
-            <dt className="text-muted">Monthly subtotal</dt>
-            <dd>{formatMoney(planMonthlyCents + addOnMonthlyCents)}/mo</dd>
+            <dt className="text-muted">Recurring service add-ons</dt>
+            <dd className="text-right">
+              {formatMoney(serviceAddOnMonthlyCents)}/mo
+            </dd>
           </div>
         ) : null}
         {monthlyDiscountCents > 0 ? (

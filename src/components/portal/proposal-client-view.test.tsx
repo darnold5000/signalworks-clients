@@ -12,6 +12,7 @@ import type {
   ClientOfferFeature,
   ClientOfferItem,
 } from "@/lib/database/phase1-types";
+import { buildInviteOfferItemRows } from "@/lib/catalog/build-invite-offer";
 
 const offer = {
   id: "internal-offer-id",
@@ -119,6 +120,60 @@ const features = [
 ];
 
 describe("ProposalClientView", () => {
+  it("renders included, monthly, and one-time platform capability pricing", () => {
+    const platformItems = buildInviteOfferItemRows({
+      tenantId: offer.tenant_id,
+      offerId: offer.id,
+      plan: {
+        plan_key: "launch",
+        name: "Launch",
+        monthly_price_cents: 5000,
+        billing_interval: "month",
+      },
+      products: [
+        { product_key: "portal", name: "Client Portal" },
+        {
+          product_key: "booking",
+          name: "Online Booking",
+          pricing_mode: "monthly",
+          unit_amount_cents: 1500,
+        },
+      ],
+      planInclusions: [],
+      setupInclusions: [],
+      extras: {
+        custom_platform_components: [
+          {
+            name: "Custom Setup",
+            pricing_mode: "one_time",
+            unit_amount_cents: 15000,
+          },
+        ],
+      },
+    }).map((row, index) => ({
+      ...row,
+      id: `platform-${index}`,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    })) as ClientOfferItem[];
+
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={platformItems}
+        features={[]}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Additional Platform Capabilities");
+    expect(html).toContain("Client Portal");
+    expect(html).toContain("Included");
+    expect(html).toContain("+$15.00/month");
+    expect(html).toContain("+$150.00 one-time");
+    expect(html).toContain("$215.00");
+  });
+
   it("renders proposal copy and ordered features in preview mode", () => {
     const html = renderToStaticMarkup(
       <ProposalClientView
@@ -134,6 +189,38 @@ describe("ProposalClientView", () => {
     expect(html).toContain("Connected coaching insights");
     expect(html).toContain("Apple Health integration");
     expect(html).toContain("Checkout disabled in preview mode");
+  });
+
+  it("renders pasted bullet syntax as a clean list and plain lines as prose", () => {
+    const scopeFeatures = [
+      "Project introduction",
+      "\u200B",
+      "- Custom website",
+      "• Client portal",
+      "Owner dashboard",
+    ].map((label, index) => ({
+      ...features[0],
+      id: `scope-${index}`,
+      label,
+      sort_order: index,
+    }));
+
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[]}
+        features={scopeFeatures}
+        preview
+      />,
+    );
+
+    expect(html).toContain("Scope &amp; Deliverables");
+    expect(html).toContain("Project introduction");
+    expect(html).toContain("Custom website");
+    expect(html).toContain("Client portal");
+    expect(html).toContain("Owner dashboard");
+    expect(html).not.toContain("- Custom website");
+    expect(html).not.toContain("• Client portal");
   });
 
   it("never renders internal catalog, database, or Stripe identifiers", () => {

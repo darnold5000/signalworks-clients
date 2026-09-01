@@ -77,6 +77,18 @@ describe("parseCommercialConfigFromOffer", () => {
       planKey: "launch",
       monthlyPriceDollars: 50,
       productKeys: ["website", "hosting"],
+      platformComponentPricing: [
+        {
+          productKey: "website",
+          pricingMode: "included",
+          amountDollars: 0,
+        },
+        {
+          productKey: "hosting",
+          pricingMode: "included",
+          amountDollars: 0,
+        },
+      ],
       serviceAddOns: [
         {
           productKey: "seo",
@@ -103,6 +115,70 @@ describe("parseCommercialConfigFromOffer", () => {
     });
   });
 
+  it("round-trips independent catalog and custom platform prices", () => {
+    const pricedItems = asItems(
+      buildInviteOfferItemRows({
+        tenantId: "tenant-1",
+        offerId: "offer-1",
+        plan: {
+          plan_key: "launch",
+          name: "Launch",
+          monthly_price_cents: 5000,
+          billing_interval: "month",
+        },
+        products: [
+          {
+            product_key: "online_booking",
+            name: "Online Booking",
+            pricing_mode: "monthly",
+            unit_amount_cents: 1500,
+          },
+        ],
+        planInclusions: [],
+        setupInclusions: [],
+        extras: {
+          custom_platform_components: [
+            {
+              name: "Payments Integration",
+              pricing_mode: "one_time",
+              unit_amount_cents: 2500,
+            },
+            {
+              name: "Reporting Integration",
+              pricing_mode: "monthly",
+              unit_amount_cents: 900,
+            },
+          ],
+        },
+      }),
+    );
+
+    const config = parseCommercialConfigFromOffer(
+      { plan_inclusions: [], setup_inclusions: [] },
+      pricedItems,
+    );
+
+    expect(config?.platformComponentPricing).toEqual([
+      {
+        productKey: "online_booking",
+        pricingMode: "monthly",
+        amountDollars: 15,
+      },
+    ]);
+    expect(config?.customPlatformComponents).toEqual([
+      {
+        name: "Payments Integration",
+        pricingMode: "one_time",
+        amountDollars: 25,
+      },
+      {
+        name: "Reporting Integration",
+        pricingMode: "monthly",
+        amountDollars: 9,
+      },
+    ]);
+  });
+
   it("prefers stored inclusion snapshots on the offer", () => {
     const config = parseCommercialConfigFromOffer(
       {
@@ -114,5 +190,35 @@ describe("parseCommercialConfigFromOffer", () => {
 
     expect(config?.planInclusions).toEqual(["Stored plan item"]);
     expect(config?.setupInclusions).toEqual(["Stored setup item"]);
+  });
+
+  it("hydrates legacy bundled platform rows as Included", () => {
+    const legacy = items.map((item) =>
+      item.metadata?.product_key === "website"
+        ? {
+            ...item,
+            metadata: {
+              product_key: "website",
+              commercial_role: "bundled_product",
+              included_in_plan: true,
+            },
+          }
+        : item,
+    );
+
+    const config = parseCommercialConfigFromOffer(
+      { plan_inclusions: [], setup_inclusions: [] },
+      legacy,
+    );
+
+    expect(
+      config?.platformComponentPricing.find(
+        (row) => row.productKey === "website",
+      ),
+    ).toEqual({
+      productKey: "website",
+      pricingMode: "included",
+      amountDollars: 0,
+    });
   });
 });

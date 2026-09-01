@@ -25,6 +25,7 @@ import { InviteClientPlanInclusions } from "@/components/invite-client-plan-incl
 import {
   InviteClientPlatformComponentsSelect,
   type CustomPlatformComponentRow,
+  type PlatformComponentPricingState,
 } from "@/components/invite-client-platform-components-select";
 import {
   InviteClientServiceAddOnsSelect,
@@ -60,6 +61,9 @@ export function InviteClientForm({
     selectedPlan ? String(selectedPlan.default_price_cents / 100) : "",
   );
   const [selectedProductKeys, setSelectedProductKeys] = useState<string[]>([]);
+  const [platformPricingByKey, setPlatformPricingByKey] = useState<
+    Record<string, PlatformComponentPricingState>
+  >({});
   const [customPlatformRows, setCustomPlatformRows] = useState<
     CustomPlatformComponentRow[]
   >([]);
@@ -102,8 +106,15 @@ export function InviteClientForm({
       .map((product) => ({
         product_key: product.product_key,
         name: product.name,
+        pricing_mode:
+          platformPricingByKey[product.product_key]?.pricingMode ?? "included",
+        unit_amount_cents: dollarsToCents(
+          Number.parseFloat(
+            platformPricingByKey[product.product_key]?.amountDollars ?? "0",
+          ) || 0,
+        ),
       }));
-  }, [platformComponents, catalogComponentKeys]);
+  }, [platformComponents, catalogComponentKeys, platformPricingByKey]);
 
   const selectedPlanSummary = useMemo<InvitePlanSelection | null>(() => {
     if (!selectedPlan) return null;
@@ -154,7 +165,13 @@ export function InviteClientForm({
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
     const custom_platform_components = customPlatformRows
-      .map((row) => ({ name: row.name.trim() }))
+      .map((row) => ({
+        name: row.name.trim(),
+        pricing_mode: row.pricingMode,
+        unit_amount_cents: dollarsToCents(
+          Number.parseFloat(row.amountDollars) || 0,
+        ),
+      }))
       .filter((row) => row.name.length > 0);
 
     const custom_service_add_ons = customServiceAddOnRows
@@ -232,6 +249,19 @@ export function InviteClientForm({
           planKey: selectedPlan?.plan_key,
           monthlyPriceDollars: Number.parseFloat(monthlyPriceDollars),
           productKeys: selectedProductKeys,
+          platformComponentPricing: selectedProductKeys
+            .filter((productKey) => productKey !== "other")
+            .map((productKey) => ({
+              productKey,
+              pricingMode:
+                platformPricingByKey[productKey]?.pricingMode ?? "included",
+              amountDollars:
+                platformPricingByKey[productKey]?.pricingMode === "included"
+                  ? 0
+                  : Number.parseFloat(
+                      platformPricingByKey[productKey]?.amountDollars ?? "0",
+                    ) || 0,
+            })),
           serviceAddOns: serviceAddOnSelections.map((selection) => ({
             productKey: selection.productKey,
             monthlyPriceDollars:
@@ -242,7 +272,14 @@ export function InviteClientForm({
             billingType: selection.billingType,
           })),
           customPlatformComponents: customPlatformRows
-            .map((row) => ({ name: row.name.trim() }))
+            .map((row) => ({
+              name: row.name.trim(),
+              pricingMode: row.pricingMode,
+              amountDollars:
+                row.pricingMode === "included"
+                  ? 0
+                  : Number.parseFloat(row.amountDollars) || 0,
+            }))
             .filter((row) => row.name.length > 0),
           customServiceAddOns: customServiceAddOnRows
             .map((row) => ({
@@ -409,6 +446,13 @@ export function InviteClientForm({
             onChange={setSelectedProductKeys}
             customRows={customPlatformRows}
             onCustomRowsChange={setCustomPlatformRows}
+            pricingByKey={platformPricingByKey}
+            onPricingChange={(productKey, pricing) =>
+              setPlatformPricingByKey((current) => ({
+                ...current,
+                [productKey]: pricing,
+              }))
+            }
           />
 
           <InviteClientServiceAddOnsSelect

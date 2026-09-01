@@ -10,12 +10,12 @@ import {
 } from "@/lib/offers/calculate-totals";
 import { recurringMonthlyDiscountMetadata } from "@/lib/offers/discount-scope";
 import {
-  bundledProductMetadata,
-  customBundledProductMetadata,
   customPaidAddOnMetadata,
   includedSetupMetadata,
   paidAddOnMetadata,
   planInclusionMetadata,
+  platformComponentMetadata,
+  type PlatformPricingMode,
 } from "@/lib/offers/offer-item-metadata";
 
 export type InvitePlanSelection = {
@@ -28,6 +28,8 @@ export type InvitePlanSelection = {
 export type InviteProductSelection = {
   product_key: string;
   name: string;
+  pricing_mode?: PlatformPricingMode;
+  unit_amount_cents?: number;
 };
 
 export type InvitePaidAddOnSelection = {
@@ -48,6 +50,8 @@ export type InviteCustomServiceAddOn = {
 
 export type InviteCustomPlatformComponent = {
   name: string;
+  pricing_mode?: PlatformPricingMode;
+  unit_amount_cents?: number;
 };
 
 export type InviteCommercialExtras = {
@@ -204,16 +208,20 @@ export function buildInviteOfferItemRows(args: {
   }
 
   for (const product of args.products) {
+    const pricingMode = product.pricing_mode ?? "included";
+    const included = pricingMode === "included";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
-      item_type: "product",
+      item_type: included ? "product" : "add_on",
       name: product.name,
-      description: "Included with plan",
+      description: included
+        ? "Included platform capability"
+        : "Additional platform capability",
       quantity: 1,
-      unit_amount_cents: 0,
-      billing_type: "recurring",
-      billing_interval: "month",
+      unit_amount_cents: included ? 0 : (product.unit_amount_cents ?? 0),
+      billing_type: pricingMode === "one_time" ? "one_time" : "recurring",
+      billing_interval: pricingMode === "one_time" ? null : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -226,23 +234,31 @@ export function buildInviteOfferItemRows(args: {
       is_optional: false,
       is_selected: true,
       sort_order: sortOrder++,
-      metadata: bundledProductMetadata(product.product_key),
+      metadata: platformComponentMetadata(
+        product.product_key,
+        pricingMode,
+        product.unit_amount_cents ?? 0,
+      ),
     });
   }
 
   for (const custom of extras.custom_platform_components ?? []) {
     const trimmed = custom.name.trim();
     if (!trimmed) continue;
+    const pricingMode = custom.pricing_mode ?? "included";
+    const included = pricingMode === "included";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
-      item_type: "product",
+      item_type: included ? "product" : "add_on",
       name: trimmed,
-      description: "Custom platform component",
+      description: included
+        ? "Included custom platform capability"
+        : "Additional custom platform capability",
       quantity: 1,
-      unit_amount_cents: 0,
-      billing_type: "recurring",
-      billing_interval: "month",
+      unit_amount_cents: included ? 0 : (custom.unit_amount_cents ?? 0),
+      billing_type: pricingMode === "one_time" ? "one_time" : "recurring",
+      billing_interval: pricingMode === "one_time" ? null : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -255,7 +271,12 @@ export function buildInviteOfferItemRows(args: {
       is_optional: false,
       is_selected: true,
       sort_order: sortOrder++,
-      metadata: customBundledProductMetadata(trimmed),
+      metadata: platformComponentMetadata(
+        "custom",
+        pricingMode,
+        custom.unit_amount_cents ?? 0,
+        trimmed,
+      ),
     });
   }
 

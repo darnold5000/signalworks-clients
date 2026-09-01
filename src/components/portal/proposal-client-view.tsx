@@ -23,6 +23,18 @@ import {
   cadenceKey,
   cadenceSuffix,
 } from "@/lib/offers/billing-cadence";
+import {
+  isPlatformComponentItem,
+  platformPricingModeFromItem,
+} from "@/lib/offers/offer-item-metadata";
+import { proposalScopeBlocks } from "@/lib/offers/proposal-scope";
+
+function platformPriceLabel(item: ClientOfferItem, currency: string): string {
+  const mode = platformPricingModeFromItem(item);
+  if (mode === "included") return "Included";
+  const amount = formatMoney(item.unit_amount_cents * item.quantity, currency);
+  return mode === "monthly" ? `+${amount}/month` : `+${amount} one-time`;
+}
 
 function itemDiscountCents(item: ClientOfferItem): number {
   const original = item.unit_amount_cents * item.quantity;
@@ -120,12 +132,14 @@ export function ProposalClientView({
   features,
   preview = false,
   acceptance,
+  clientBusinessName,
 }: {
   offer: ClientOffer;
   items: ClientOfferItem[];
   features: ClientOfferFeature[];
   preview?: boolean;
   acceptance?: React.ReactNode;
+  clientBusinessName?: string | null;
 }) {
   const totals = calculateOfferTotals(items);
   const investmentLayout = groupProposalInvestmentItems(items);
@@ -140,6 +154,12 @@ export function ProposalClientView({
     .filter((item) => item.billing_type === "recurring");
   const recurringCadences = new Set(recurringItems.map(cadenceKey));
   const sharedRecurringCadence = recurringCadences.size === 1 ? recurringItems[0] : null;
+  const platformItems = items
+    .filter((item) => item.is_selected && isPlatformComponentItem(item))
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const scopeBlocks = proposalScopeBlocks(
+    features.map((feature) => feature.label),
+  );
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
@@ -153,6 +173,11 @@ export function ProposalClientView({
         {offer.short_summary ? (
           <p className="mt-4 max-w-2xl text-base leading-7 text-white/80">
             {offer.short_summary}
+          </p>
+        ) : null}
+        {clientBusinessName ? (
+          <p className="mt-4 text-sm font-medium text-white/70">
+            Prepared for {clientBusinessName}
           </p>
         ) : null}
       </header>
@@ -169,21 +194,26 @@ export function ProposalClientView({
           </section>
         ) : null}
 
-        {features.length > 0 ? (
+        {scopeBlocks.length > 0 ? (
           <section>
             <h2 className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">
-              What&apos;s Included
+              Scope &amp; Deliverables
             </h2>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-              {features.map((feature) => (
-                <li key={feature.id} className="flex gap-3 text-sm leading-6">
-                  <span className="mt-0.5 text-success" aria-hidden="true">
-                    ✓
-                  </span>
-                  <span>{feature.label}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4 space-y-4 text-sm leading-7">
+              {scopeBlocks.map((block, index) =>
+                block.kind === "list" ? (
+                  <ul key={index} className="list-disc space-y-1 pl-5 marker:text-success">
+                    {block.items.map((scopeItem, itemIndex) => (
+                      <li key={`${scopeItem}-${itemIndex}`}>{scopeItem}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p key={index} className="whitespace-pre-line">
+                    {block.lines.join("\n")}
+                  </p>
+                ),
+              )}
+            </div>
           </section>
         ) : null}
 
@@ -220,6 +250,33 @@ export function ProposalClientView({
                 </li>
               ))}
             </ul>
+          </section>
+        ) : null}
+
+        {platformItems.length > 0 ? (
+          <section>
+            <h2 className="text-xs font-semibold tracking-[0.16em] text-muted uppercase">
+              Additional Platform Capabilities
+            </h2>
+            <div className="mt-4 divide-y divide-border rounded-xl border border-border">
+              {platformItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p className="font-medium">{item.name}</p>
+                  <p
+                    className={
+                      platformPricingModeFromItem(item) === "included"
+                        ? "text-sm font-medium text-success"
+                        : "text-sm font-semibold"
+                    }
+                  >
+                    {platformPriceLabel(item, offer.currency)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </section>
         ) : null}
 

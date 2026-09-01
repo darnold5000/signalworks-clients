@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getOfferWithItemsWithServiceClient: vi.fn(),
   from: vi.fn(),
   deleteIn: vi.fn(),
+  insert: vi.fn(),
 }));
 
 vi.mock("@/lib/catalog/queries", () => ({
@@ -36,6 +37,13 @@ const config: CommercialOfferConfig = {
   planKey: "launch",
   monthlyPriceDollars: 50,
   productKeys: ["website"],
+  platformComponentPricing: [
+    {
+      productKey: "website",
+      pricingMode: "monthly",
+      amountDollars: 15,
+    },
+  ],
   serviceAddOns: [],
   customPlatformComponents: [],
   customServiceAddOns: [],
@@ -112,7 +120,7 @@ describe("applyCommercialConfigToOffer", () => {
     }));
 
     mocks.deleteIn.mockResolvedValue({ error: null });
-    const insert = vi.fn().mockImplementation(() => ({
+    mocks.insert.mockImplementation(() => ({
       select: () => ({
         data: buildInviteOfferItemRows({
           tenantId: "tenant-1",
@@ -164,7 +172,7 @@ describe("applyCommercialConfigToOffer", () => {
       if (table === "client_offer_items") {
         return {
           delete: () => ({ in: mocks.deleteIn }),
-          insert,
+          insert: mocks.insert,
         };
       }
       return {};
@@ -195,6 +203,40 @@ describe("applyCommercialConfigToOffer", () => {
     const deletedIds = mocks.deleteIn.mock.calls[0]?.[1] as string[];
     expect(deletedIds?.every((id) => id.startsWith("managed-"))).toBe(true);
     expect(deletedIds).not.toContain("manual-1");
+    const insertedRows = mocks.insert.mock.calls[0]?.[0] as ClientOfferItem[];
+    const pricedPlatform = insertedRows.find(
+      (item) => item.metadata?.product_key === "website",
+    );
+    expect(pricedPlatform).toMatchObject({
+      item_type: "add_on",
+      billing_type: "recurring",
+      unit_amount_cents: 1500,
+    });
     expect(offer).toBeTruthy();
+  });
+
+  it("re-saves by replacing managed platform rows without duplicating them", async () => {
+    await applyCommercialConfigToOffer({
+      tenantId: "tenant-1",
+      offerId: "offer-1",
+      config,
+    });
+    await applyCommercialConfigToOffer({
+      tenantId: "tenant-1",
+      offerId: "offer-1",
+      config,
+    });
+
+    expect(mocks.deleteIn).toHaveBeenCalledTimes(2);
+    expect(mocks.insert).toHaveBeenCalledTimes(2);
+    for (const [rows] of mocks.insert.mock.calls) {
+      const platformRows = (rows as ClientOfferItem[]).filter(
+        (item) => item.metadata?.product_key === "website",
+      );
+      expect(platformRows).toHaveLength(1);
+    }
+    for (const [, ids] of mocks.deleteIn.mock.calls) {
+      expect(ids).not.toContain("manual-1");
+    }
   });
 });

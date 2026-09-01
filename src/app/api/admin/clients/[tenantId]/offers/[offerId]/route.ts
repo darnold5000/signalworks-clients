@@ -12,6 +12,7 @@ import { getOfferWithItems } from "@/lib/offers/queries";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
+import { replaceOfferFeatures } from "@/lib/offers/replace-offer-features";
 
 const itemSchema = z.object({
   itemType: z.enum([
@@ -145,33 +146,14 @@ export async function PATCH(
   }
 
   if (parsed.data.features !== undefined) {
-    const { error: deleteFeaturesError } = await supabase
-      .from(TABLES.clientOfferFeatures)
-      .delete()
-      .eq("offer_id", offerId);
-    if (deleteFeaturesError) {
-      return NextResponse.json(
-        { error: "Could not update proposal features" },
-        { status: 400 },
-      );
-    }
-    if (parsed.data.features.length > 0) {
-      const { error: insertFeaturesError } = await supabase
-        .from(TABLES.clientOfferFeatures)
-        .insert(
-          parsed.data.features.map((label, sortOrder) => ({
-            offer_id: offerId,
-            tenant_id: tenantId,
-            label,
-            sort_order: sortOrder,
-          })),
-        );
-      if (insertFeaturesError) {
-        return NextResponse.json(
-          { error: "Could not update proposal features" },
-          { status: 400 },
-        );
-      }
+    const featureError = await replaceOfferFeatures({
+      supabase,
+      tenantId,
+      offerId,
+      labels: parsed.data.features,
+    });
+    if (featureError) {
+      return NextResponse.json({ error: featureError }, { status: 400 });
     }
   }
 

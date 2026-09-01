@@ -23,8 +23,22 @@ export const serviceAddOnConfigSchema = z.object({
   billingType: z.enum(["recurring", "one_time"]).optional(),
 });
 
+export const platformPricingModeSchema = z.enum([
+  "included",
+  "one_time",
+  "monthly",
+]);
+
+export const platformComponentPricingSchema = z.object({
+  productKey: z.string().trim().min(1),
+  pricingMode: platformPricingModeSchema.default("included"),
+  amountDollars: z.coerce.number().min(0).default(0),
+});
+
 export const customPlatformComponentConfigSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  pricingMode: platformPricingModeSchema.default("included"),
+  amountDollars: z.coerce.number().min(0).default(0),
 });
 
 export const customServiceAddOnConfigSchema = z.object({
@@ -42,6 +56,10 @@ export const commercialOfferConfigSchema = z
     planKey: z.enum(PLAN_KEYS),
     monthlyPriceDollars: z.coerce.number().min(0),
     productKeys: z.array(z.string().trim().min(1)).max(50).default([]),
+    platformComponentPricing: z
+      .array(platformComponentPricingSchema)
+      .max(50)
+      .default([]),
     serviceAddOns: z.array(serviceAddOnConfigSchema).max(30).default([]),
     customPlatformComponents: z
       .array(customPlatformComponentConfigSchema)
@@ -95,6 +113,28 @@ export const commercialOfferConfigSchema = z
       }
     }
 
+    const selectedCatalogKeys = new Set(
+      data.productKeys.filter((key) => key !== "other"),
+    );
+    const seenPricingKeys = new Set<string>();
+    for (const row of data.platformComponentPricing) {
+      if (!selectedCatalogKeys.has(row.productKey)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Platform pricing must belong to a selected component.",
+          path: ["platformComponentPricing"],
+        });
+      }
+      if (seenPricingKeys.has(row.productKey)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Each platform component can have only one price.",
+          path: ["platformComponentPricing"],
+        });
+      }
+      seenPricingKeys.add(row.productKey);
+    }
+
     for (const row of data.customServiceAddOns) {
       if (isPlaceholderOfferItemName(row.name)) {
         ctx.addIssue({
@@ -115,6 +155,7 @@ export function defaultCommercialOfferConfig(
     planKey,
     monthlyPriceDollars: 0,
     productKeys: [],
+    platformComponentPricing: [],
     serviceAddOns: [],
     customPlatformComponents: [],
     customServiceAddOns: [],

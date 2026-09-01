@@ -23,6 +23,7 @@ import { InviteClientPlanInclusions } from "@/components/invite-client-plan-incl
 import {
   InviteClientPlatformComponentsSelect,
   type CustomPlatformComponentRow,
+  type PlatformComponentPricingState,
 } from "@/components/invite-client-platform-components-select";
 import {
   InviteClientServiceAddOnsSelect,
@@ -38,6 +39,7 @@ function configToState(
   selectedPlan: PlatformPlanTemplate | null;
   monthlyPriceDollars: string;
   selectedProductKeys: string[];
+  platformPricingByKey: Record<string, PlatformComponentPricingState>;
   customPlatformRows: CustomPlatformComponentRow[];
   serviceAddOnSelections: ServiceAddOnSelection[];
   customServiceAddOnRows: CustomServiceAddOnRow[];
@@ -60,9 +62,20 @@ function configToState(
         ? String(selectedPlan.default_price_cents / 100)
         : "",
     selectedProductKeys: config?.productKeys ?? [],
+    platformPricingByKey: Object.fromEntries(
+      (config?.platformComponentPricing ?? []).map((row) => [
+        row.productKey,
+        {
+          pricingMode: row.pricingMode,
+          amountDollars: String(row.amountDollars),
+        },
+      ]),
+    ),
     customPlatformRows: (config?.customPlatformComponents ?? []).map((row) => ({
       id: crypto.randomUUID(),
       name: row.name,
+      pricingMode: row.pricingMode,
+      amountDollars: String(row.amountDollars),
     })),
     serviceAddOnSelections: (config?.serviceAddOns ?? []).map((addOn) => ({
       productKey: addOn.productKey,
@@ -91,6 +104,7 @@ export function buildCommercialOfferConfigFromState(args: {
   selectedPlan: PlatformPlanTemplate | null;
   monthlyPriceDollars: string;
   selectedProductKeys: string[];
+  platformPricingByKey: Record<string, PlatformComponentPricingState>;
   customPlatformRows: CustomPlatformComponentRow[];
   serviceAddOnSelections: ServiceAddOnSelection[];
   customServiceAddOnRows: CustomServiceAddOnRow[];
@@ -128,9 +142,29 @@ export function buildCommercialOfferConfigFromState(args: {
     planKey: args.selectedPlan.plan_key as CommercialOfferConfig["planKey"],
     monthlyPriceDollars: parsedMonthly,
     productKeys: args.selectedProductKeys,
+    platformComponentPricing: args.selectedProductKeys
+      .filter((productKey) => productKey !== "other")
+      .map((productKey) => {
+        const pricing = args.platformPricingByKey[productKey];
+        return {
+          productKey,
+          pricingMode: pricing?.pricingMode ?? "included",
+          amountDollars:
+            pricing?.pricingMode === "included"
+              ? 0
+              : Number.parseFloat(pricing?.amountDollars ?? "0") || 0,
+        };
+      }),
     serviceAddOns: paid_add_ons,
     customPlatformComponents: args.customPlatformRows
-      .map((row) => ({ name: row.name.trim() }))
+      .map((row) => ({
+        name: row.name.trim(),
+        pricingMode: row.pricingMode,
+        amountDollars:
+          row.pricingMode === "included"
+            ? 0
+            : Number.parseFloat(row.amountDollars) || 0,
+      }))
       .filter((row) => row.name.length > 0),
     customServiceAddOns: args.customServiceAddOnRows
       .map((row) => ({
@@ -190,8 +224,17 @@ export function CommercialOfferConfigurator({
       .map((product) => ({
         product_key: product.product_key,
         name: product.name,
+        pricing_mode:
+          state.platformPricingByKey[product.product_key]?.pricingMode ??
+          "included",
+        unit_amount_cents: dollarsToCents(
+          Number.parseFloat(
+            state.platformPricingByKey[product.product_key]?.amountDollars ??
+              "0",
+          ) || 0,
+        ),
       }));
-  }, [platformComponents, catalogComponentKeys]);
+  }, [platformComponents, catalogComponentKeys, state.platformPricingByKey]);
 
   const selectedPlanSummary = useMemo<InvitePlanSelection | null>(() => {
     if (!state.selectedPlan) return null;
@@ -243,7 +286,13 @@ export function CommercialOfferConfigurator({
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
     const custom_platform_components = state.customPlatformRows
-      .map((row) => ({ name: row.name.trim() }))
+      .map((row) => ({
+        name: row.name.trim(),
+        pricing_mode: row.pricingMode,
+        unit_amount_cents: dollarsToCents(
+          Number.parseFloat(row.amountDollars) || 0,
+        ),
+      }))
       .filter((row) => row.name.length > 0);
 
     const custom_service_add_ons = state.customServiceAddOnRows
@@ -341,6 +390,16 @@ export function CommercialOfferConfigurator({
           onCustomRowsChange={(customPlatformRows) =>
             setState((current) => ({ ...current, customPlatformRows }))
           }
+          pricingByKey={state.platformPricingByKey}
+          onPricingChange={(productKey, pricing) =>
+            setState((current) => ({
+              ...current,
+              platformPricingByKey: {
+                ...current.platformPricingByKey,
+                [productKey]: pricing,
+              },
+            }))
+          }
         />
 
         <InviteClientServiceAddOnsSelect
@@ -429,7 +488,7 @@ export function CommercialOfferConfigurator({
             onClick={() => void handleApply()}
             disabled={disabled || busy || !state.selectedPlan}
           >
-            {busy ? "Saving pricing…" : "Save pricing"}
+            {busy ? "Saving pricing…" : "Save pricing to draft"}
           </Button>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </div>

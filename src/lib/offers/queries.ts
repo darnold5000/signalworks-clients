@@ -82,6 +82,18 @@ export async function getOfferWithItems(
   return getOfferWithItemsWithServiceClient(offerId, supabase);
 }
 
+export async function getOfferTenantDisplayName(
+  tenantId: string,
+): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from(TABLES.tenants)
+    .select("display_name")
+    .eq("id", tenantId)
+    .maybeSingle();
+  return typeof data?.display_name === "string" ? data.display_name : null;
+}
+
 export async function getOfferWithItemsWithServiceClient(
   offerId: string,
   supabase: ReturnType<typeof createServiceClient> | Awaited<ReturnType<typeof createClient>>,

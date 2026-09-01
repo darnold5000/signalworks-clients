@@ -91,7 +91,15 @@ describe("OfferBuilder proposal presentation", () => {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             items: [],
-            features: [],
+            features: Array.from({ length: 15 }, (_, index) => ({
+              id: `feature-${index}`,
+              offer_id: "offer-1",
+              tenant_id: "tenant-1",
+              label: `Deliverable ${index + 1}`,
+              sort_order: index,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })),
           },
         ]}
         contacts={[]}
@@ -103,6 +111,10 @@ describe("OfferBuilder proposal presentation", () => {
     expect(html).toContain("Investment / pricing");
     expect(html).toContain("Save pricing");
     expect(html).toContain("Scope &amp; deliverables");
+    expect(html).toContain("Scope and deliverables");
+    expect(html).toContain("Deliverable 1\nDeliverable 2");
+    expect(html).toContain("Deliverable 15");
+    expect(html).not.toContain("Add deliverable or feature");
     expect(html).not.toContain("Catalog product key");
   });
 });

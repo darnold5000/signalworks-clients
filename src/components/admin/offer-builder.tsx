@@ -29,6 +29,10 @@ import { SendProposalButton } from "@/components/admin/send-proposal-button";
 import { formatMoney } from "@/lib/utils";
 import { calculateAmountDueFirstCycle } from "@/lib/offers/calculate-totals";
 import { formatOfferLineItemSubtitle } from "@/lib/offers/format-offer-line-item-meta";
+import {
+  featureLabelsToScopeText,
+  scopeTextToFeatureLabels,
+} from "@/lib/offers/proposal-scope";
 
 type OfferWithItems = ClientOffer & {
   items: ClientOfferItem[];
@@ -147,7 +151,6 @@ export function OfferBuilder({
   const [description, setDescription] = useState("");
   const [billingMethod, setBillingMethod] =
     useState<ProposalBillingMethod>("stripe_checkout");
-  const [newFeature, setNewFeature] = useState("");
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_ITEM);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [showAdvancedItems, setShowAdvancedItems] = useState(false);
@@ -298,15 +301,30 @@ export function OfferBuilder({
   async function previewAsClient() {
     if (!selected || selected.status !== "draft") return;
     const previewWindow = window.open("about:blank", "_blank");
-    if (previewWindow) previewWindow.opener = null;
-    const saved = await saveProposal();
-    if (!saved) {
-      previewWindow?.close();
+    if (!previewWindow) {
+      setError(
+        "The preview window was blocked. Allow pop-ups for this site and try again.",
+      );
       return;
     }
-    const previewUrl = `/proposal-preview/${tenantId}/${selected.id}`;
-    if (previewWindow) previewWindow.location.href = previewUrl;
-    else window.open(previewUrl, "_blank", "noopener,noreferrer");
+    previewWindow.opener = null;
+    previewWindow.document.title = "Saving proposal preview…";
+    previewWindow.document.body.textContent = "Saving the current draft…";
+    const saved = await saveProposal();
+    if (!saved) {
+      previewWindow.close();
+      return;
+    }
+    const previewUrl = new URL(
+      `/proposal-preview/${tenantId}/${selected.id}`,
+      window.location.origin,
+    ).toString();
+    try {
+      previewWindow.location.replace(previewUrl);
+    } catch {
+      previewWindow.close();
+      setError("The client preview could not be opened. Please try again.");
+    }
   }
 
   async function deleteDraft() {
@@ -338,45 +356,21 @@ export function OfferBuilder({
     }
   }
 
-  function addFeature() {
+  function updateScopeText(value: string) {
     if (!selected) return;
-    const label = newFeature.trim();
-    if (!label) return;
-    const feature: ClientOfferFeature = {
-      id: crypto.randomUUID(),
-      offer_id: selected.id,
-      tenant_id: tenantId,
-      label,
-      sort_order: selected.features.length,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    updateSelected({ features: [...selected.features, feature] });
-    setNewFeature("");
-  }
-
-  function updateFeature(index: number, label: string) {
-    if (!selected) return;
-    updateSelected({
-      features: selected.features.map((feature, featureIndex) =>
-        featureIndex === index ? { ...feature, label } : feature,
-      ),
+    const now = new Date().toISOString();
+    const features = scopeTextToFeatureLabels(value).map((label, index) => {
+      const existing = selected.features[index];
+      return {
+        id: existing?.id ?? crypto.randomUUID(),
+        offer_id: selected.id,
+        tenant_id: tenantId,
+        label,
+        sort_order: index,
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+      } satisfies ClientOfferFeature;
     });
-  }
-
-  function removeFeature(index: number) {
-    if (!selected) return;
-    updateSelected({
-      features: selected.features.filter((_, featureIndex) => featureIndex !== index),
-    });
-  }
-
-  function moveFeature(index: number, direction: -1 | 1) {
-    if (!selected) return;
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= selected.features.length) return;
-    const features = [...selected.features];
-    [features[index], features[nextIndex]] = [features[nextIndex], features[index]];
     updateSelected({ features });
   }
 
@@ -760,71 +754,22 @@ export function OfferBuilder({
 
                     <ProposalSection
                       title="Scope & deliverables"
-                      description="Proposal-facing features shown to the client. This is separate from commercial plan inclusions."
+                      description="List the key features, services, and capabilities included in this proposal."
                     >
-                      <div className="space-y-2">
-                        {selected.features.map((feature, index) => (
-                          <div key={feature.id} className="flex items-center gap-2">
-                            <span className="text-success" aria-hidden="true">
-                              ✓
-                            </span>
-                            <input
-                              value={feature.label}
-                              onChange={(event) =>
-                                updateFeature(index, event.target.value)
-                              }
-                              className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-                              aria-label={`Feature ${index + 1}`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => moveFeature(index, -1)}
-                              disabled={index === 0}
-                              className="px-1 text-sm text-muted disabled:opacity-30"
-                              aria-label={`Move ${feature.label} up`}
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveFeature(index, 1)}
-                              disabled={index === selected.features.length - 1}
-                              className="px-1 text-sm text-muted disabled:opacity-30"
-                              aria-label={`Move ${feature.label} down`}
-                            >
-                              ↓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeFeature(index)}
-                              className="text-xs text-muted hover:text-danger"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <input
-                          value={newFeature}
-                          onChange={(event) => setNewFeature(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              addFeature();
-                            }
-                          }}
-                          placeholder="Add deliverable or feature"
-                          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={addFeature}
-                        >
-                          Add
-                        </Button>
-                      </div>
+                      <textarea
+                        aria-label="Scope and deliverables"
+                        value={featureLabelsToScopeText(
+                          selected.features.map((feature) => feature.label),
+                        )}
+                        onChange={(event) => updateScopeText(event.target.value)}
+                        rows={14}
+                        placeholder={"Custom website\nClient portal\nMembership management\nBooking and scheduling"}
+                        className="w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6"
+                      />
+                      <p className="mt-2 text-xs text-muted">
+                        Paste a full scope at once. Paragraphs, line breaks, and
+                        bullet-prefixed lines are preserved when you save the draft.
+                      </p>
                     </ProposalSection>
 
                     <ProposalSection
@@ -1050,6 +995,7 @@ export function OfferBuilder({
                       </Button>
                       <Button
                         type="button"
+                        aria-label="Preview proposal as client in a new tab"
                         onClick={() => void previewAsClient()}
                         disabled={busy || selected.title.trim().length < 2}
                       >
@@ -1065,6 +1011,10 @@ export function OfferBuilder({
                         Delete draft
                       </Button>
                     </div>
+                    <p className="text-xs text-muted">
+                      Preview saves proposal text and features first. Save pricing
+                      to the draft before previewing commercial changes.
+                    </p>
                   </div>
                 ) : (
                   <>

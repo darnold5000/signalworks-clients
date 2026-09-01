@@ -1,10 +1,11 @@
 import type { CommercialOfferConfig } from "@/lib/catalog/commercial-config-validation";
 import type { ClientOffer, ClientOfferItem } from "@/lib/database/phase1-types";
 import {
-  COMMERCIAL_ROLE,
   isIncludedSetupItem,
   isPaidAddOnItem,
   isPlanInclusionItem,
+  isPlatformComponentItem,
+  platformPricingModeFromItem,
 } from "@/lib/offers/offer-item-metadata";
 import {
   hasManagedCommercialPricing,
@@ -29,24 +30,26 @@ export function parseCommercialConfigFromOffer(
     ? basePlan.unit_amount_cents / 100
     : 0;
 
-  const productKeys = items
-    .filter(
-      (item) =>
-        item.item_type === "product" &&
-        item.metadata?.commercial_role === COMMERCIAL_ROLE.BUNDLED_PRODUCT &&
-        item.metadata?.product_key !== "custom",
-    )
+  const platformItems = items.filter(isPlatformComponentItem);
+
+  const productKeys = platformItems
+    .filter((item) => item.metadata?.product_key !== "custom")
     .map((item) => String(item.metadata?.product_key));
 
-  const customPlatformComponents = items
-    .filter(
-      (item) =>
-        item.item_type === "product" &&
-        item.metadata?.commercial_role === COMMERCIAL_ROLE.BUNDLED_PRODUCT &&
-        item.metadata?.product_key === "custom",
-    )
+  const platformComponentPricing = platformItems
+    .filter((item) => item.metadata?.product_key !== "custom")
+    .map((item) => ({
+      productKey: String(item.metadata?.product_key),
+      pricingMode: platformPricingModeFromItem(item),
+      amountDollars: item.unit_amount_cents / 100,
+    }));
+
+  const customPlatformComponents = platformItems
+    .filter((item) => item.metadata?.product_key === "custom")
     .map((item) => ({
       name: String(item.metadata?.custom_name ?? item.name),
+      pricingMode: platformPricingModeFromItem(item),
+      amountDollars: item.unit_amount_cents / 100,
     }));
 
   const planInclusions =
@@ -106,6 +109,7 @@ export function parseCommercialConfigFromOffer(
     planKey: planKey as CommercialOfferConfig["planKey"],
     monthlyPriceDollars,
     productKeys,
+    platformComponentPricing,
     serviceAddOns,
     customPlatformComponents,
     customServiceAddOns,

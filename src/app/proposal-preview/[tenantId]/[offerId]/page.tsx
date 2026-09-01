@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProposalClientView } from "@/components/portal/proposal-client-view";
 import { requireAdmin } from "@/lib/auth";
-import { getOfferWithItems } from "@/lib/offers/queries";
+import {
+  getOfferTenantDisplayName,
+  getOfferWithItems,
+} from "@/lib/offers/queries";
 
 export default async function ProposalPreviewPage({
   params,
@@ -15,6 +18,7 @@ export default async function ProposalPreviewPage({
   if (!offer || offer.tenant_id !== tenantId || offer.status !== "draft") {
     notFound();
   }
+  const clientBusinessName = await getOfferTenantDisplayName(tenantId);
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 sm:px-8">
@@ -40,6 +44,7 @@ export default async function ProposalPreviewPage({
           offer={offer}
           items={offer.items}
           features={offer.features}
+          clientBusinessName={clientBusinessName}
           preview
         />
       </div>

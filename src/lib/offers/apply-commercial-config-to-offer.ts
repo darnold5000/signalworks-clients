@@ -110,8 +110,25 @@ export async function applyCommercialConfigToOffer(args: {
     };
   });
 
+  const platformPricingByKey = new Map(
+    args.config.platformComponentPricing.map((row) => [row.productKey, row]),
+  );
+  const selectedProducts = products.map((product) => {
+    const pricing = platformPricingByKey.get(product.product_key);
+    return {
+      product_key: product.product_key,
+      name: product.name,
+      pricing_mode: pricing?.pricingMode ?? ("included" as const),
+      unit_amount_cents: dollarsToCents(pricing?.amountDollars ?? 0),
+    };
+  });
+
   const customPlatformComponents = args.config.customPlatformComponents
-    .map((row) => ({ name: row.name.trim() }))
+    .map((row) => ({
+      name: row.name.trim(),
+      pricing_mode: row.pricingMode,
+      unit_amount_cents: dollarsToCents(row.amountDollars),
+    }))
     .filter((row) => row.name.length > 0);
 
   const customServiceAddOns = args.config.customServiceAddOns
@@ -163,10 +180,7 @@ export async function applyCommercialConfigToOffer(args: {
         | "week"
         | "year",
     },
-    products: products.map((product) => ({
-      product_key: product.product_key,
-      name: product.name,
-    })),
+    products: selectedProducts,
     planInclusions: inclusionProducts(
       "plan_inclusion",
       args.config.planInclusions,

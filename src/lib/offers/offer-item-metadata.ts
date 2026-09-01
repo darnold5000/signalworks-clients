@@ -6,6 +6,7 @@ export const COMMERCIAL_ROLE = {
   PAID_ADD_ON: "paid_add_on",
   PLAN_INCLUSION: "plan_inclusion",
   INCLUDED_SETUP: "included_setup",
+  PLATFORM_COMPONENT: "platform_component",
 } as const;
 
 export type CommercialRole =
@@ -72,6 +73,47 @@ export function customBundledProductMetadata(name: string) {
   };
 }
 
+export type PlatformPricingMode = "included" | "one_time" | "monthly";
+
+export function platformComponentMetadata(
+  productKey: string,
+  pricingMode: PlatformPricingMode,
+  amountCents: number,
+  customName?: string,
+) {
+  return {
+    product_key: productKey,
+    catalog_version: CATALOG_VERSION,
+    commercial_role: COMMERCIAL_ROLE.PLATFORM_COMPONENT,
+    included_in_plan: pricingMode === "included",
+    pricing_mode: pricingMode,
+    configured_amount_cents: pricingMode === "included" ? 0 : amountCents,
+    ...(customName ? { custom_name: customName } : {}),
+  };
+}
+
+/** New platform rows plus legacy bundled-product rows. */
+export function isPlatformComponentItem(item: ClientOfferItem): boolean {
+  const role = item.metadata?.commercial_role;
+  return (
+    (item.item_type === "product" || item.item_type === "add_on") &&
+    (role === COMMERCIAL_ROLE.PLATFORM_COMPONENT ||
+      role === COMMERCIAL_ROLE.BUNDLED_PRODUCT)
+  );
+}
+
+export function platformPricingModeFromItem(
+  item: ClientOfferItem,
+): PlatformPricingMode {
+  const stored = item.metadata?.pricing_mode;
+  if (stored === "monthly" || stored === "one_time" || stored === "included") {
+    return stored;
+  }
+  // All legacy bundled platform rows were included at $0.
+  if (item.unit_amount_cents <= 0) return "included";
+  return item.billing_type === "one_time" ? "one_time" : "monthly";
+}
+
 export function customPaidAddOnMetadata(name: string) {
   return {
     product_key: "custom",
@@ -115,8 +157,10 @@ export function isPaidAddOnItem(item: ClientOfferItem): boolean {
 
 /** Entitlement lines included with the plan — excluded from billable totals and Stripe sync. */
 export function isEntitlementOfferItem(item: ClientOfferItem): boolean {
+  if (isPlatformComponentItem(item)) {
+    return platformPricingModeFromItem(item) === "included";
+  }
   return (
-    isBundledProductItem(item) ||
     isPlanInclusionItem(item) ||
     isIncludedSetupItem(item)
   );

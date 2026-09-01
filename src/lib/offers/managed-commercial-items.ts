@@ -18,9 +18,17 @@ export function isManagedCommercialOfferItem(item: ClientOfferItem): boolean {
     const role = item.metadata?.commercial_role;
     return (
       role === COMMERCIAL_ROLE.BUNDLED_PRODUCT ||
+      role === COMMERCIAL_ROLE.PLATFORM_COMPONENT ||
       role === COMMERCIAL_ROLE.PLAN_INCLUSION ||
       role === COMMERCIAL_ROLE.INCLUDED_SETUP
     );
+  }
+
+  if (
+    item.item_type === "add_on" &&
+    item.metadata?.commercial_role === COMMERCIAL_ROLE.PLATFORM_COMPONENT
+  ) {
+    return true;
   }
 
   if (isPaidAddOnItem(item)) {

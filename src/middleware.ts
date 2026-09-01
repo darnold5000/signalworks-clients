@@ -18,5 +18,6 @@ export const config = {
     "/support/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
+    "/proposal-preview/:path*",
   ],
 };

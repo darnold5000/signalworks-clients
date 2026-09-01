@@ -169,8 +169,25 @@ export async function inviteClientWithOffer(
     };
   });
 
+  const platformPricingByKey = new Map(
+    input.platformComponentPricing.map((row) => [row.productKey, row]),
+  );
+  const selectedProducts = products.map((product) => {
+    const pricing = platformPricingByKey.get(product.product_key);
+    return {
+      product_key: product.product_key,
+      name: product.name,
+      pricing_mode: pricing?.pricingMode ?? ("included" as const),
+      unit_amount_cents: dollarsToCents(pricing?.amountDollars ?? 0),
+    };
+  });
+
   const customPlatformComponents = (input.customPlatformComponents ?? []).map(
-    (row) => ({ name: row.name.trim() }),
+    (row) => ({
+      name: row.name.trim(),
+      pricing_mode: row.pricingMode,
+      unit_amount_cents: dollarsToCents(row.amountDollars),
+    }),
   ).filter((row) => row.name.length > 0);
 
   const customServiceAddOns = (input.customServiceAddOns ?? []).map((row) => ({
@@ -334,10 +351,7 @@ export async function inviteClientWithOffer(
           | "week"
           | "year",
       },
-      products: products.map((product) => ({
-        product_key: product.product_key,
-        name: product.name,
-      })),
+      products: selectedProducts,
       planInclusions: inclusionProducts("plan_inclusion", input.planInclusions),
       setupInclusions: inclusionProducts("setup_inclusion", input.setupInclusions),
       extras: {

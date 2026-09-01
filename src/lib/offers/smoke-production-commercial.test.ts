@@ -91,6 +91,7 @@ describeProd("production commercial proposal smoke", () => {
     planKey: "launch",
     monthlyPriceDollars: 49.99,
     productKeys: [platformKey],
+    platformComponentPricing: [],
     serviceAddOns: [
       {
         productKey: addOnKey,
