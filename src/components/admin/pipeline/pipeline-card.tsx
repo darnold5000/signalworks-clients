@@ -11,11 +11,9 @@ import type {
 import { formatMoney } from "@/lib/utils";
 import { InlineLastContactDate } from "./inline-last-contact-date";
 import { PipelineRowActions } from "./pipeline-row-actions";
-import { PipelineStatusBadge } from "./pipeline-status-badge";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
-import { PipelineTemperatureBadge } from "./pipeline-temperature-badge";
-import { PipelineTemperatureSelect } from "./pipeline-temperature-select";
+import { PipelineTemperatureControl } from "./pipeline-temperature-select";
 
 function truncateText(value: string | null) {
   if (!value) return "—";
@@ -48,7 +46,7 @@ export function PipelineCard({
   lastContactUpdating?: boolean;
 }) {
   return (
-    <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface p-4 lg:hidden">
+    <article className="min-w-0 rounded-xl border border-border bg-surface p-4 lg:hidden">
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -74,8 +72,20 @@ export function PipelineCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <PipelineStatusBadge status={client.status} />
-        <PipelineTemperatureBadge temperature={client.lead_temperature} />
+        <PipelineStatusSelect
+          value={client.status}
+          disabled={statusUpdating}
+          onChange={(status) => onStatusChange(client.id, status)}
+        />
+        <PipelineTemperatureControl
+          status={client.status}
+          value={client.lead_temperature}
+          disabled={temperatureUpdating}
+          empty="hidden"
+          onChange={(temperature) =>
+            onTemperatureChange(client.id, temperature)
+          }
+        />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -122,28 +132,6 @@ export function PipelineCard({
               "—"
             )}
           </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-xs tracking-wide text-muted uppercase">Status</p>
-            <PipelineStatusSelect
-              value={client.status}
-              disabled={statusUpdating}
-              onChange={(status) => onStatusChange(client.id, status)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <p className="text-xs tracking-wide text-muted uppercase">Temperature</p>
-            <PipelineTemperatureSelect
-              value={client.lead_temperature}
-              disabled={temperatureUpdating}
-              onChange={(temperature) =>
-                onTemperatureChange(client.id, temperature)
-              }
-              className="mt-1"
-            />
-          </div>
         </div>
         <div>
           <p className="text-xs tracking-wide text-muted uppercase">Last Conversation</p>

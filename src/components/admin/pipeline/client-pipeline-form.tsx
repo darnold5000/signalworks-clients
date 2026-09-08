@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import type { PipelineClientInput } from "@/lib/pipeline/validation";
-import type { LeadTemperature, PipelineStatus } from "@/lib/pipeline/types";
+import {
+  isLeadTemperatureVisible,
+  type LeadTemperature,
+  type PipelineStatus,
+} from "@/lib/pipeline/types";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagsSelect } from "./pipeline-tags-select";
 import { PipelineTemperatureSelect } from "./pipeline-temperature-select";
@@ -147,16 +151,20 @@ export function ClientPipelineForm({
           />
           <p className="text-xs text-muted">Where are we in the sales process?</p>
         </label>
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium">Temperature</span>
-          <PipelineTemperatureSelect
-            value={(form.lead_temperature ?? "unknown") as LeadTemperature}
-            onChange={(temperature) => updateField("lead_temperature", temperature)}
-          />
-          <p className="text-xs text-muted">
-            How strong does this opportunity currently feel?
-          </p>
-        </label>
+        {isLeadTemperatureVisible(form.status as PipelineStatus) ? (
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Temperature</span>
+            <PipelineTemperatureSelect
+              value={(form.lead_temperature ?? "unknown") as LeadTemperature}
+              onChange={(temperature) =>
+                updateField("lead_temperature", temperature)
+              }
+            />
+            <p className="text-xs text-muted">
+              How strong does this opportunity currently feel?
+            </p>
+          </label>
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

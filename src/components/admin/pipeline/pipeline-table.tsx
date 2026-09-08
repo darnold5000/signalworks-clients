@@ -15,8 +15,7 @@ import { InlineLastContactDate } from "./inline-last-contact-date";
 import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
-import { PipelineTemperatureBadge } from "./pipeline-temperature-badge";
-import { PipelineTemperatureSelect } from "./pipeline-temperature-select";
+import { PipelineTemperatureControl } from "./pipeline-temperature-select";
 
 function truncateText(value: string | null, max = 80) {
   if (!value) return "—";
@@ -135,7 +134,7 @@ export function PipelineTable({
               key={client.id}
               className="border-b border-border last:border-0 hover:bg-background/60"
             >
-              <td className="py-3 pr-2 align-top">
+              <td className="py-2 pr-2 align-top">
                 <input
                   type="checkbox"
                   aria-label={`Select ${client.business_name || "unnamed prospect"}`}
@@ -144,7 +143,7 @@ export function PipelineTable({
                   className="size-4 rounded border-border"
                 />
               </td>
-              <td className="py-3 pr-3 align-top">
+              <td className="py-2 pr-3 align-top">
                 <Link
                   href={`/admin/pipeline/${client.id}`}
                   className="font-medium break-words underline-offset-2 hover:underline"
@@ -164,7 +163,7 @@ export function PipelineTable({
                   </p>
                 ) : null}
               </td>
-              <td className="py-3 pr-3 align-top">
+              <td className="py-2 pr-3 align-top">
                 <p className="break-words">{client.contact_name || "—"}</p>
                 {client.contact_email ? (
                   <p className="text-xs break-all text-muted">{client.contact_email}</p>
@@ -173,44 +172,40 @@ export function PipelineTable({
                   <p className="text-xs text-muted">{client.phone}</p>
                 ) : null}
               </td>
-              <td className="py-3 pr-3 align-top">
+              <td className="py-2 pr-3 align-middle">
                 <PipelineStatusSelect
-                  compact
                   value={client.status}
                   disabled={statusUpdatingId === client.id}
                   onChange={(status) => onStatusChange(client.id, status)}
-                  className="max-w-full"
                 />
               </td>
-              <td className="py-3 pr-3 align-top">
-                <PipelineTemperatureBadge temperature={client.lead_temperature} />
-                <PipelineTemperatureSelect
-                  compact
+              <td className="py-2 pr-3 align-middle">
+                <PipelineTemperatureControl
+                  status={client.status}
                   value={client.lead_temperature}
                   disabled={temperatureUpdatingId === client.id}
                   onChange={(temperature) =>
                     onTemperatureChange(client.id, temperature)
                   }
-                  className="mt-1.5 max-w-full"
                 />
               </td>
-              <td className="py-3 pr-3 align-top">
+              <td className="py-2 pr-3 align-top">
                 <PipelineTagBadges tags={client.tags} />
               </td>
-              <td className="py-3 pr-3 align-top text-muted">
+              <td className="py-2 pr-3 align-top text-muted">
                 {formatMonthlyValue(client.estimated_monthly_value_cents)}
               </td>
-              <td className="py-3 pr-3 align-top text-xs text-muted">
+              <td className="py-2 pr-3 align-top text-xs text-muted">
                 <InlineLastContactDate
                   value={client.last_contacted_at}
                   disabled={lastContactUpdatingId === client.id}
                   onChange={(date) => onLastContactChange(client.id, date)}
                 />
-                <p className="mt-1">
+                <p className="mt-0.5">
                   Follow up: {formatPipelineDate(client.next_follow_up_date)}
                 </p>
               </td>
-              <td className="py-3 pr-3 align-top text-xs text-muted">
+              <td className="py-2 pr-3 align-top text-xs text-muted">
                 {client.health_check_sent ? (
                   <span className="inline-flex items-center gap-1">
                     <Check className="size-3.5" aria-hidden="true" />
@@ -220,15 +215,15 @@ export function PipelineTable({
                   "—"
                 )}
               </td>
-              <td className="py-3 pr-3 align-top">
-                <p className="line-clamp-3 break-words text-muted">
+              <td className="py-2 pr-3 align-top">
+                <p className="line-clamp-2 break-words text-muted">
                   {truncateText(client.last_conversation, 160)}
                 </p>
               </td>
-              <td className="py-3 pr-3 align-top text-xs text-muted">
+              <td className="py-2 pr-3 align-top text-xs text-muted">
                 {formatDate(client.updated_at)}
               </td>
-              <td className="py-3 align-top">
+              <td className="py-2 align-top">
                 <PipelineRowActions
                   client={client}
                   onEdit={onEdit}

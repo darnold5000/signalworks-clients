@@ -10,6 +10,7 @@ import {
   updatePipelineClient,
 } from "@/lib/pipeline/clients";
 import { formatPipelineDate } from "@/lib/pipeline/dates";
+import { isLeadTemperatureVisible } from "@/lib/pipeline/types";
 import type { ClientPipelineRecord } from "@/lib/pipeline/types";
 import {
   pipelineRecordToInput,
@@ -128,10 +129,14 @@ export function ClientPipelineDetails({
             label="Current Status"
             value={<PipelineStatusBadge status={client.status} />}
           />
-          <MetaRow
-            label="Temperature"
-            value={<PipelineTemperatureBadge temperature={client.lead_temperature} />}
-          />
+          {isLeadTemperatureVisible(client.status) ? (
+            <MetaRow
+              label="Temperature"
+              value={
+                <PipelineTemperatureBadge temperature={client.lead_temperature} />
+              }
+            />
+          ) : null}
           <MetaRow
             label="Est. Monthly Value"
             value={

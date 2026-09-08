@@ -4,7 +4,7 @@ import {
   filterPipelineClients,
   sortPipelineClients,
 } from "@/lib/pipeline/query";
-import { normalizeLeadTemperature } from "@/lib/pipeline/types";
+import { normalizeLeadTemperature, isLeadTemperatureVisible } from "@/lib/pipeline/types";
 import type { ClientPipelineRecord, LeadTemperature } from "@/lib/pipeline/types";
 
 function record(
@@ -37,6 +37,16 @@ describe("normalizeLeadTemperature", () => {
     expect(normalizeLeadTemperature(null)).toBe("unknown");
     expect(normalizeLeadTemperature("on_fire")).toBe("unknown");
     expect(normalizeLeadTemperature("hot")).toBe("hot");
+  });
+});
+
+describe("isLeadTemperatureVisible", () => {
+  it("is visible only for Interested and Proposal Sent", () => {
+    expect(isLeadTemperatureVisible("interested")).toBe(true);
+    expect(isLeadTemperatureVisible("proposal_sent")).toBe(true);
+    expect(isLeadTemperatureVisible("potential")).toBe(false);
+    expect(isLeadTemperatureVisible("contact_made")).toBe(false);
+    expect(isLeadTemperatureVisible("won")).toBe(false);
   });
 });
 
@@ -96,6 +106,27 @@ describe("filterPipelineClients", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.business_name).toBe("Oak Tree Golf");
   });
+
+  it("does not match stored temperature when the status hides it", () => {
+    const clientsWithHiddenHot = [
+      ...clients,
+      record({
+        id: "4",
+        business_name: "Hidden Hot",
+        status: "potential",
+        lead_temperature: "hot",
+      }),
+    ];
+    const hot = filterPipelineClients(clientsWithHiddenHot, {
+      query: "",
+      statusFilter: "all",
+      temperatureFilter: "hot",
+      healthCheckFilter: "all",
+    });
+    expect(hot.map((client) => client.business_name)).toEqual([
+      "Case Freight LLC",
+    ]);
+  });
 });
 
 describe("sortPipelineClients", () => {
@@ -112,6 +143,7 @@ describe("sortPipelineClients", () => {
       record({
         id: String(index),
         business_name: temperature,
+        status: "interested",
         lead_temperature: temperature,
       }),
     );

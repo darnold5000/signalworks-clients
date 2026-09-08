@@ -1,5 +1,6 @@
 import {
   LEAD_TEMPERATURE_PRIORITY,
+  isLeadTemperatureVisible,
   type ClientPipelineRecord,
   type LeadTemperature,
   type PipelineSortDirection,
@@ -28,11 +29,13 @@ export function filterPipelineClients(
     ) {
       return false;
     }
-    if (
-      filters.temperatureFilter !== "all" &&
-      client.lead_temperature !== filters.temperatureFilter
-    ) {
-      return false;
+    if (filters.temperatureFilter !== "all") {
+      if (!isLeadTemperatureVisible(client.status)) {
+        return false;
+      }
+      if (client.lead_temperature !== filters.temperatureFilter) {
+        return false;
+      }
     }
     if (filters.healthCheckFilter === "sent" && !client.health_check_sent) {
       return false;
@@ -80,10 +83,7 @@ export function sortPipelineClients(
       return a.business_name.localeCompare(b.business_name);
     }
     if (sortKey === "lead_temperature") {
-      return (
-        LEAD_TEMPERATURE_PRIORITY[a.lead_temperature] -
-        LEAD_TEMPERATURE_PRIORITY[b.lead_temperature]
-      );
+      return temperatureSortRank(a) - temperatureSortRank(b);
     }
     return a.status.localeCompare(b.status);
   });
@@ -94,4 +94,11 @@ export function defaultSortDirection(
   key: PipelineSortKey,
 ): PipelineSortDirection {
   return key === "updated_at" ? "desc" : "asc";
+}
+
+function temperatureSortRank(client: ClientPipelineRecord): number {
+  if (!isLeadTemperatureVisible(client.status)) {
+    return 5;
+  }
+  return LEAD_TEMPERATURE_PRIORITY[client.lead_temperature];
 }

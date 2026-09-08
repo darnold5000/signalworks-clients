@@ -101,3 +101,12 @@ export function normalizeLeadTemperature(value: unknown): LeadTemperature {
   }
   return "unknown";
 }
+
+export const TEMPERATURE_VISIBLE_STATUSES: PipelineStatus[] = [
+  "interested",
+  "proposal_sent",
+];
+
+export function isLeadTemperatureVisible(status: PipelineStatus): boolean {
+  return status === "interested" || status === "proposal_sent";
+}

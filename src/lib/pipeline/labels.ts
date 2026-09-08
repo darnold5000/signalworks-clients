@@ -10,36 +10,6 @@ export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
   not_interested: "Not Interested",
 };
 
-export type PipelineStatusTone =
-  | "neutral"
-  | "blue"
-  | "purple"
-  | "warning"
-  | "orange"
-  | "success"
-  | "danger";
-
-export function pipelineStatusTone(status: PipelineStatus): PipelineStatusTone {
-  switch (status) {
-    case "potential":
-      return "neutral";
-    case "reached_out":
-      return "blue";
-    case "contact_made":
-      return "purple";
-    case "interested":
-      return "warning";
-    case "proposal_sent":
-      return "orange";
-    case "won":
-      return "success";
-    case "not_interested":
-      return "danger";
-    default:
-      return "neutral";
-  }
-}
-
 export const PIPELINE_FILTER_OPTIONS: {
   key: "all" | PipelineStatus;
   label: string;
@@ -82,3 +52,34 @@ export const LEAD_TEMPERATURE_FILTER_OPTIONS: {
   { key: "cold", label: "Cold" },
   { key: "unknown", label: "Unknown" },
 ];
+
+export function pipelineStatusPillClass(status: PipelineStatus): string {
+  switch (status) {
+    case "potential":
+    case "not_interested":
+      return "border-border bg-background text-muted";
+    case "interested":
+      return "border-amber-200/70 bg-amber-50/70 text-foreground";
+    case "proposal_sent":
+      return "border-orange-200/60 bg-orange-50/50 text-foreground";
+    case "won":
+      return "border-emerald-200/70 bg-emerald-50/60 text-foreground";
+    default:
+      return "border-border bg-background text-foreground";
+  }
+}
+
+export function leadTemperaturePillClass(temperature: LeadTemperature): string {
+  switch (temperature) {
+    case "hot":
+      return "border-orange-200/80 bg-orange-50 font-semibold text-orange-950";
+    case "warm":
+      return "border-orange-100 bg-orange-50/50 text-foreground";
+    case "cold":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    case "unknown":
+      return "border-dashed border-border bg-transparent text-muted";
+    default:
+      return "border-border bg-background text-muted";
+  }
+}

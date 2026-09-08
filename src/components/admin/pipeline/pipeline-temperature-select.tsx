@@ -3,50 +3,69 @@
 import {
   LEAD_TEMPERATURE_DEFINITIONS,
   LEAD_TEMPERATURE_LABELS,
+  leadTemperaturePillClass,
 } from "@/lib/pipeline/labels";
 import {
   LEAD_TEMPERATURES,
+  isLeadTemperatureVisible,
   type LeadTemperature,
+  type PipelineStatus,
 } from "@/lib/pipeline/types";
-import { cn } from "@/lib/utils";
+import { PipelineFieldPill } from "./pipeline-field-pill";
 
 export function PipelineTemperatureSelect({
   value,
   onChange,
   disabled,
   className,
-  compact,
 }: {
   value: LeadTemperature;
   onChange: (temperature: LeadTemperature) => void;
   disabled?: boolean;
   className?: string;
-  compact?: boolean;
 }) {
   return (
-    <select
+    <PipelineFieldPill
       value={value}
+      options={LEAD_TEMPERATURES}
+      getLabel={(temperature) => LEAD_TEMPERATURE_LABELS[temperature]}
+      getOptionTitle={(temperature) => LEAD_TEMPERATURE_DEFINITIONS[temperature]}
+      getTriggerClassName={leadTemperaturePillClass}
       disabled={disabled}
-      aria-label="Lead temperature"
+      ariaLabel="Lead temperature"
       title={LEAD_TEMPERATURE_DEFINITIONS[value]}
-      onChange={(e) => onChange(e.target.value as LeadTemperature)}
-      onClick={(e) => e.stopPropagation()}
-      className={cn(
-        "rounded-md border border-border bg-background text-sm outline-none focus:border-foreground disabled:opacity-50",
-        value === "hot" && "font-semibold",
-        compact ? "px-2 py-1 text-xs" : "w-full px-3 py-2.5",
-        className,
-      )}
-    >
-      {LEAD_TEMPERATURES.map((temperature) => (
-        <option
-          key={temperature}
-          value={temperature}
-          title={LEAD_TEMPERATURE_DEFINITIONS[temperature]}
-        >
-          {LEAD_TEMPERATURE_LABELS[temperature]}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      className={className}
+    />
+  );
+}
+
+export function PipelineTemperatureControl({
+  status,
+  value,
+  onChange,
+  disabled,
+  empty = "dash",
+  className,
+}: {
+  status: PipelineStatus;
+  value: LeadTemperature;
+  onChange: (temperature: LeadTemperature) => void;
+  disabled?: boolean;
+  empty?: "dash" | "hidden";
+  className?: string;
+}) {
+  if (!isLeadTemperatureVisible(status)) {
+    if (empty === "hidden") return null;
+    return <span className="text-xs text-muted">—</span>;
+  }
+
+  return (
+    <PipelineTemperatureSelect
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      className={className}
+    />
   );
 }
