@@ -10,9 +10,17 @@ import {
   updatePipelineClient,
   updatePipelineLastContact,
   updatePipelineStatus,
+  updatePipelineTemperature,
 } from "@/lib/pipeline/clients";
+import {
+  defaultSortDirection,
+  filterPipelineClients,
+  sortPipelineClients,
+  type HealthCheckFilter,
+} from "@/lib/pipeline/query";
 import type {
   ClientPipelineRecord,
+  LeadTemperature,
   PipelineSortDirection,
   PipelineSortKey,
   PipelineStatus,
@@ -25,41 +33,10 @@ import { ClientPipelineForm } from "./client-pipeline-form";
 import { BulkDeleteClientsDialog } from "./bulk-delete-clients-dialog";
 import { DeleteClientDialog } from "./delete-client-dialog";
 import { PipelineCard } from "./pipeline-card";
-import {
-  PipelineFilters,
-  type HealthCheckFilter,
-} from "./pipeline-filters";
+import { PipelineFilters } from "./pipeline-filters";
 import { PipelineSlideOver } from "./pipeline-slide-over";
 import { PipelineTable } from "./pipeline-table";
 import { PipelineToastHost, showPipelineToast } from "./pipeline-toast";
-
-function sortClients(
-  clients: ClientPipelineRecord[],
-  sortKey: PipelineSortKey,
-  sortDirection: PipelineSortDirection,
-) {
-  const sorted = [...clients].sort((a, b) => {
-    if (sortKey === "updated_at") {
-      return (
-        new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
-      );
-    }
-    if (sortKey === "last_contacted_at") {
-      const aTime = a.last_contacted_at
-        ? new Date(a.last_contacted_at).getTime()
-        : 0;
-      const bTime = b.last_contacted_at
-        ? new Date(b.last_contacted_at).getTime()
-        : 0;
-      return aTime - bTime;
-    }
-    if (sortKey === "business_name") {
-      return a.business_name.localeCompare(b.business_name);
-    }
-    return a.status.localeCompare(b.status);
-  });
-  return sortDirection === "desc" ? sorted.reverse() : sorted;
-}
 
 export function PipelinePageClient({
   initialClients,
@@ -70,6 +47,9 @@ export function PipelinePageClient({
   const [clients, setClients] = useState(initialClients);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PipelineStatus>("all");
+  const [temperatureFilter, setTemperatureFilter] = useState<
+    "all" | LeadTemperature
+  >("all");
   const [healthCheckFilter, setHealthCheckFilter] =
     useState<HealthCheckFilter>("all");
   const [sortKey, setSortKey] = useState<PipelineSortKey>("updated_at");
@@ -81,6 +61,9 @@ export function PipelinePageClient({
   );
   const [saving, setSaving] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [temperatureUpdatingId, setTemperatureUpdatingId] = useState<
+    string | null
+  >(null);
   const [lastContactUpdatingId, setLastContactUpdatingId] = useState<
     string | null
   >(null);
@@ -92,38 +75,16 @@ export function PipelinePageClient({
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const matched = clients.filter((client) => {
-      if (statusFilter !== "all" && client.status !== statusFilter) {
-        return false;
-      }
-      if (
-        healthCheckFilter === "sent" &&
-        !client.health_check_sent
-      ) {
-        return false;
-      }
-      if (
-        healthCheckFilter === "not_sent" &&
-        client.health_check_sent
-      ) {
-        return false;
-      }
-      if (!q) return true;
-      const haystack = [
-        client.business_name,
-        client.contact_name,
-        client.contact_email,
-        client.phone,
-        client.website_url,
-        client.tags.join(" "),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-    return sortClients(matched, sortKey, sortDirection);
+    return sortPipelineClients(
+      filterPipelineClients(clients, {
+        query,
+        statusFilter,
+        temperatureFilter,
+        healthCheckFilter,
+      }),
+      sortKey,
+      sortDirection,
+    );
   }, [
     clients,
     healthCheckFilter,
@@ -131,6 +92,7 @@ export function PipelinePageClient({
     sortKey,
     sortDirection,
     statusFilter,
+    temperatureFilter,
   ]);
 
   const selectedVisibleIds = filtered
@@ -143,7 +105,12 @@ export function PipelinePageClient({
       return;
     }
     setSortKey(key);
-    setSortDirection(key === "updated_at" ? "desc" : "asc");
+    setSortDirection(defaultSortDirection(key));
+  }
+
+  function handleSortKeyChange(key: PipelineSortKey) {
+    setSortKey(key);
+    setSortDirection(defaultSortDirection(key));
   }
 
   function openAdd() {
@@ -172,6 +139,11 @@ export function PipelinePageClient({
 
   function handleStatusFilterChange(value: "all" | PipelineStatus) {
     setStatusFilter(value);
+    setSelectedIds(new Set());
+  }
+
+  function handleTemperatureFilterChange(value: "all" | LeadTemperature) {
+    setTemperatureFilter(value);
     setSelectedIds(new Set());
   }
 
@@ -212,7 +184,7 @@ export function PipelinePageClient({
       throw new Error(result.error);
     }
     setClients((prev) =>
-      sortClients([result.data, ...prev], "updated_at", "desc"),
+      sortPipelineClients([result.data, ...prev], "updated_at", "desc"),
     );
     closeSlideOver();
     showPipelineToast("Client added");
@@ -297,6 +269,29 @@ export function PipelinePageClient({
     router.refresh();
   }
 
+  async function handleTemperatureChange(
+    id: string,
+    temperature: LeadTemperature,
+  ) {
+    const existing = clients.find((c) => c.id === id);
+    if (!existing || existing.lead_temperature === temperature) return;
+
+    setTemperatureUpdatingId(id);
+    const result = await updatePipelineTemperature(id, temperature);
+    setTemperatureUpdatingId(null);
+
+    if (!result.ok) {
+      showPipelineToast(result.error, "error");
+      return;
+    }
+
+    setClients((prev) =>
+      prev.map((c) => (c.id === id ? result.data : c)),
+    );
+    showPipelineToast("Temperature updated");
+    router.refresh();
+  }
+
   async function handleLastContactChange(id: string, date: string | null) {
     setLastContactUpdatingId(id);
     const result = await updatePipelineLastContact(id, date);
@@ -367,8 +362,12 @@ export function PipelinePageClient({
           onQueryChange={handleQueryChange}
           statusFilter={statusFilter}
           onStatusFilterChange={handleStatusFilterChange}
+          temperatureFilter={temperatureFilter}
+          onTemperatureFilterChange={handleTemperatureFilterChange}
           healthCheckFilter={healthCheckFilter}
           onHealthCheckFilterChange={handleHealthCheckFilterChange}
+          sortKey={sortKey}
+          onSortKeyChange={handleSortKeyChange}
           resultCount={filtered.length}
           totalCount={clients.length}
         />
@@ -395,6 +394,8 @@ export function PipelinePageClient({
             onSort={handleSort}
             onStatusChange={handleStatusChange}
             statusUpdatingId={statusUpdatingId}
+            onTemperatureChange={handleTemperatureChange}
+            temperatureUpdatingId={temperatureUpdatingId}
             onEdit={openEdit}
             onDelete={openDelete}
             selectedIds={selectedIds}
@@ -413,6 +414,8 @@ export function PipelinePageClient({
                 onDelete={openDelete}
                 onStatusChange={handleStatusChange}
                 statusUpdating={statusUpdatingId === client.id}
+                onTemperatureChange={handleTemperatureChange}
+                temperatureUpdating={temperatureUpdatingId === client.id}
                 selected={selectedIds.has(client.id)}
                 onToggleSelected={toggleSelected}
                 onLastContactChange={handleLastContactChange}

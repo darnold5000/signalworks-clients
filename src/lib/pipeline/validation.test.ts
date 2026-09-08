@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   pipelineClientInputSchema,
   pipelineLastContactUpdateSchema,
+  pipelineTemperatureUpdateSchema,
 } from "@/lib/pipeline/validation";
 
 describe("pipelineClientInputSchema", () => {
@@ -12,6 +13,7 @@ describe("pipelineClientInputSchema", () => {
       business_name: "",
       contact_name: "",
       status: "potential",
+      lead_temperature: "unknown",
       health_check_sent: false,
       last_contact_date_explicit: false,
       tags: [],
@@ -28,6 +30,7 @@ describe("pipelineClientInputSchema", () => {
     });
 
     expect(result.status).toBe("interested");
+    expect(result.lead_temperature).toBe("unknown");
     expect(result.tags).toEqual(["Gym", "Instructor"]);
     expect(result.health_check_sent).toBe(true);
   });
@@ -65,6 +68,40 @@ describe("pipelineClientInputSchema", () => {
     ).toBe(false);
   });
 
+  it("keeps temperature independent of pipeline stage", () => {
+    const result = pipelineClientInputSchema.parse({
+      status: "interested",
+      lead_temperature: "lukewarm",
+    });
+
+    expect(result.status).toBe("interested");
+    expect(result.lead_temperature).toBe("lukewarm");
+  });
+
+  it("accepts every temperature with any stage", () => {
+    const result = pipelineClientInputSchema.parse({
+      status: "proposal_sent",
+      lead_temperature: "hot",
+    });
+
+    expect(result.status).toBe("proposal_sent");
+    expect(result.lead_temperature).toBe("hot");
+  });
+
+  it("rejects an invalid temperature without changing status rules", () => {
+    expect(
+      pipelineClientInputSchema.safeParse({
+        status: "interested",
+        lead_temperature: "on_fire",
+      }).success,
+    ).toBe(false);
+    expect(
+      pipelineClientInputSchema.safeParse({
+        status: "not-a-stage",
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates quick last-contact date updates", () => {
     expect(
       pipelineLastContactUpdateSchema.parse({
@@ -79,6 +116,19 @@ describe("pipelineClientInputSchema", () => {
     expect(
       pipelineLastContactUpdateSchema.safeParse({
         last_contact_date: "August 14",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates temperature-only updates", () => {
+    expect(
+      pipelineTemperatureUpdateSchema.parse({
+        lead_temperature: "warm",
+      }).lead_temperature,
+    ).toBe("warm");
+    expect(
+      pipelineTemperatureUpdateSchema.safeParse({
+        lead_temperature: "boiling",
       }).success,
     ).toBe(false);
   });

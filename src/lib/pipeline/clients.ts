@@ -15,7 +15,9 @@ import { getSignalWorksTenantId } from "@/lib/pipeline/internal-tenant";
 import {
   LEGACY_PIPELINE_TAGS,
   PIPELINE_TAGS,
+  normalizeLeadTemperature,
   type ClientPipelineRecord,
+  type LeadTemperature,
   type PipelineStatus,
   type PipelineTag,
 } from "@/lib/pipeline/types";
@@ -23,6 +25,7 @@ import {
   pipelineClientInputSchema,
   pipelineLastContactUpdateSchema,
   pipelineStatusUpdateSchema,
+  pipelineTemperatureUpdateSchema,
   type PipelineClientInput,
 } from "@/lib/pipeline/validation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
@@ -36,6 +39,7 @@ const PIPELINE_ERRORS = {
   create: "Could not create client. Please try again.",
   update: "Could not update client. Please try again.",
   updateStatus: "Could not update status. Please try again.",
+  updateTemperature: "Could not update temperature. Please try again.",
   updateLastContact: "Could not update last contact. Please try again.",
   delete: "Could not delete client. Please try again.",
   bulkDelete: "Could not delete the selected clients. Please try again.",
@@ -73,6 +77,7 @@ function buildPipelinePayload(parsed: PipelineClientInput) {
     phone: parsed.phone ?? null,
     website_url: parsed.website_url ?? null,
     status: parsed.status as PipelineStatus,
+    lead_temperature: parsed.lead_temperature as LeadTemperature,
     last_conversation: parsed.last_conversation?.trim() || null,
     plan: parsed.plan?.trim() || null,
     estimated_monthly_value_cents:
@@ -101,6 +106,7 @@ function mapRow(row: Record<string, unknown>): ClientPipelineRecord {
     phone: (row.phone as string | null) ?? null,
     website_url: (row.website_url as string | null) ?? null,
     status: row.status as PipelineStatus,
+    lead_temperature: normalizeLeadTemperature(row.lead_temperature),
     last_conversation: (row.last_conversation as string | null) ?? null,
     plan: (row.plan as string | null) ?? null,
     estimated_monthly_value_cents:
@@ -411,6 +417,65 @@ export async function updatePipelineStatus(
       error: err instanceof Error && err.message === "Unauthorized"
         ? err.message
         : PIPELINE_ERRORS.updateStatus,
+    };
+  }
+}
+
+export async function updatePipelineTemperature(
+  id: string,
+  leadTemperature: LeadTemperature,
+): Promise<PipelineActionResult<ClientPipelineRecord>> {
+  try {
+    await requirePipelineAdmin();
+
+    const parsed = pipelineTemperatureUpdateSchema.safeParse({
+      lead_temperature: leadTemperature,
+    });
+    if (!parsed.success) {
+      return { ok: false, error: "Invalid temperature" };
+    }
+
+    if (!isSupabaseConfigured()) {
+      const existing = demoGetPipelineClient(id);
+      if (!existing) return { ok: false, error: PIPELINE_ERRORS.notFound };
+      const record = demoUpdatePipelineClient(id, {
+        lead_temperature: parsed.data.lead_temperature as LeadTemperature,
+      });
+      if (!record) return { ok: false, error: PIPELINE_ERRORS.notFound };
+      revalidatePipeline();
+      return { ok: true, data: record };
+    }
+
+    const tenantId = await getSignalWorksTenantId();
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from(TABLES.clientPipeline)
+      .update({ lead_temperature: parsed.data.lead_temperature })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("updatePipelineTemperature", error.message);
+      return { ok: false, error: PIPELINE_ERRORS.updateTemperature };
+    }
+
+    if (!data) {
+      return { ok: false, error: PIPELINE_ERRORS.notFound };
+    }
+
+    revalidatePipeline();
+    return { ok: true, data: mapRow(data) };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Signal Works internal tenant")) {
+      return { ok: false, error: err.message };
+    }
+    return {
+      ok: false,
+      error: err instanceof Error && err.message === "Unauthorized"
+        ? err.message
+        : PIPELINE_ERRORS.updateTemperature,
     };
   }
 }

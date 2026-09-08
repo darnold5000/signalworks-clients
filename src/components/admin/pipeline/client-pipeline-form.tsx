@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import type { PipelineClientInput } from "@/lib/pipeline/validation";
-import type { PipelineStatus } from "@/lib/pipeline/types";
+import type { LeadTemperature, PipelineStatus } from "@/lib/pipeline/types";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagsSelect } from "./pipeline-tags-select";
+import { PipelineTemperatureSelect } from "./pipeline-temperature-select";
 
 const EMPTY_FORM: PipelineClientInput = {
   business_name: "",
@@ -14,6 +15,7 @@ const EMPTY_FORM: PipelineClientInput = {
   phone: "",
   website_url: "",
   status: "potential",
+  lead_temperature: "unknown",
   last_conversation: "",
   plan: "",
   estimated_monthly_value: null,
@@ -51,6 +53,7 @@ export function ClientPipelineForm({
     last_contact_date: initial?.last_contact_date ?? "",
     last_contact_date_explicit: false,
     health_check_sent: initial?.health_check_sent ?? false,
+    lead_temperature: initial?.lead_temperature ?? "unknown",
     tags: initial?.tags ?? [],
   });
   const [error, setError] = useState<string | null>(null);
@@ -135,13 +138,26 @@ export function ClientPipelineForm({
       <p className="pt-2 text-xs font-semibold tracking-wide text-muted uppercase">
         Pipeline
       </p>
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Status</span>
-        <PipelineStatusSelect
-          value={form.status as PipelineStatus}
-          onChange={(status) => updateField("status", status)}
-        />
-      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Status</span>
+          <PipelineStatusSelect
+            value={form.status as PipelineStatus}
+            onChange={(status) => updateField("status", status)}
+          />
+          <p className="text-xs text-muted">Where are we in the sales process?</p>
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Temperature</span>
+          <PipelineTemperatureSelect
+            value={(form.lead_temperature ?? "unknown") as LeadTemperature}
+            onChange={(temperature) => updateField("lead_temperature", temperature)}
+          />
+          <p className="text-xs text-muted">
+            How strong does this opportunity currently feel?
+          </p>
+        </label>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block space-y-1.5">

@@ -9,6 +9,7 @@ import {
   deletePipelineClient,
   updatePipelineClient,
 } from "@/lib/pipeline/clients";
+import { formatPipelineDate } from "@/lib/pipeline/dates";
 import type { ClientPipelineRecord } from "@/lib/pipeline/types";
 import {
   pipelineRecordToInput,
@@ -20,6 +21,7 @@ import { DeleteClientDialog } from "./delete-client-dialog";
 import { PipelineSlideOver } from "./pipeline-slide-over";
 import { PipelineStatusBadge } from "./pipeline-status-badge";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
+import { PipelineTemperatureBadge } from "./pipeline-temperature-badge";
 import { PipelineToastHost, showPipelineToast } from "./pipeline-toast";
 
 export function ClientPipelineDetails({
@@ -127,6 +129,10 @@ export function ClientPipelineDetails({
             value={<PipelineStatusBadge status={client.status} />}
           />
           <MetaRow
+            label="Temperature"
+            value={<PipelineTemperatureBadge temperature={client.lead_temperature} />}
+          />
+          <MetaRow
             label="Est. Monthly Value"
             value={
               client.estimated_monthly_value_cents != null
@@ -137,6 +143,10 @@ export function ClientPipelineDetails({
           <MetaRow
             label="Last Contact"
             value={formatDate(client.last_contacted_at)}
+          />
+          <MetaRow
+            label="Next Follow-up"
+            value={formatPipelineDate(client.next_follow_up_date)}
           />
           <MetaRow
             label="Health Check"

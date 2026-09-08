@@ -1,4 +1,4 @@
-import type { PipelineStatus } from "@/lib/pipeline/types";
+import type { LeadTemperature, PipelineStatus } from "@/lib/pipeline/types";
 
 export const PIPELINE_STATUS_LABELS: Record<PipelineStatus, string> = {
   potential: "Potential Client",
@@ -52,4 +52,33 @@ export const PIPELINE_FILTER_OPTIONS: {
   { key: "proposal_sent", label: "Proposal Sent" },
   { key: "won", label: "Won" },
   { key: "not_interested", label: "Not Interested" },
+];
+
+export const LEAD_TEMPERATURE_LABELS: Record<LeadTemperature, string> = {
+  hot: "🔥 Hot",
+  warm: "Warm",
+  lukewarm: "Lukewarm",
+  cold: "Cold",
+  unknown: "Unknown",
+};
+
+export const LEAD_TEMPERATURE_DEFINITIONS: Record<LeadTemperature, string> = {
+  hot: "Very interested and actively engaged. Strong signs they may move forward.",
+  warm: "Clearly interested and responsive, but not yet actively moving toward closing.",
+  lukewarm:
+    "Has expressed some interest, but momentum is weak, responses are inconsistent, or they may be difficult to re-engage.",
+  cold: "Little current interest, repeatedly unresponsive, declined for now, or unlikely to move forward without something changing.",
+  unknown: "Not enough interaction yet to reasonably judge.",
+};
+
+export const LEAD_TEMPERATURE_FILTER_OPTIONS: {
+  key: "all" | LeadTemperature;
+  label: string;
+}[] = [
+  { key: "all", label: "All" },
+  { key: "hot", label: "🔥 Hot" },
+  { key: "warm", label: "Warm" },
+  { key: "lukewarm", label: "Lukewarm" },
+  { key: "cold", label: "Cold" },
+  { key: "unknown", label: "Unknown" },
 ];

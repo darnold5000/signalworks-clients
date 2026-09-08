@@ -7,6 +7,13 @@ export type PipelineStatus =
   | "won"
   | "not_interested";
 
+export type LeadTemperature =
+  | "hot"
+  | "warm"
+  | "lukewarm"
+  | "cold"
+  | "unknown";
+
 export const PIPELINE_TAGS = [
   "Gym",
   "Sports Organization",
@@ -39,6 +46,7 @@ export interface ClientPipelineRecord {
   phone: string | null;
   website_url: string | null;
   status: PipelineStatus;
+  lead_temperature: LeadTemperature;
   last_conversation: string | null;
   plan: string | null;
   estimated_monthly_value_cents: number | null;
@@ -53,6 +61,7 @@ export interface ClientPipelineRecord {
 export type PipelineSortKey =
   | "business_name"
   | "status"
+  | "lead_temperature"
   | "updated_at"
   | "last_contacted_at";
 
@@ -67,3 +76,28 @@ export const PIPELINE_STATUSES: PipelineStatus[] = [
   "won",
   "not_interested",
 ];
+
+export const LEAD_TEMPERATURES: LeadTemperature[] = [
+  "hot",
+  "warm",
+  "lukewarm",
+  "cold",
+  "unknown",
+];
+
+export const LEAD_TEMPERATURE_PRIORITY: Record<LeadTemperature, number> = {
+  hot: 0,
+  warm: 1,
+  lukewarm: 2,
+  cold: 3,
+  unknown: 4,
+};
+
+const LEAD_TEMPERATURE_SET = new Set<string>(LEAD_TEMPERATURES);
+
+export function normalizeLeadTemperature(value: unknown): LeadTemperature {
+  if (typeof value === "string" && LEAD_TEMPERATURE_SET.has(value)) {
+    return value as LeadTemperature;
+  }
+  return "unknown";
+}

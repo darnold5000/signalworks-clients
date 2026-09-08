@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatPipelineDate } from "@/lib/pipeline/dates";
 
 export function InlineLastContactDate({
   value,
@@ -23,7 +23,7 @@ export function InlineLastContactDate({
     >
       <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
       <span className="truncate">
-        {disabled ? "Saving…" : formatDate(value)}
+        {disabled ? "Saving…" : formatPipelineDate(value)}
       </span>
       <input
         type="date"

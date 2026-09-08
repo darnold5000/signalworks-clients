@@ -3,8 +3,10 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { formatPipelineDate } from "@/lib/pipeline/dates";
 import type {
   ClientPipelineRecord,
+  LeadTemperature,
   PipelineSortKey,
   PipelineStatus,
 } from "@/lib/pipeline/types";
@@ -13,6 +15,8 @@ import { InlineLastContactDate } from "./inline-last-contact-date";
 import { PipelineRowActions } from "./pipeline-row-actions";
 import { PipelineStatusSelect } from "./pipeline-status-select";
 import { PipelineTagBadges } from "./pipeline-tag-badges";
+import { PipelineTemperatureBadge } from "./pipeline-temperature-badge";
+import { PipelineTemperatureSelect } from "./pipeline-temperature-select";
 
 function truncateText(value: string | null, max = 80) {
   if (!value) return "—";
@@ -32,6 +36,8 @@ export function PipelineTable({
   onSort,
   onStatusChange,
   statusUpdatingId,
+  onTemperatureChange,
+  temperatureUpdatingId,
   onEdit,
   onDelete,
   selectedIds,
@@ -46,6 +52,8 @@ export function PipelineTable({
   onSort: (key: PipelineSortKey) => void;
   onStatusChange: (id: string, status: PipelineStatus) => void;
   statusUpdatingId: string | null;
+  onTemperatureChange: (id: string, temperature: LeadTemperature) => void;
+  temperatureUpdatingId: string | null;
   onEdit: (client: ClientPipelineRecord) => void;
   onDelete: (client: ClientPipelineRecord) => void;
   selectedIds: Set<string>;
@@ -88,32 +96,37 @@ export function PipelineTable({
                 className="size-4 rounded border-border"
               />
             </th>
-            <th className="w-[13%] pb-3 font-medium">
+            <th className="w-[12%] pb-3 font-medium">
               <button type="button" onClick={() => onSort("business_name")} className="hover:text-foreground">
                 Business{sortIndicator("business_name")}
               </button>
             </th>
-            <th className="w-[12%] pb-3 font-medium">Contact</th>
-            <th className="w-[11%] pb-3 font-medium">
+            <th className="w-[11%] pb-3 font-medium">Contact</th>
+            <th className="w-[10%] pb-3 font-medium">
               <button type="button" onClick={() => onSort("status")} className="hover:text-foreground">
                 Status{sortIndicator("status")}
               </button>
             </th>
-            <th className="w-[9%] pb-3 font-medium">Tags</th>
-            <th className="w-[8%] pb-3 font-medium">Est. Value</th>
-            <th className="w-[10%] pb-3 font-medium">
-              <button type="button" onClick={() => onSort("last_contacted_at")} className="hover:text-foreground">
-                Last Contact{sortIndicator("last_contacted_at")}
+            <th className="w-[9%] pb-3 font-medium">
+              <button type="button" onClick={() => onSort("lead_temperature")} className="hover:text-foreground">
+                Temperature{sortIndicator("lead_temperature")}
               </button>
             </th>
-            <th className="w-[7%] pb-3 font-medium">Health Check</th>
-            <th className="w-[18%] pb-3 font-medium">Last Conversation</th>
-            <th className="w-[7%] pb-3 font-medium">
+            <th className="w-[8%] pb-3 font-medium">Tags</th>
+            <th className="w-[7%] pb-3 font-medium">Est. Value</th>
+            <th className="w-[10%] pb-3 font-medium">
+              <button type="button" onClick={() => onSort("last_contacted_at")} className="hover:text-foreground">
+                Contact / Follow-up{sortIndicator("last_contacted_at")}
+              </button>
+            </th>
+            <th className="w-[6%] pb-3 font-medium">Health Check</th>
+            <th className="w-[15%] pb-3 font-medium">Last Conversation</th>
+            <th className="w-[6%] pb-3 font-medium">
               <button type="button" onClick={() => onSort("updated_at")} className="hover:text-foreground">
                 Updated{sortIndicator("updated_at")}
               </button>
             </th>
-            <th className="w-[7%] pb-3 font-medium">Actions</th>
+            <th className="w-[6%] pb-3 font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -170,6 +183,18 @@ export function PipelineTable({
                 />
               </td>
               <td className="py-3 pr-3 align-top">
+                <PipelineTemperatureBadge temperature={client.lead_temperature} />
+                <PipelineTemperatureSelect
+                  compact
+                  value={client.lead_temperature}
+                  disabled={temperatureUpdatingId === client.id}
+                  onChange={(temperature) =>
+                    onTemperatureChange(client.id, temperature)
+                  }
+                  className="mt-1.5 max-w-full"
+                />
+              </td>
+              <td className="py-3 pr-3 align-top">
                 <PipelineTagBadges tags={client.tags} />
               </td>
               <td className="py-3 pr-3 align-top text-muted">
@@ -181,6 +206,9 @@ export function PipelineTable({
                   disabled={lastContactUpdatingId === client.id}
                   onChange={(date) => onLastContactChange(client.id, date)}
                 />
+                <p className="mt-1">
+                  Follow up: {formatPipelineDate(client.next_follow_up_date)}
+                </p>
               </td>
               <td className="py-3 pr-3 align-top text-xs text-muted">
                 {client.health_check_sent ? (

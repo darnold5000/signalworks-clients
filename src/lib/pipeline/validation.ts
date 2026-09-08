@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  LEAD_TEMPERATURES,
   LEGACY_PIPELINE_TAGS,
   PIPELINE_STATUSES,
   PIPELINE_TAGS,
@@ -9,6 +10,10 @@ import {
 
 const pipelineStatusSchema = z.enum(
   PIPELINE_STATUSES as [string, ...string[]],
+);
+
+const leadTemperatureSchema = z.enum(
+  LEAD_TEMPERATURES as [string, ...string[]],
 );
 
 const pipelineTagSchema = z.enum(
@@ -49,6 +54,7 @@ export const pipelineClientInputSchema = z
       z.string().url("Invalid website URL").max(2000).nullable().optional(),
     ),
     status: pipelineStatusSchema.default("potential"),
+    lead_temperature: leadTemperatureSchema.default("unknown"),
     last_conversation: z.string().trim().max(10000).nullable().optional(),
     plan: z.string().trim().max(5000).nullable().optional(),
     estimated_monthly_value: z.preprocess(
@@ -75,6 +81,10 @@ export const pipelineClientInputSchema = z
 
 export const pipelineStatusUpdateSchema = z.object({
   status: pipelineStatusSchema,
+});
+
+export const pipelineTemperatureUpdateSchema = z.object({
+  lead_temperature: leadTemperatureSchema,
 });
 
 export const pipelineLastContactUpdateSchema = z.object({
@@ -104,6 +114,7 @@ export function pipelineRecordToInput(
     phone: record.phone ?? "",
     website_url: record.website_url ?? "",
     status: record.status,
+    lead_temperature: record.lead_temperature,
     last_conversation: record.last_conversation ?? "",
     plan: record.plan ?? "",
     estimated_monthly_value:
