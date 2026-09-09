@@ -24,6 +24,7 @@ export type PaidAddOnMetadata = {
   catalog_version?: number;
   commercial_role: typeof COMMERCIAL_ROLE.PAID_ADD_ON;
   included_in_plan: false;
+  pricing_mode?: PlatformPricingMode;
 };
 
 export function bundledProductMetadata(
@@ -37,11 +38,15 @@ export function bundledProductMetadata(
   };
 }
 
-export function paidAddOnMetadata(productKey: string): PaidAddOnMetadata {
+export function paidAddOnMetadata(
+  productKey: string,
+  pricingMode?: PlatformPricingMode,
+): PaidAddOnMetadata {
   return {
     product_key: productKey,
     commercial_role: COMMERCIAL_ROLE.PAID_ADD_ON,
     included_in_plan: false,
+    ...(pricingMode ? { pricing_mode: pricingMode } : {}),
   };
 }
 
@@ -73,7 +78,11 @@ export function customBundledProductMetadata(name: string) {
   };
 }
 
-export type PlatformPricingMode = "included" | "one_time" | "monthly";
+export type PlatformPricingMode =
+  | "included"
+  | "one_time"
+  | "monthly"
+  | "annual";
 
 export function platformComponentMetadata(
   productKey: string,
@@ -106,20 +115,30 @@ export function platformPricingModeFromItem(
   item: ClientOfferItem,
 ): PlatformPricingMode {
   const stored = item.metadata?.pricing_mode;
-  if (stored === "monthly" || stored === "one_time" || stored === "included") {
+  if (
+    stored === "monthly" ||
+    stored === "annual" ||
+    stored === "one_time" ||
+    stored === "included"
+  ) {
     return stored;
   }
   // All legacy bundled platform rows were included at $0.
   if (item.unit_amount_cents <= 0) return "included";
-  return item.billing_type === "one_time" ? "one_time" : "monthly";
+  if (item.billing_type === "one_time") return "one_time";
+  return item.billing_interval === "year" ? "annual" : "monthly";
 }
 
-export function customPaidAddOnMetadata(name: string) {
+export function customPaidAddOnMetadata(
+  name: string,
+  pricingMode?: PlatformPricingMode,
+) {
   return {
     product_key: "custom",
     commercial_role: COMMERCIAL_ROLE.PAID_ADD_ON,
     included_in_plan: false,
     custom_name: name,
+    ...(pricingMode ? { pricing_mode: pricingMode } : {}),
   };
 }
 

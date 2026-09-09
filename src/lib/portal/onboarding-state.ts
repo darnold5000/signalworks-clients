@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import type { Client } from "@/lib/types";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
+import { cadenceKey } from "@/lib/offers/billing-cadence";
 
 export type OnboardingState = {
   profile: TenantProfile | null;
@@ -22,6 +23,7 @@ export type OnboardingState = {
   agreementsAccepted: boolean;
   requiresTerms: boolean;
   requiresSow: boolean;
+  isMixedCheckoutInProgress: boolean;
 };
 
 export async function getOnboardingState(
@@ -66,9 +68,19 @@ export async function getOnboardingState(
     }
   }
 
+  const mixedCheckoutStillInProgress = Boolean(
+    activeOffer?.status === "checkout_started" &&
+      new Set(
+        activeOffer.items
+          .filter((item) => item.is_selected && item.billing_type === "recurring")
+          .map(cadenceKey),
+      ).size > 1 &&
+      !["payment_complete", "onboarding_complete"].includes(onboardingStatus),
+  );
   const hasSubscription =
-    clientHasOngoingSubscription(client) ||
-    clientChurnedFromPaidSubscription(client);
+    !mixedCheckoutStillInProgress &&
+    (clientHasOngoingSubscription(client) ||
+      clientChurnedFromPaidSubscription(client));
 
   let nextAction: OnboardingAction = "none";
   const proposalOnlyAccepted = Boolean(
@@ -119,5 +131,6 @@ export async function getOnboardingState(
     agreementsAccepted,
     requiresTerms,
     requiresSow,
+    isMixedCheckoutInProgress: mixedCheckoutStillInProgress,
   };
 }

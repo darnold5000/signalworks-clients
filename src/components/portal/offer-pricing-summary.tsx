@@ -107,6 +107,15 @@ export function OfferPricingSummaryView({
           </dd>
         </div>
       ) : null}
+      {summary.annualRecurringAmountCents > 0 ? (
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted">Annual recurring</dt>
+          <dd className="font-medium text-right">
+            {formatMoney(summary.annualRecurringAmountCents, summary.currency)}
+            /year
+          </dd>
+        </div>
+      ) : null}
       {!compact ? (
         <div className="flex justify-between gap-4 border-t border-border pt-2">
           <dt className="text-muted">Amount due at checkout</dt>

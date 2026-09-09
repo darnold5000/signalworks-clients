@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   const successTarget = new URL(next, origin);
-  let response = NextResponse.redirect(successTarget);
+  const response = NextResponse.redirect(successTarget);
 
   const supabase = createServerClient(url, anonKey, {
     ...supabaseServerAuthOptions,

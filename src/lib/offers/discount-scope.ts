@@ -20,8 +20,12 @@ export function discountScopeFromMetadata(
 
 export function recurringMonthlyDiscountMetadata(): {
   discount_scope: typeof DISCOUNT_SCOPE.RECURRING;
+  billing_interval: "month";
 } {
-  return { discount_scope: DISCOUNT_SCOPE.RECURRING };
+  return {
+    discount_scope: DISCOUNT_SCOPE.RECURRING,
+    billing_interval: "month",
+  };
 }
 
 export function firstCycleDiscountMetadata(): {

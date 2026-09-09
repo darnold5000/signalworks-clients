@@ -95,6 +95,12 @@ export default async function AdminClientOverviewPage({
                 value={commercial.baseRecurringCents == null ? "—" : formatMoney(commercial.baseRecurringCents, client.currency)}
               />
               <MetaRow label="Current monthly billing" value={commercial.currentRecurringCents == null ? "—" : formatMoney(commercial.currentRecurringCents, client.currency)} />
+              {(commercial.annualRecurringCents ?? 0) > 0 ? (
+                <MetaRow label="Annual recurring" value={`${formatMoney(commercial.annualRecurringCents!, client.currency)}/year`} />
+              ) : null}
+              {commercial.arrCents != null ? (
+                <MetaRow label="ARR" value={formatMoney(commercial.arrCents, client.currency)} />
+              ) : null}
               {commercial.commercialState === "active" && recurringFinancials.activeRecurringDiscountMrrCents > 0 ? (
                   <MetaRow label="Recurring discount" value={`-${formatMoney(recurringFinancials.activeRecurringDiscountMrrCents, client.currency)}`} />
               ) : null}

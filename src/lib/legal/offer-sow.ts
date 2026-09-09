@@ -10,6 +10,7 @@ import {
 } from "@/lib/offers/included-platform-summary";
 import { isPaidAddOnItem } from "@/lib/offers/offer-item-metadata";
 import { buildOfferPricingSummary } from "@/lib/offers/pricing-summary";
+import { cadenceSuffix } from "@/lib/offers/billing-cadence";
 import { formatDate } from "@/lib/utils";
 
 const SOW_STYLES = `
@@ -100,7 +101,7 @@ function buildAddOnRows(items: ClientOfferItem[]): string {
     .map(
       (item) => `<tr>
         <td>${escapeHtml(item.name)}</td>
-        <td class="sw-money">$${formatDollars(item.unit_amount_cents * item.quantity)}</td>
+        <td class="sw-money">$${formatDollars(item.unit_amount_cents * item.quantity)}${item.billing_type === "recurring" ? cadenceSuffix(item) : " one-time"}</td>
       </tr>`,
     )
     .join("");
@@ -187,7 +188,9 @@ export function buildOfferSowContext(args: {
     addOnRows: buildAddOnRows(args.items),
     oneTimeRows: buildOneTimeRows(args.items),
     discountRows: buildDiscountRows(args.items),
-    hasAddOns: pricing.recurringAddOnAmountCents > 0,
+    hasAddOns:
+      pricing.recurringAddOnAmountCents > 0 ||
+      pricing.annualRecurringAmountCents > 0,
     hasOneTime: totals.initial_total_cents > 0,
     hasDiscounts: pricing.recurringDiscountAmountCents > 0,
     afterDiscountNote,
@@ -219,7 +222,7 @@ export function renderOfferSowHtml(args: {
       <thead>
         <tr>
           <th>Add-on</th>
-          <th class="sw-money">Monthly</th>
+          <th class="sw-money">Price</th>
         </tr>
       </thead>
       <tbody>${ctx.addOnRows}</tbody>
@@ -279,11 +282,12 @@ export function renderOfferSowHtml(args: {
     <h2>${pricingSectionNumber}. Pricing</h2>
     <table>
       <tbody>
-        <tr><td>${escapeHtml(p.planName)}</td><td class="sw-money">$${formatDollars(p.baseMonthlyAmountCents)}</td></tr>
+        ${p.baseMonthlyAmountCents > 0 ? `<tr><td>${escapeHtml(p.planName)}</td><td class="sw-money">$${formatDollars(p.baseMonthlyAmountCents)}/month</td></tr>` : ""}
         ${p.recurringAddOnAmountCents > 0 ? `<tr><td>Recurring add-ons</td><td class="sw-money">$${formatDollars(p.recurringAddOnAmountCents)}</td></tr>` : ""}
         ${p.recurringAddOnAmountCents > 0 ? `<tr><td>Monthly subtotal</td><td class="sw-money">$${formatDollars(p.standardMonthlyAmountAfterDiscountCents)}</td></tr>` : ""}
         ${p.recurringDiscountAmountCents > 0 ? `<tr><td>Introductory discount</td><td class="sw-money">-$${formatDollars(p.recurringDiscountAmountCents)}</td></tr>` : ""}
-        <tr><td><strong>Your monthly price</strong></td><td class="sw-money"><strong>$${formatDollars(p.discountedMonthlyAmountCents)}</strong></td></tr>
+        ${p.discountedMonthlyAmountCents > 0 ? `<tr><td><strong>Your monthly price</strong></td><td class="sw-money"><strong>$${formatDollars(p.discountedMonthlyAmountCents)}/month</strong></td></tr>` : ""}
+        ${p.annualRecurringAmountCents > 0 ? `<tr><td><strong>Annual recurring</strong></td><td class="sw-money"><strong>$${formatDollars(p.annualRecurringAmountCents)}/year</strong></td></tr>` : ""}
       </tbody>
     </table>
     ${ctx.afterDiscountNote}

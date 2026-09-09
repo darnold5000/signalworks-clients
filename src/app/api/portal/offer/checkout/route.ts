@@ -6,6 +6,8 @@ import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
 import { isStripeConfigured } from "@/lib/stripe";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
+import { checkoutSessionCompleted } from "@/lib/offers/checkout-state";
+import { syncClientFromCheckoutSession } from "@/lib/stripe-sync";
 
 function isRealStripeId(id: string | null | undefined): id is string {
   return Boolean(id && !id.includes("_demo_"));
@@ -65,6 +67,13 @@ export async function POST(request: Request) {
         ? client.stripe_customer_id
         : null,
     });
+
+    if (!session.url && checkoutSessionCompleted(session)) {
+      await syncClientFromCheckoutSession(session);
+      return NextResponse.json({
+        url: `/billing/success?session_id=${encodeURIComponent(session.id)}`,
+      });
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (err) {

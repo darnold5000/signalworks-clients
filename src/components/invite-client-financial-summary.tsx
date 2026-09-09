@@ -12,14 +12,26 @@ import { formatMoney } from "@/lib/utils";
 function recurringServiceAddOnCents(extras?: InviteCommercialExtras): number {
   let total = 0;
   for (const addOn of extras?.paid_add_ons ?? []) {
-    if (addOn.billing_type === "one_time") continue;
+    if (addOn.billing_type === "one_time" || addOn.pricing_mode === "annual" || addOn.pricing_mode === "included") continue;
     total += addOn.unit_amount_cents * Math.max(1, addOn.quantity ?? 1);
   }
   for (const custom of extras?.custom_service_add_ons ?? []) {
-    if (custom.billing_type === "one_time") continue;
+    if (custom.billing_type === "one_time" || custom.pricing_mode === "annual" || custom.pricing_mode === "included") continue;
     total += custom.unit_amount_cents * Math.max(1, custom.quantity ?? 1);
   }
   return total;
+}
+
+function annualServiceAddOnCents(extras?: InviteCommercialExtras): number {
+  return [
+    ...(extras?.paid_add_ons ?? []),
+    ...(extras?.custom_service_add_ons ?? []),
+  ]
+    .filter((item) => item.pricing_mode === "annual")
+    .reduce(
+      (sum, item) => sum + item.unit_amount_cents * Math.max(1, item.quantity ?? 1),
+      0,
+    );
 }
 
 function platformPriceLabel(
@@ -28,7 +40,9 @@ function platformPriceLabel(
   const mode = component.pricing_mode ?? "included";
   if (mode === "included") return "Included";
   const amount = formatMoney(component.unit_amount_cents ?? 0);
-  return mode === "monthly" ? `${amount}/mo` : `${amount} one-time`;
+  if (mode === "monthly") return `${amount}/mo`;
+  if (mode === "annual") return `${amount}/year`;
+  return `${amount} one-time`;
 }
 
 export function InviteClientFinancialSummary({
@@ -56,7 +70,8 @@ export function InviteClientFinancialSummary({
   const totals = calculateInviteOfferTotals({ plan, products, extras });
   const planMonthlyCents = plan.monthly_price_cents;
   const serviceAddOnMonthlyCents = recurringServiceAddOnCents(extras);
-  const arr = totals.recurring_total_cents * 12;
+  const serviceAddOnAnnualCents = annualServiceAddOnCents(extras);
+  const arr = totals.recurring_total_cents * 12 + totals.annual_recurring_total_cents;
   const dueFirstCycle = calculateAmountDueFirstCycle(totals);
   const monthlyDiscountCents = extras?.monthly_discount_cents ?? 0;
   const discountDurationMonths = extras?.monthly_discount_duration_months ?? 0;
@@ -106,6 +121,14 @@ export function InviteClientFinancialSummary({
             <dt className="text-muted">Recurring service add-ons</dt>
             <dd className="text-right">
               {formatMoney(serviceAddOnMonthlyCents)}/mo
+            </dd>
+          </div>
+        ) : null}
+        {serviceAddOnAnnualCents > 0 ? (
+          <div className="flex items-start justify-between gap-4">
+            <dt className="text-muted">Annual service add-ons</dt>
+            <dd className="text-right">
+              {formatMoney(serviceAddOnAnnualCents)}/year
             </dd>
           </div>
         ) : null}

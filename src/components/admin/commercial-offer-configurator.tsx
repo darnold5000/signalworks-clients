@@ -82,13 +82,18 @@ function configToState(
       monthlyPriceDollars: String(addOn.monthlyPriceDollars),
       quantity: addOn.quantity ? String(addOn.quantity) : undefined,
       billingType: addOn.billingType,
+      pricingMode:
+        addOn.pricingMode ??
+        (addOn.billingType === "one_time" ? "one_time" : "monthly"),
     })),
     customServiceAddOnRows: (config?.customServiceAddOns ?? []).map((row) => ({
       id: crypto.randomUUID(),
       name: row.name,
       description: row.description ?? "",
       monthlyPriceDollars: String(row.monthlyPriceDollars),
-      billingType: row.billingType ?? "recurring",
+      pricingMode:
+        row.pricingMode ??
+        (row.billingType === "one_time" ? "one_time" : "monthly"),
     })),
     planInclusions: config?.planInclusions ?? [...DEFAULT_PLAN_INCLUSIONS],
     setupInclusions: config?.setupInclusions ?? [...DEFAULT_SETUP_INCLUSIONS],
@@ -134,6 +139,7 @@ export function buildCommercialOfferConfigFromState(args: {
           ? Number.parseInt(selection.quantity, 10) || 1
           : 1,
         billingType: selection.billingType,
+        pricingMode: selection.pricingMode,
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -170,8 +176,11 @@ export function buildCommercialOfferConfigFromState(args: {
       .map((row) => ({
         name: row.name.trim(),
         description: row.description.trim() || undefined,
-        monthlyPriceDollars: Number.parseFloat(row.monthlyPriceDollars) || 0,
-        billingType: row.billingType,
+        monthlyPriceDollars:
+          row.pricingMode === "included"
+            ? 0
+            : Number.parseFloat(row.monthlyPriceDollars) || 0,
+        pricingMode: row.pricingMode,
       }))
       .filter((row) => row.name.length > 0),
     setupFeeDollars: Number.parseFloat(args.setupFeeDollars) || 0,
@@ -206,6 +215,8 @@ export function CommercialOfferConfigurator({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Reset the editor when the parent switches or reloads proposals.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(configToState(initialConfig, plans));
     setError(null);
   }, [configVersion, initialConfig, plans]);
@@ -279,8 +290,13 @@ export function CommercialOfferConfigurator({
           ),
           quantity,
           billing_type:
-            selection.billingType ??
-            addOnDefaultBillingType(catalogItem.product_key),
+            selection.pricingMode === "one_time"
+              ? "one_time"
+              : selection.pricingMode
+                ? "recurring"
+                : selection.billingType ??
+                  addOnDefaultBillingType(catalogItem.product_key),
+          pricing_mode: selection.pricingMode,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -302,7 +318,11 @@ export function CommercialOfferConfigurator({
         unit_amount_cents: dollarsToCents(
           Number.parseFloat(row.monthlyPriceDollars) || 0,
         ),
-        billing_type: row.billingType,
+          billing_type:
+            row.pricingMode === "one_time"
+              ? ("one_time" as const)
+              : ("recurring" as const),
+          pricing_mode: row.pricingMode,
       }))
       .filter((row) => row.name.length > 0);
 

@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import {
   syncClientFromCheckoutSession,
+  syncClientFromFailedCheckoutSession,
   syncClientFromSubscription,
   syncTenantBillingStatus,
 } from "@/lib/stripe-sync";
@@ -69,8 +70,16 @@ export async function POST(request: Request) {
 
   try {
     switch (event.type) {
-      case "checkout.session.completed": {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
         await syncClientFromCheckoutSession(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      }
+      case "checkout.session.async_payment_failed":
+      case "checkout.session.expired": {
+        await syncClientFromFailedCheckoutSession(
           event.data.object as Stripe.Checkout.Session,
         );
         break;

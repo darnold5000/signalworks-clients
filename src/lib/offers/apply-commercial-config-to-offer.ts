@@ -105,8 +105,13 @@ export async function applyCommercialConfigToOffer(args: {
       unit_amount_cents: dollarsToCents(selection.monthlyPriceDollars),
       quantity: selection.quantity ?? 1,
       billing_type:
-        selection.billingType ??
-        addOnDefaultBillingType(catalogItem.product_key),
+        selection.pricingMode === "one_time"
+          ? "one_time"
+          : selection.pricingMode
+            ? "recurring"
+            : selection.billingType ??
+              addOnDefaultBillingType(catalogItem.product_key),
+      pricing_mode: selection.pricingMode,
     };
   });
 
@@ -137,7 +142,8 @@ export async function applyCommercialConfigToOffer(args: {
       description: row.description?.trim() || undefined,
       unit_amount_cents: dollarsToCents(row.monthlyPriceDollars),
       quantity: row.quantity ?? 1,
-      billing_type: row.billingType ?? "recurring",
+      billing_type: row.pricingMode === "one_time" ? "one_time" : row.billingType ?? "recurring",
+      pricing_mode: row.pricingMode,
     }))
     .filter((row) => row.name.length > 0);
 

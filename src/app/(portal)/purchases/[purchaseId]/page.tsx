@@ -19,12 +19,21 @@ export default async function PurchaseDetailPage({
   if (!bundle || bundle.purchase.tenant_id !== client.id) notFound();
 
   const { purchase, items } = bundle;
+  const annualSetupPending =
+    purchase.checkout_state === "monthly_complete" ||
+    (purchase.checkout_state === "failed" &&
+      Boolean(purchase.annual_checkout_session_id) &&
+      (purchase.annual_recurring_total_cents ?? 0) > 0);
 
   return (
     <>
       <PageHeader
         title="Purchase summary"
-        description={`Purchased ${formatDate(purchase.purchased_at ?? purchase.created_at)}`}
+        description={
+          purchase.purchased_at
+            ? `Purchased ${formatDate(purchase.purchased_at)}`
+            : `Checkout started ${formatDate(purchase.created_at)}`
+        }
         actions={
           <Link
             href="/purchases"
@@ -39,6 +48,12 @@ export default async function PurchaseDetailPage({
         <Panel title="Summary">
           <dl>
             <MetaRow label="Status" value={purchase.status} />
+            {annualSetupPending ? (
+              <MetaRow
+                label="Checkout progress"
+                value="Monthly billing active; annual setup required"
+              />
+            ) : null}
             <MetaRow
               label="Due at checkout"
               value={formatMoney(
@@ -47,12 +62,28 @@ export default async function PurchaseDetailPage({
               )}
             />
             <MetaRow
-              label="Recurring total"
+              label="Monthly recurring"
               value={formatMoney(
                 purchase.recurring_total_cents,
                 purchase.currency,
               )}
             />
+            {(purchase.annual_recurring_total_cents ?? 0) > 0 ? (
+              <MetaRow
+                label="Annual recurring"
+                value={
+                  annualSetupPending
+                    ? `Pending setup · ${formatMoney(
+                        purchase.annual_recurring_total_cents ?? 0,
+                        purchase.currency,
+                      )}/year contracted`
+                    : `${formatMoney(
+                        purchase.annual_recurring_total_cents ?? 0,
+                        purchase.currency,
+                      )}/year`
+                }
+              />
+            ) : null}
             <MetaRow
               label="Discounts"
               value={formatMoney(
@@ -78,6 +109,11 @@ export default async function PurchaseDetailPage({
                     item.unit_amount_cents * item.quantity,
                     purchase.currency,
                   )}
+                  {item.billing_type === "recurring"
+                    ? item.billing_interval === "year"
+                      ? "/year"
+                      : "/month"
+                    : ""}
                 </p>
               </li>
             ))}

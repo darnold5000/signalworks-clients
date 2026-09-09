@@ -52,6 +52,11 @@ export function AdminClientHeader({ bundle }: { bundle: AdminClientBundle }) {
                 ? "MRR —"
                 : `${formatMoney(commercialSummary.currentRecurringCents, client.currency)} MRR`}
             </span>
+            {(commercialSummary.annualRecurringCents ?? 0) > 0 ? (
+              <span>
+                {formatMoney(commercialSummary.annualRecurringCents!, client.currency)}/year
+              </span>
+            ) : null}
             <span>
               Margin {commercialSummary.marginCents == null
                 ? "—"

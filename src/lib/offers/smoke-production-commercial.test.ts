@@ -48,7 +48,7 @@ function loadEnvLocal() {
 loadEnvLocal();
 
 if (!globalThis.WebSocket) {
-  globalThis.WebSocket = class {} as typeof WebSocket;
+  globalThis.WebSocket = class {} as unknown as typeof WebSocket;
 }
 
 const enabled = process.env.SMOKE_PROD === "1";

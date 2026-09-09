@@ -11,6 +11,21 @@ import {
   hasManagedCommercialPricing,
   isManagedCommercialOfferItem,
 } from "@/lib/offers/managed-commercial-items";
+import type { PlatformPricingMode } from "@/lib/offers/offer-item-metadata";
+
+function configuredPricingMode(item: ClientOfferItem): PlatformPricingMode {
+  const stored = item.metadata?.pricing_mode;
+  if (
+    stored === "included" ||
+    stored === "one_time" ||
+    stored === "monthly" ||
+    stored === "annual"
+  ) {
+    return stored;
+  }
+  if (item.billing_type === "one_time") return "one_time";
+  return item.billing_interval === "year" ? "annual" : "monthly";
+}
 
 export function parseCommercialConfigFromOffer(
   offer: Pick<ClientOffer, "plan_inclusions" | "setup_inclusions">,
@@ -72,6 +87,7 @@ export function parseCommercialConfigFromOffer(
       monthlyPriceDollars: item.unit_amount_cents / 100,
       quantity: item.quantity,
       billingType: item.billing_type,
+      pricingMode: configuredPricingMode(item),
     }));
 
   const customServiceAddOns = items
@@ -85,6 +101,7 @@ export function parseCommercialConfigFromOffer(
       monthlyPriceDollars: item.unit_amount_cents / 100,
       quantity: item.quantity,
       billingType: item.billing_type,
+      pricingMode: configuredPricingMode(item),
     }));
 
   const setupFeeItem = items.find(

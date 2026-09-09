@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { PageHeader, Panel } from "@/components/ui";
 import { getStripe } from "@/lib/stripe";
 import { syncClientFromCheckoutSession } from "@/lib/stripe-sync";
+import { checkoutSessionCompleted } from "@/lib/offers/checkout-state";
 
 export default async function BillingSuccessPage({
   searchParams,
@@ -18,7 +20,7 @@ export default async function BillingSuccessPage({
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       planLabel = session.metadata?.plan_key ?? null;
-      if (session.payment_status === "paid" || session.status === "complete") {
+      if (checkoutSessionCompleted(session)) {
         await syncClientFromCheckoutSession(session);
         synced = true;
       }
@@ -47,18 +49,18 @@ export default async function BillingSuccessPage({
           If Billing still looks empty, refresh once — sync can take a moment.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <a
+          <Link
             href="/billing"
             className="inline-flex rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
           >
             Go to Billing
-          </a>
-          <a
+          </Link>
+          <Link
             href="/purchases"
             className="inline-flex rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-medium hover:bg-background"
           >
             View purchases
-          </a>
+          </Link>
         </div>
       </Panel>
     </>

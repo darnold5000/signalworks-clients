@@ -440,7 +440,7 @@ describe("ProposalClientView", () => {
       "Founding Partner Discount",
       "-$50.00/month",
       "$59.99",
-      "Recurring monthly",
+      "Monthly recurring",
       "Due today",
     ]) {
       expect(previewHtml).toContain(content);
@@ -458,7 +458,7 @@ describe("ProposalClientView", () => {
       />,
     );
 
-    expect(html).toContain("Recurring monthly");
+    expect(html).toContain("Monthly recurring");
     expect(html).toContain("$59.99");
     expect(html).toContain("Billing");
     expect(html).toContain("Handled separately");
@@ -467,13 +467,13 @@ describe("ProposalClientView", () => {
     expect(html).not.toContain("Acceptance &amp; Checkout");
   });
 
-  it("renders annual and quarterly prices with human-readable cadence", () => {
+  it("renders mixed monthly and annual prices with separate totals", () => {
     const html = renderToStaticMarkup(
       <ProposalClientView
         offer={offer}
         items={[
           { ...recurringProduct, id: "annual", name: "Domain Name Service", unit_amount_cents: 2500, billing_interval: "year", billing_interval_count: 1 },
-          { ...recurringProduct, id: "quarterly", name: "Website Maintenance", unit_amount_cents: 15000, billing_interval: "month", billing_interval_count: 3 },
+          { ...recurringProduct, id: "monthly", name: "Website Maintenance", unit_amount_cents: 15000, billing_interval: "month", billing_interval_count: 1 },
         ]}
         features={[]}
         preview
@@ -482,9 +482,14 @@ describe("ProposalClientView", () => {
 
     expect(html).toContain("$25.00/year");
     expect(html).toContain("Billed annually");
-    expect(html).toContain("$150.00 every 3 months");
-    expect(html).toContain("Billed every 3 months");
-    expect(html).toContain("Recurring charges");
-    expect(html).not.toContain("Recurring monthly");
+    expect(html).toContain("$150.00/month");
+    expect(html).toContain("Billed monthly");
+    expect(html).toContain("Monthly recurring");
+    expect(html).toContain("Annual recurring");
+    expect(html).toContain("$175.00");
+    expect(html).toContain("This agreement includes:");
+    expect(html).toContain(
+      "Because these services use different billing schedules, Stripe will confirm them in two secure checkout steps.",
+    );
   });
 });

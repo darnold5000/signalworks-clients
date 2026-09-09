@@ -397,6 +397,11 @@ export function AdminClientsTable({ clients }: { clients: AdminClientListItem[] 
                   <td className="py-3 pr-4">
                     <p>{commercial.planName ?? "—"}</p>
                     <p className="text-xs font-medium">{commercial.currentRecurringCents == null ? "—" : `${formatMoney(commercial.currentRecurringCents, client.currency)} MRR`}</p>
+                    {(commercial.annualRecurringCents ?? 0) > 0 ? (
+                      <p className="text-xs font-medium">
+                        {formatMoney(commercial.annualRecurringCents!, client.currency)}/year · {formatMoney(commercial.arrCents ?? 0, client.currency)} ARR
+                      </p>
+                    ) : null}
                     {commercial.commercialState === "active" && financials.activeRecurringDiscountMrrCents > 0 ? (
                       <p className="text-xs text-muted">
                         {formatMoney(financials.baseRecurringMrrCents, client.currency)} base · {formatMoney(financials.activeRecurringDiscountMrrCents, client.currency)} {financials.activeDiscountCount > 1 ? "discounts" : `${financials.discountKind === "ongoing" ? "ongoing" : "temporary"} discount`}

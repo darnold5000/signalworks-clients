@@ -19,6 +19,10 @@ export type OfferPricingSummary = {
   discountedMonthlyAmountCents: number;
   /** Monthly total after recurring discount ends (base + add-ons). */
   standardMonthlyAmountAfterDiscountCents: number;
+  /** Annual recurring charges, kept at their invoice amount. */
+  annualRecurringAmountCents: number;
+  /** Contracted ARR: twelve monthly cycles plus annual charges. */
+  arrCents: number;
   discountDurationMonths: number | null;
   /** When discount applies for the life of the subscription. */
   discountIsPermanent: boolean;
@@ -38,12 +42,16 @@ export function buildOfferPricingSummary(
   const selected = items.filter((item) => item.is_selected);
 
   const basePlan = selected.find((item) => item.item_type === "base_plan");
-  const baseMonthlyAmountCents = basePlan ? lineAmount(basePlan) : 0;
+  const baseMonthlyAmountCents =
+    basePlan?.billing_interval === "year" ? 0 : basePlan ? lineAmount(basePlan) : 0;
   const planName = basePlan?.name ?? "Subscription plan";
 
   const recurringAddOnAmountCents = selected
     .filter(
-      (item) => isPaidAddOnItem(item) && item.billing_type === "recurring",
+      (item) =>
+        isPaidAddOnItem(item) &&
+        item.billing_type === "recurring" &&
+        item.billing_interval !== "year",
     )
     .reduce((sum, item) => sum + lineAmount(item), 0);
 
@@ -79,6 +87,10 @@ export function buildOfferPricingSummary(
     recurringDiscountAmountCents,
     discountedMonthlyAmountCents: totals.recurring_total_cents,
     standardMonthlyAmountAfterDiscountCents,
+    annualRecurringAmountCents: totals.annual_recurring_total_cents,
+    arrCents:
+      totals.recurring_total_cents * 12 +
+      totals.annual_recurring_total_cents,
     discountDurationMonths,
     discountIsPermanent,
     oneTimeAmountCents: totals.initial_total_cents,

@@ -38,7 +38,7 @@ export async function runAudit(
 
   let progress = createInitialProgress(collectorKeys, now());
   const collectedFindings: AuditFindingInput[] = [];
-  let fatalError = false;
+  const fatalError = false;
   let errorCode: string | undefined;
   let errorMessageInternal: string | undefined;
   let overallScore: number | null = null;

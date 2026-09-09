@@ -59,6 +59,8 @@ export async function resolveCommercialPricing(
       recurringDiscountAmountCents: 0,
       discountedMonthlyAmountCents: client.monthly_price_cents,
       standardMonthlyAmountAfterDiscountCents: client.monthly_price_cents,
+      annualRecurringAmountCents: 0,
+      arrCents: client.monthly_price_cents * 12,
       discountDurationMonths: null,
       discountIsPermanent: false,
       oneTimeAmountCents: 0,

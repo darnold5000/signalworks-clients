@@ -35,6 +35,8 @@ export function LoginForm() {
   useEffect(() => {
     const target = getAuthTokensRedirectUrl();
     if (!target) return;
+    // This effect synchronizes UI state with a browser-level auth redirect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRedirecting(true);
     window.location.replace(target);
   }, []);

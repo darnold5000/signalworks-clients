@@ -38,6 +38,23 @@ function purchaseDescription(status: string): string {
   return "Billing record";
 }
 
+function purchaseProgressDescription(purchase: {
+  status: string;
+  checkout_state?: string;
+  annual_recurring_total_cents?: number;
+  annual_checkout_session_id?: string | null;
+}): string {
+  if (
+    (purchase.checkout_state === "monthly_complete" ||
+      (purchase.checkout_state === "failed" &&
+        Boolean(purchase.annual_checkout_session_id))) &&
+    (purchase.annual_recurring_total_cents ?? 0) > 0
+  ) {
+    return "Monthly billing active · Annual setup required";
+  }
+  return purchaseDescription(purchase.status);
+}
+
 export default async function BillingPage() {
   const profile = await getCurrentProfile();
   const client = await getPrimaryClient();
@@ -157,6 +174,16 @@ export default async function BillingPage() {
                   commercialPricing.currency,
                 )}
               />
+              {commercialPricing.annualRecurringAmountCents > 0 ? (
+                <MetaRow
+                  label="Annual recurring"
+                  value={
+                    onboarding.isMixedCheckoutInProgress
+                      ? `Pending setup · ${formatMoney(commercialPricing.annualRecurringAmountCents, commercialPricing.currency)}/year contracted`
+                      : `${formatMoney(commercialPricing.annualRecurringAmountCents, commercialPricing.currency)}/year`
+                  }
+                />
+              ) : null}
               {commercialPricing.recurringDiscountAmountCents > 0 ? (
                 <MetaRow
                   label="Discount"
@@ -263,7 +290,7 @@ export default async function BillingPage() {
               >
                 <div>
                   <p className="font-medium">
-                    {purchaseDescription(purchase.status)} ·{" "}
+                    {purchaseProgressDescription(purchase)} ·{" "}
                     {formatMoney(
                       purchase.amount_due_today_cents,
                       purchase.currency,

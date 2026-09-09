@@ -23,8 +23,22 @@ export function selectRecurringCheckoutCouponId(
       item.is_selected &&
       item.item_type === "discount" &&
       item.stripe_coupon_id &&
-      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING,
+      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING &&
+      item.metadata?.billing_interval !== "year",
   );
 
   return recurringDiscount?.stripe_coupon_id ?? null;
+}
+
+export function selectFirstCycleCheckoutCouponId(
+  items: ClientOfferItem[],
+): string | null {
+  const firstCycleDiscount = items.find(
+    (item) =>
+      item.is_selected &&
+      (item.item_type === "discount" || item.item_type === "credit") &&
+      item.stripe_coupon_id &&
+      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.FIRST_CYCLE,
+  );
+  return firstCycleDiscount?.stripe_coupon_id ?? null;
 }

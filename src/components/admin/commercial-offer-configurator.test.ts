@@ -69,4 +69,65 @@ describe("buildCommercialOfferConfigFromState", () => {
       },
     ]);
   });
+
+  it("preserves annual cadence for catalog, platform, and custom services", () => {
+    const config = buildCommercialOfferConfigFromState({
+      selectedPlan: {
+        id: "plan-1",
+        plan_key: "launch",
+        name: "Launch",
+        description: null,
+        default_price_cents: 5000,
+        billing_interval: "month",
+        is_active: true,
+        sort_order: 0,
+      },
+      monthlyPriceDollars: "50",
+      selectedProductKeys: ["domain"],
+      platformPricingByKey: {
+        domain: { pricingMode: "annual", amountDollars: "25" },
+      },
+      customPlatformRows: [],
+      serviceAddOnSelections: [
+        {
+          productKey: "inventory",
+          monthlyPriceDollars: "60",
+          pricingMode: "annual",
+        },
+      ],
+      customServiceAddOnRows: [
+        {
+          id: "custom-annual",
+          name: "Registration renewal",
+          description: "",
+          monthlyPriceDollars: "40",
+          pricingMode: "annual",
+        },
+      ],
+      planInclusions: [],
+      setupInclusions: [],
+      setupFeeDollars: "0",
+      monthlyDiscountDollars: "0",
+      monthlyDiscountDurationMonths: "0",
+      serviceAddOns: [
+        {
+          id: "inventory",
+          product_key: "inventory",
+          name: "Inventory",
+          description: null,
+          category: "add_on",
+          category_group: null,
+          default_add_on_price_cents: 6000,
+          suggested_add_on_price_cents: 6000,
+          supports_quantity: false,
+          sort_order: 0,
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(config.platformComponentPricing[0]?.pricingMode).toBe("annual");
+    expect(config.serviceAddOns[0]?.pricingMode).toBe("annual");
+    expect(config.customServiceAddOns[0]?.pricingMode).toBe("annual");
+  });
 });

@@ -688,6 +688,8 @@ export function OfferBuilder({
                         discount_total_cents: selected.discount_total_cents,
                         initial_total_cents: selected.initial_total_cents,
                         recurring_total_cents: selected.recurring_total_cents,
+                        annual_recurring_total_cents:
+                          selected.annual_recurring_total_cents ?? 0,
                       }),
                       selected.currency,
                     )}
@@ -697,12 +699,21 @@ export function OfferBuilder({
                     {formatMoney(selected.initial_total_cents, selected.currency)}
                   </span>
                   <span className="text-sm text-muted">
-                    Recurring{" "}
+                    Monthly recurring{" "}
                     {formatMoney(
                       selected.recurring_total_cents,
                       selected.currency,
                     )}
                   </span>
+                  {(selected.annual_recurring_total_cents ?? 0) > 0 ? (
+                    <span className="text-sm text-muted">
+                      Annual recurring{" "}
+                      {formatMoney(
+                        selected.annual_recurring_total_cents ?? 0,
+                        selected.currency,
+                      )}
+                    </span>
+                  ) : null}
                 </div>
 
                 {selected.status === "draft" ? (
@@ -903,6 +914,24 @@ export function OfferBuilder({
                             <option value="one_time">One-time</option>
                             <option value="recurring">Recurring</option>
                           </select>
+                          {itemForm.billingType === "recurring" ? (
+                            <select
+                              aria-label="Billing cadence"
+                              value={itemForm.billingInterval}
+                              onChange={(event) =>
+                                setItemForm((current) => ({
+                                  ...current,
+                                  billingInterval: event.target.value as
+                                    | "month"
+                                    | "year",
+                                }))
+                              }
+                              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="month">Monthly</option>
+                              <option value="year">Annually</option>
+                            </select>
+                          ) : null}
                           {(itemForm.itemType === "discount" ||
                             itemForm.itemType === "credit") && (
                             <select
@@ -919,7 +948,7 @@ export function OfferBuilder({
                                 First billing cycle only
                               </option>
                               <option value={DISCOUNT_SCOPE.RECURRING}>
-                                Reduces monthly recurring
+                                Reduces monthly recurring only
                               </option>
                             </select>
                           )}

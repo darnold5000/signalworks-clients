@@ -129,6 +129,7 @@ export function InviteClientPlatformComponentsSelect({
           <option value="included">Included</option>
           <option value="one_time">One-time</option>
           <option value="monthly">Monthly</option>
+          <option value="annual">Annually</option>
         </select>
         {pricing.pricingMode !== "included" ? (
           <label className="flex items-center rounded-md border border-border bg-background px-2 text-sm">
@@ -145,7 +146,11 @@ export function InviteClientPlatformComponentsSelect({
               className="w-24 bg-transparent px-1 py-1.5 outline-none"
             />
             <span className="text-xs text-muted">
-              {pricing.pricingMode === "monthly" ? "/mo" : "one-time"}
+              {pricing.pricingMode === "monthly"
+                ? "/mo"
+                : pricing.pricingMode === "annual"
+                  ? "/year"
+                  : "one-time"}
             </span>
           </label>
         ) : null}

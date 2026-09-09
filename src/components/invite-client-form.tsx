@@ -158,8 +158,13 @@ export function InviteClientForm({
           ),
           quantity,
           billing_type:
-            selection.billingType ??
-            addOnDefaultBillingType(catalogItem.product_key),
+            selection.pricingMode === "one_time"
+              ? "one_time"
+              : selection.pricingMode
+                ? "recurring"
+                : selection.billingType ??
+                  addOnDefaultBillingType(catalogItem.product_key),
+          pricing_mode: selection.pricingMode,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -181,7 +186,11 @@ export function InviteClientForm({
         unit_amount_cents: dollarsToCents(
           Number.parseFloat(row.monthlyPriceDollars) || 0,
         ),
-        billing_type: row.billingType,
+        billing_type:
+          row.pricingMode === "one_time"
+            ? ("one_time" as const)
+            : ("recurring" as const),
+        pricing_mode: row.pricingMode,
       }))
       .filter((row) => row.name.length > 0);
 
@@ -270,6 +279,7 @@ export function InviteClientForm({
               ? Number.parseInt(selection.quantity, 10) || 1
               : undefined,
             billingType: selection.billingType,
+            pricingMode: selection.pricingMode,
           })),
           customPlatformComponents: customPlatformRows
             .map((row) => ({
@@ -287,7 +297,7 @@ export function InviteClientForm({
               description: row.description.trim() || undefined,
               monthlyPriceDollars:
                 Number.parseFloat(row.monthlyPriceDollars) || 0,
-              billingType: row.billingType,
+              pricingMode: row.pricingMode,
             }))
             .filter((row) => row.name.length > 0),
           setupFeeDollars: Number.parseFloat(setupFeeDollars) || 0,

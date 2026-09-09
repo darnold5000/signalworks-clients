@@ -104,6 +104,12 @@ export default async function OverviewPage() {
                     commercialPricing.currency,
                   )}
                 />
+                {commercialPricing.annualRecurringAmountCents > 0 ? (
+                  <MetaRow
+                    label="Annual recurring"
+                    value={`${formatMoney(commercialPricing.annualRecurringAmountCents, commercialPricing.currency)}/year`}
+                  />
+                ) : null}
                 {commercialPricing.recurringDiscountAmountCents > 0 ? (
                   <MetaRow
                     label="Discount"

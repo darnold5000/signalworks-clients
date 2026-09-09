@@ -20,25 +20,32 @@ export type ServiceAddOnSelection = {
   monthlyPriceDollars: string;
   quantity?: string;
   billingType?: "recurring" | "one_time";
+  pricingMode?: ServicePricingMode;
 };
+
+export type ServicePricingMode =
+  | "included"
+  | "one_time"
+  | "monthly"
+  | "annual";
 
 export type CustomServiceAddOnRow = {
   id: string;
   name: string;
   description: string;
   monthlyPriceDollars: string;
-  billingType: "recurring" | "one_time";
+  pricingMode: ServicePricingMode;
 };
 
 function newCustomRow(
-  billingType: "recurring" | "one_time" = "recurring",
+  pricingMode: ServicePricingMode = "monthly",
 ): CustomServiceAddOnRow {
   return {
     id: crypto.randomUUID(),
     name: "",
     description: "",
     monthlyPriceDollars: "0",
-    billingType,
+    pricingMode,
   };
 }
 
@@ -88,6 +95,8 @@ export function InviteClientServiceAddOnsSelect({
   );
 
   useEffect(() => {
+    // Open sections containing selections restored by the parent form.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpanded((prev) => {
       const next = { ...prev };
       for (const section of sections) {
@@ -150,8 +159,8 @@ export function InviteClientServiceAddOnsSelect({
     onCustomRowsChange(customRows.filter((row) => row.id !== id));
   }
 
-  function addCustomRow(billingType: "recurring" | "one_time") {
-    onCustomRowsChange([...customRows, newCustomRow(billingType)]);
+  function addCustomRow(pricingMode: ServicePricingMode) {
+    onCustomRowsChange([...customRows, newCustomRow(pricingMode)]);
   }
 
   return (
@@ -273,7 +282,7 @@ export function InviteClientServiceAddOnsSelect({
                   ) : null}
                   {section.key === "custom" ? (
                     <CustomAddButton
-                      onClick={() => addCustomRow("recurring")}
+                      onClick={() => addCustomRow("monthly")}
                     />
                   ) : null}
                 </div>
@@ -308,7 +317,7 @@ export function InviteClientServiceAddOnsSelect({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => addCustomRow("recurring")}
+          onClick={() => addCustomRow("monthly")}
           className="text-sm font-medium text-muted underline-offset-2 hover:underline"
         >
           + Add custom service
@@ -366,24 +375,28 @@ function CustomRowEditor({
         className="rounded-md border border-border bg-background px-2 py-1.5 text-sm sm:col-span-2"
       />
       <select
-        value={row.billingType}
+        aria-label={`${row.name || "Custom service"} billing cadence`}
+        value={row.pricingMode}
         onChange={(e) =>
           onChange({
-            billingType: e.target.value as CustomServiceAddOnRow["billingType"],
+            pricingMode: e.target.value as CustomServiceAddOnRow["pricingMode"],
           })
         }
         className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
       >
-        <option value="recurring">Monthly</option>
+        <option value="included">Included</option>
         <option value="one_time">One-time</option>
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annually</option>
       </select>
       <div className="flex gap-2">
         <input
           type="number"
           min="0"
           step="0.01"
-          value={row.monthlyPriceDollars}
+          value={row.pricingMode === "included" ? "0" : row.monthlyPriceDollars}
           onChange={(e) => onChange({ monthlyPriceDollars: e.target.value })}
+          disabled={row.pricingMode === "included"}
           className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
           aria-label="Price"
         />

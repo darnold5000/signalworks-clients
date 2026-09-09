@@ -10,6 +10,10 @@ import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase/server
 import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
 import type { ClientStatus, SubscriptionStatus } from "@/lib/types";
+import {
+  checkoutSessionCompleted,
+  checkoutStateAfterCompletedStage,
+} from "@/lib/offers/checkout-state";
 
 export function resolveAggregateTenantStatus(
   statuses: SubscriptionStatus[],
@@ -106,6 +110,12 @@ function resolveTenantId(session: Stripe.Checkout.Session): string | null {
   );
 }
 
+export function checkoutStageIsFinal(
+  metadata: Stripe.Metadata | null | undefined,
+): boolean {
+  return metadata?.checkout_stage_final !== "false";
+}
+
 async function upsertTenantSubscription(
   supabase: ReturnType<typeof createServiceClient>,
   args: {
@@ -166,6 +176,23 @@ async function updateAggregateTenantStatus(
   }
 }
 
+async function purchaseCheckoutIsComplete(
+  supabase: ReturnType<typeof createServiceClient>,
+  purchaseId: string | null | undefined,
+): Promise<boolean> {
+  if (!purchaseId) return true;
+  const { data } = await supabase
+    .from(TABLES.purchases)
+    .select("status, checkout_state")
+    .eq("id", purchaseId)
+    .maybeSingle();
+  return Boolean(
+    data?.checkout_state === "complete" ||
+      data?.status === "active" ||
+      data?.status === "paid",
+  );
+}
+
 export async function syncClientFromCheckoutSession(
   session: Stripe.Checkout.Session,
 ) {
@@ -188,28 +215,80 @@ export async function syncClientFromCheckoutSession(
       ? session.payment_intent
       : session.payment_intent?.id;
 
-  const isPaid =
-    session.payment_status === "paid" || session.status === "complete";
+  const isPaid = checkoutSessionCompleted(session);
+  const finalCheckoutStage = checkoutStageIsFinal(session.metadata);
+  const checkoutCadence = session.metadata?.checkout_stage_cadence ?? null;
+  let purchaseAlreadyComplete = false;
+
+  if (purchaseId && isPaid && finalCheckoutStage) {
+    const { data: currentPurchase } = await supabase
+      .from(TABLES.purchases)
+      .select("status, checkout_state")
+      .eq("id", purchaseId)
+      .maybeSingle();
+    purchaseAlreadyComplete = Boolean(
+      currentPurchase?.checkout_state === "complete" ||
+        currentPurchase?.status === "active" ||
+        currentPurchase?.status === "paid",
+    );
+  }
 
   if (purchaseId && isPaid) {
-    await supabase
-      .from(TABLES.purchases)
-      .update({
-        status: session.mode === "subscription" ? "active" : "paid",
-        stripe_customer_id: customer ?? null,
-        stripe_subscription_id: subscription ?? null,
-        stripe_payment_intent_id: paymentIntent ?? null,
-        purchased_at: new Date().toISOString(),
-      })
-      .eq("id", purchaseId);
+    const purchaseUpdate: Record<string, unknown> = {
+      status: finalCheckoutStage
+        ? session.mode === "subscription"
+          ? "active"
+          : "paid"
+        : "checkout_created",
+      checkout_state: checkoutStateAfterCompletedStage({
+        cadence:
+          checkoutCadence === "month" || checkoutCadence === "year"
+            ? checkoutCadence
+            : null,
+        finalStage: finalCheckoutStage,
+      }),
+      stripe_customer_id: customer ?? null,
+      stripe_subscription_id: subscription ?? null,
+      stripe_payment_intent_id: paymentIntent ?? null,
+    };
+    if (checkoutCadence === "month") {
+      purchaseUpdate.monthly_checkout_session_id = session.id;
+    } else if (checkoutCadence === "year") {
+      purchaseUpdate.annual_checkout_session_id = session.id;
+    }
+    if (finalCheckoutStage) {
+      purchaseUpdate.purchased_at = new Date().toISOString();
+    }
 
-    await supabase
+    let purchaseWrite = supabase
+      .from(TABLES.purchases)
+      .update(purchaseUpdate)
+      .eq("id", purchaseId);
+    if (!finalCheckoutStage) {
+      // A delayed stage-1 webhook must never downgrade a purchase that already
+      // completed its final stage.
+      purchaseWrite = purchaseWrite.in("status", [
+        "pending",
+        "checkout_created",
+        "failed",
+      ]);
+    }
+    await purchaseWrite;
+
+    let recurringItemsUpdate = supabase
       .from(TABLES.purchaseItems)
       .update({ service_status: "active" })
       .eq("purchase_id", purchaseId)
       .eq("billing_type", "recurring");
+    if (!finalCheckoutStage) {
+      recurringItemsUpdate = recurringItemsUpdate.eq(
+        "billing_interval",
+        session.metadata?.checkout_stage_cadence ?? "month",
+      );
+    }
+    await recurringItemsUpdate;
 
-    if (offerId) {
+    if (offerId && finalCheckoutStage && !purchaseAlreadyComplete) {
       await supabase
         .from(TABLES.clientOffers)
         .update({
@@ -219,7 +298,7 @@ export async function syncClientFromCheckoutSession(
         .eq("id", offerId);
     }
 
-    if (tenantId) {
+    if (tenantId && finalCheckoutStage && !purchaseAlreadyComplete) {
       await supabase
         .from(TABLES.tenantProfiles)
         .update({ onboarding_status: "payment_complete" })
@@ -252,6 +331,7 @@ export async function syncClientFromCheckoutSession(
     }
   }
 
+  if (!isPaid) return;
   if (session.mode !== "subscription") return;
 
   const planKey = session.metadata?.plan_key;
@@ -278,10 +358,12 @@ export async function syncClientFromCheckoutSession(
       payload: subscriptionPayload,
     });
 
-    await supabase
-      .from(TABLES.tenants)
-      .update({ status: tenantStatus })
-      .eq("id", tenantId);
+    if (finalCheckoutStage) {
+      await supabase
+        .from(TABLES.tenants)
+        .update({ status: tenantStatus })
+        .eq("id", tenantId);
+    }
 
     if (plan) {
       await supabase
@@ -312,7 +394,7 @@ export async function syncClientFromCheckoutSession(
       }
     }
 
-    if (purchaseId) {
+    if (purchaseId && finalCheckoutStage) {
       await supabase
         .from(TABLES.tenantProfiles)
         .update({
@@ -366,6 +448,56 @@ export async function syncClientFromCheckoutSession(
   }
 }
 
+/** Mark an incomplete Checkout attempt as recoverable without rolling back a
+ * subscription created by an earlier cadence stage. */
+export async function syncClientFromFailedCheckoutSession(
+  session: Stripe.Checkout.Session,
+) {
+  if (!isSupabaseConfigured()) return;
+  const purchaseId = session.metadata?.purchase_id;
+  if (!purchaseId) return;
+
+  const cadence = session.metadata?.checkout_stage_cadence;
+  const supabase = createServiceClient();
+  const sessionColumn =
+    cadence === "month"
+      ? "monthly_checkout_session_id"
+      : cadence === "year"
+        ? "annual_checkout_session_id"
+        : null;
+  let purchaseUpdate = supabase
+    .from(TABLES.purchases)
+    .update({
+      status: "checkout_created",
+      checkout_state: "failed",
+      stripe_checkout_session_id: session.id,
+      ...(sessionColumn ? { [sessionColumn]: session.id } : {}),
+    })
+    .eq("id", purchaseId)
+    .in("status", ["pending", "checkout_created", "failed"]);
+  if (sessionColumn) {
+    // Ignore a delayed failure for an older attempt after a replacement
+    // Session has already become current.
+    purchaseUpdate = purchaseUpdate.or(
+      `${sessionColumn}.eq.${session.id},${sessionColumn}.is.null`,
+    );
+  }
+  const { data: updatedPurchase } = await purchaseUpdate
+    .select("id")
+    .maybeSingle();
+  if (!updatedPurchase) return;
+
+  if (cadence === "month" || cadence === "year") {
+    await supabase
+      .from(TABLES.purchaseItems)
+      .update({ service_status: "failed" })
+      .eq("purchase_id", purchaseId)
+      .eq("billing_type", "recurring")
+      .eq("billing_interval", cadence)
+      .neq("service_status", "active");
+  }
+}
+
 export async function syncClientFromSubscription(sub: Stripe.Subscription) {
   if (!isSupabaseConfigured()) return;
   const supabase = createServiceClient();
@@ -389,6 +521,10 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
   };
 
   const tenantId = sub.metadata?.tenant_id || sub.metadata?.client_id;
+  const finalCheckoutStage = checkoutStageIsFinal(sub.metadata);
+  const aggregateStatusAllowed =
+    finalCheckoutStage ||
+    (await purchaseCheckoutIsComplete(supabase, sub.metadata?.purchase_id));
   if (tenantId) {
     await upsertTenantSubscription(supabase, {
       tenantId,
@@ -396,9 +532,11 @@ export async function syncClientFromSubscription(sub: Stripe.Subscription) {
       payload: subscriptionPayload,
     });
 
-    await updateAggregateTenantStatus(supabase, tenantId);
+    if (aggregateStatusAllowed) {
+      await updateAggregateTenantStatus(supabase, tenantId);
+    }
 
-    if (plan) {
+    if (plan && finalCheckoutStage) {
       await supabase
         .from(TABLES.tenantPortalSettings)
         .update({
@@ -438,7 +576,7 @@ export async function syncTenantBillingStatus(
   const supabase = createServiceClient();
   const { data: subRows } = await supabase
     .from(TABLES.tenantSubscriptions)
-    .select("tenant_id, stripe_subscription_id")
+    .select("tenant_id, stripe_subscription_id, purchase_id")
     .eq("stripe_customer_id", stripeCustomerId)
     .order("updated_at", { ascending: false });
 
@@ -456,5 +594,8 @@ export async function syncTenantBillingStatus(
     .update({ subscription_status: subscriptionStatus })
     .eq("stripe_subscription_id", subRow.stripe_subscription_id);
 
+  if (!(await purchaseCheckoutIsComplete(supabase, subRow.purchase_id))) {
+    return;
+  }
   await updateAggregateTenantStatus(supabase, subRow.tenant_id as string);
 }

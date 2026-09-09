@@ -15,8 +15,10 @@ export type OfferTotals = {
    * Recurring-only offers store 0 — not the first subscription cycle.
    */
   initial_total_cents: number;
-  /** Recurring amount per billing cycle (MRR when monthly). */
+  /** Monthly recurring amount. Retained as the canonical MRR field. */
   recurring_total_cents: number;
+  /** Annual recurring amount billed as an annual charge (never amortized into MRR). */
+  annual_recurring_total_cents: number;
 };
 
 function lineAmount(item: ClientOfferItem): number {
@@ -45,14 +47,13 @@ export function calculateOfferTotals(
   let discount_total_cents = 0;
   let initial_total_cents = 0;
   let recurring_total_cents = 0;
+  let annual_recurring_total_cents = 0;
 
   for (const item of selected) {
     const line = lineAmount(item);
 
     if (item.item_type === "discount" || item.item_type === "credit") {
-      if (discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING) {
-        recurring_total_cents = Math.max(0, recurring_total_cents - line);
-      } else {
+      if (discountScopeFromMetadata(item) !== DISCOUNT_SCOPE.RECURRING) {
         discount_total_cents += line;
       }
       continue;
@@ -71,7 +72,27 @@ export function calculateOfferTotals(
       continue;
     }
 
-    recurring_total_cents += netLine;
+    if (item.billing_interval === "year") {
+      annual_recurring_total_cents += netLine;
+    } else {
+      // Null legacy recurring cadence is monthly by definition.
+      recurring_total_cents += netLine;
+    }
+  }
+
+  // Apply monthly discounts after all services have been accumulated so offer
+  // item ordering cannot change the result. Legacy recurring discount lines
+  // default to monthly and therefore never reduce an annual charge.
+  for (const item of selected) {
+    if (
+      (item.item_type === "discount" || item.item_type === "credit") &&
+      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING
+    ) {
+      recurring_total_cents = Math.max(
+        0,
+        recurring_total_cents - lineAmount(item),
+      );
+    }
   }
 
   return {
@@ -79,6 +100,7 @@ export function calculateOfferTotals(
     discount_total_cents: Math.max(0, discount_total_cents),
     initial_total_cents: Math.max(0, initial_total_cents),
     recurring_total_cents: Math.max(0, recurring_total_cents),
+    annual_recurring_total_cents: Math.max(0, annual_recurring_total_cents),
   };
 }
 
@@ -87,10 +109,19 @@ export function calculateOfferTotals(
  * upfront one-time charges plus the first recurring cycle, minus offer discounts.
  */
 export function calculateAmountDueFirstCycle(totals: OfferTotals): number {
-  return Math.max(
-    0,
-    totals.initial_total_cents +
-      totals.recurring_total_cents -
-      totals.discount_total_cents,
+  // First-cycle coupons are redeemed in the first Checkout stage and cannot
+  // spill into the separate annual stage. Mirror that boundary here.
+  return (
+    Math.max(
+      0,
+      totals.initial_total_cents +
+        totals.recurring_total_cents -
+        totals.discount_total_cents,
+    ) + totals.annual_recurring_total_cents
   );
+}
+
+/** Contracted annual recurring revenue without changing either billing cadence. */
+export function calculateArrCents(totals: OfferTotals): number {
+  return totals.recurring_total_cents * 12 + totals.annual_recurring_total_cents;
 }

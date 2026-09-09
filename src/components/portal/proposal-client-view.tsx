@@ -18,9 +18,7 @@ import {
 import { formatMoney } from "@/lib/utils";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
 import {
-  cadenceAggregateLabel,
   cadenceDescription,
-  cadenceKey,
   cadenceSuffix,
 } from "@/lib/offers/billing-cadence";
 import {
@@ -33,7 +31,9 @@ function platformPriceLabel(item: ClientOfferItem, currency: string): string {
   const mode = platformPricingModeFromItem(item);
   if (mode === "included") return "Included";
   const amount = formatMoney(item.unit_amount_cents * item.quantity, currency);
-  return mode === "monthly" ? `+${amount}/month` : `+${amount} one-time`;
+  if (mode === "monthly") return `+${amount}/month`;
+  if (mode === "annual") return `+${amount}/year`;
+  return `+${amount} one-time`;
 }
 
 function itemDiscountCents(item: ClientOfferItem): number {
@@ -48,6 +48,7 @@ function itemDiscountCents(item: ClientOfferItem): number {
 }
 
 function billingLabel(item: ClientOfferItem): string {
+  if (item.unit_amount_cents === 0) return "Included";
   if (item.billing_type === "one_time") return "One-time";
   return cadenceDescription(item);
 }
@@ -84,8 +85,8 @@ function BillableInvestmentRow({
           </>
         ) : null}
         <p className="font-semibold">
-          {formatMoney(finalPrice, currency)}
-          {item.billing_type === "recurring"
+          {finalPrice === 0 ? "Included" : formatMoney(finalPrice, currency)}
+          {finalPrice > 0 && item.billing_type === "recurring"
             ? cadenceSuffix(item)
             : ""}
         </p>
@@ -97,11 +98,9 @@ function BillableInvestmentRow({
 function DiscountInvestmentRow({
   item,
   currency,
-  cadenceItem,
 }: {
   item: ClientOfferItem;
   currency: string;
-  cadenceItem?: ClientOfferItem;
 }) {
   const durationNote = formatClientDiscountDurationNote(item);
   const secondaryNote = formatClientDiscountSecondaryNote(item);
@@ -120,7 +119,7 @@ function DiscountInvestmentRow({
         ) : null}
       </div>
       <p className="text-sm font-semibold text-success sm:text-right">
-        {formatClientDiscountAmountLabel(item, currency, cadenceItem)}
+        {formatClientDiscountAmountLabel(item, currency)}
       </p>
     </div>
   );
@@ -149,11 +148,9 @@ export function ProposalClientView({
   const planInclusions = offer.plan_inclusions ?? [];
   const setupInclusions = offer.setup_inclusions ?? [];
   const proposalOnly = resolveOfferBillingMethod(offer) === "proposal_only";
-  const recurringItems = investmentLayout.groups
-    .map((group) => group.billable)
-    .filter((item) => item.billing_type === "recurring");
-  const recurringCadences = new Set(recurringItems.map(cadenceKey));
-  const sharedRecurringCadence = recurringCadences.size === 1 ? recurringItems[0] : null;
+  const mixedRecurringCadence =
+    totals.recurring_total_cents > 0 &&
+    totals.annual_recurring_total_cents > 0;
   const platformItems = items
     .filter((item) => item.is_selected && isPlatformComponentItem(item))
     .sort((a, b) => a.sort_order - b.sort_order);
@@ -298,7 +295,6 @@ export function ProposalClientView({
                         key={discount.id}
                         item={discount}
                         currency={offer.currency}
-                        cadenceItem={group.billable}
                       />
                     ))}
                   </div>
@@ -324,28 +320,28 @@ export function ProposalClientView({
                 hasDiscountLines ? "border-t border-border pt-4" : ""
               }`}
             >
-              <div className="flex justify-between gap-6">
-                <dt className="text-muted">One-time</dt>
-                <dd className="font-medium">
-                  {formatMoney(totals.initial_total_cents, offer.currency)}
-                </dd>
-              </div>
-              {sharedRecurringCadence ? (
+              {totals.recurring_total_cents > 0 ? (
                 <div className="flex justify-between gap-6">
-                  <dt className="text-muted">{cadenceAggregateLabel(sharedRecurringCadence)}</dt>
+                  <dt className="text-muted">Monthly recurring</dt>
                   <dd className="font-medium">
-                    {formatMoney(totals.recurring_total_cents, offer.currency)}{cadenceSuffix(sharedRecurringCadence)}
+                    {formatMoney(totals.recurring_total_cents, offer.currency)}/month
                   </dd>
                 </div>
-              ) : recurringItems.length > 0 ? (
-                <div className="space-y-1 border-t border-border pt-2">
-                  <dt className="text-muted">Recurring charges</dt>
-                  {recurringItems.map((item) => (
-                    <dd key={item.id} className="flex justify-between gap-6">
-                      <span>{item.name}</span>
-                      <span className="font-medium">{formatMoney(item.unit_amount_cents * item.quantity, offer.currency)}{cadenceSuffix(item)}</span>
-                    </dd>
-                  ))}
+              ) : null}
+              {totals.annual_recurring_total_cents > 0 ? (
+                <div className="flex justify-between gap-6">
+                  <dt className="text-muted">Annual recurring</dt>
+                  <dd className="font-medium">
+                    {formatMoney(totals.annual_recurring_total_cents, offer.currency)}/year
+                  </dd>
+                </div>
+              ) : null}
+              {totals.initial_total_cents > 0 ? (
+                <div className="flex justify-between gap-6">
+                  <dt className="text-muted">One-time</dt>
+                  <dd className="font-medium">
+                    {formatMoney(totals.initial_total_cents, offer.currency)}
+                  </dd>
                 </div>
               ) : null}
               <div className="flex justify-between gap-6 border-t border-border pt-3 text-base">
@@ -364,6 +360,23 @@ export function ProposalClientView({
                 )}
               </div>
             </dl>
+          ) : null}
+
+          {!proposalOnly && mixedRecurringCadence ? (
+            <div className="mt-5 rounded-xl border border-accent/25 bg-accent/5 p-4 text-sm">
+              <p className="font-medium text-foreground">This agreement includes:</p>
+              <p className="mt-2 text-muted">
+                {formatMoney(totals.recurring_total_cents, offer.currency)}/month
+                <br />
+                {formatMoney(totals.annual_recurring_total_cents, offer.currency)}/year
+                <br />
+                Due today: {formatMoney(dueToday, offer.currency)}
+              </p>
+              <p className="mt-3 leading-6 text-muted">
+                Because these services use different billing schedules, Stripe
+                will confirm them in two secure checkout steps.
+              </p>
+            </div>
           ) : null}
         </section>
 

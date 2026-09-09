@@ -99,9 +99,20 @@ export function clientCanUseBillingPortal(client: Client): boolean {
 /** Pre-checkout offer flow — not shown when a Stripe subscription already exists. */
 export function clientNeedsOfferCheckout(
   client: Client,
-  onboarding: Pick<OnboardingState, "hasActiveOffer" | "nextAction">,
+  onboarding: Pick<OnboardingState, "hasActiveOffer" | "nextAction"> & {
+    isMixedCheckoutInProgress?: boolean;
+  },
 ): boolean {
   if (clientChurnedFromPaidSubscription(client)) return false;
+  // A mixed-cadence offer can have its first subscription active while its
+  // second hosted Checkout stage is still pending.
+  if (
+    onboarding.isMixedCheckoutInProgress &&
+    onboarding.hasActiveOffer &&
+    onboarding.nextAction === "complete_checkout"
+  ) {
+    return true;
+  }
   if (clientHasOngoingSubscription(client)) return false;
   if (!onboarding.hasActiveOffer) return false;
   return onboarding.nextAction !== "none";

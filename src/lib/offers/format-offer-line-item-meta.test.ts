@@ -13,7 +13,6 @@ function discountItem(
     item_type: "discount",
     name: "Monthly discount",
     description: null,
-    product_key: null,
     quantity: 1,
     unit_amount_cents: 5000,
     billing_type: "one_time",

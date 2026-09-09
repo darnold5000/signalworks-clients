@@ -69,6 +69,8 @@ describe("resolveCommercialAccountSummary", () => {
       baseRecurringCents: null,
       currentRecurringCents: null,
       marginCents: null,
+      annualRecurringCents: null,
+      arrCents: null,
       source: "none",
     });
   });
@@ -160,7 +162,7 @@ describe("resolveCommercialAccountSummary", () => {
       source: "stripe",
       subscriptionIds: ["sub_1"],
       subscriptions: [],
-      current: { items: [], baseMrrCents: 5_000, discountMrrCents: 500, effectiveMrrCents: 4_500, discounts: [] },
+      current: { items: [], baseMrrCents: 5_000, discountMrrCents: 500, effectiveMrrCents: 4_500, discounts: [], annualRecurringCents: 0, arrCents: 54_000 },
       scheduled: null,
     };
     const summary = resolveCommercialAccountSummary({
@@ -181,12 +183,63 @@ describe("resolveCommercialAccountSummary", () => {
     });
   });
 
+  it("shows monthly active and annual pending during partial mixed checkout", () => {
+    const annual = {
+      ...recurringPlan(2_500, "Domain Management"),
+      id: "annual-1",
+      item_type: "add_on" as const,
+      billing_interval: "year" as const,
+    };
+    const mixedOffer = {
+      ...offer("accepted", [recurringPlan(6_500), annual]),
+      status: "checkout_started" as const,
+      accepted_at: "2026-09-01T00:00:00Z",
+      acceptance_snapshot: {
+        offer: { title: "Mixed agreement" },
+        items: [recurringPlan(6_500), annual],
+      },
+    };
+    const stripeSnapshot: StripeBillingSnapshot = {
+      source: "stripe",
+      subscriptionIds: ["sub_monthly"],
+      subscriptions: [],
+      current: {
+        items: [],
+        baseMrrCents: 6_500,
+        discountMrrCents: 0,
+        effectiveMrrCents: 6_500,
+        discounts: [],
+        annualRecurringCents: 0,
+        arrCents: 78_000,
+      },
+      scheduled: null,
+    };
+
+    expect(
+      resolveCommercialAccountSummary({
+        ...baseArgs,
+        offers: [mixedOffer],
+        subscriptions: [
+          { subscription_status: "active", stripe_subscription_id: "sub_monthly" },
+        ],
+        stripeSnapshot,
+      }),
+    ).toMatchObject({
+      commercialState: "billing_setup_pending",
+      websiteManagementStatus: "Billing Setup Pending",
+      currentRecurringCents: 6_500,
+      annualRecurringCents: 0,
+      arrCents: 78_000,
+      source: "stripe",
+    });
+  });
+
   it("preserves an explicit active zero-dollar Stripe subscription", () => {
     const stripeSnapshot: StripeBillingSnapshot = {
       source: "stripe",
       subscriptionIds: ["sub_free"],
       subscriptions: [],
-      current: { items: [], baseMrrCents: 0, discountMrrCents: 0, effectiveMrrCents: 0, discounts: [] },
+      current: { items: [], baseMrrCents: 0, discountMrrCents: 0, effectiveMrrCents: 0, discounts: [], annualRecurringCents: 0, arrCents: 0 },
       scheduled: null,
     };
     const summary = resolveCommercialAccountSummary({

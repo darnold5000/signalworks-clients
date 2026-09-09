@@ -276,6 +276,7 @@ export type ClientOffer = {
   /** One-time charges due upfront (setup fees, etc.). Not the first subscription cycle. */
   initial_total_cents: number;
   recurring_total_cents: number;
+  annual_recurring_total_cents?: number;
   created_by: string | null;
   published_at: string | null;
   accepted_at: string | null;
@@ -336,6 +337,16 @@ export type Purchase = {
   discount_total_cents: number;
   amount_due_today_cents: number;
   recurring_total_cents: number;
+  annual_recurring_total_cents?: number;
+  checkout_state?:
+    | "pending"
+    | "monthly_complete"
+    | "annual_complete"
+    | "complete"
+    | "failed"
+    | "canceled";
+  monthly_checkout_session_id?: string | null;
+  annual_checkout_session_id?: string | null;
   stripe_customer_id: string | null;
   stripe_checkout_session_id: string | null;
   stripe_subscription_id: string | null;

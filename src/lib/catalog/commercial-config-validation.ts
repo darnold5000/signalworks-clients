@@ -21,12 +21,14 @@ export const serviceAddOnConfigSchema = z.object({
   monthlyPriceDollars: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
   billingType: z.enum(["recurring", "one_time"]).optional(),
+  pricingMode: z.enum(["included", "one_time", "monthly", "annual"]).optional(),
 });
 
 export const platformPricingModeSchema = z.enum([
   "included",
   "one_time",
   "monthly",
+  "annual",
 ]);
 
 export const platformComponentPricingSchema = z.object({
@@ -47,6 +49,7 @@ export const customServiceAddOnConfigSchema = z.object({
   monthlyPriceDollars: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
   billingType: z.enum(["recurring", "one_time"]).optional(),
+  pricingMode: z.enum(["included", "one_time", "monthly", "annual"]).optional(),
 });
 
 const inclusionListSchema = z.array(z.string().trim().min(1).max(200)).max(50);

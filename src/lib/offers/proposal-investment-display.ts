@@ -39,8 +39,18 @@ export function groupProposalInvestmentItems(
 
   for (const item of selected) {
     if (isDiscountLine(item)) {
-      if (lastGroup) {
-        lastGroup.discounts.push(item);
+      const targetGroup =
+        discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING
+          ? [...groups]
+              .reverse()
+              .find(
+                (group) =>
+                  group.billable.billing_type === "recurring" &&
+                  group.billable.billing_interval !== "year",
+              ) ?? null
+          : lastGroup;
+      if (targetGroup) {
+        targetGroup.discounts.push(item);
       } else {
         orphanDiscounts.push(item);
       }
@@ -113,13 +123,17 @@ export function formatClientDiscountSecondaryNote(
 export function formatClientDiscountAmountLabel(
   item: ClientOfferItem,
   currency: string,
-  cadenceItem?: ClientOfferItem,
 ): string {
   const amount = formatMoney(discountLineAmountCents(item), currency);
   const scope = discountScopeFromMetadata(item);
 
   if (scope === DISCOUNT_SCOPE.RECURRING) {
-    return `-${amount}${cadenceSuffix(cadenceItem ?? item)}`;
+    const scopedInterval = item.metadata?.billing_interval;
+    const cadence =
+      scopedInterval === "year"
+        ? ({ ...item, billing_interval: "year" } as ClientOfferItem)
+        : ({ ...item, billing_interval: "month" } as ClientOfferItem);
+    return `-${amount}${cadenceSuffix(cadence)}`;
   }
 
   return `-${amount}`;

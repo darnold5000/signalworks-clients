@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/utils";
 import type {
   CustomServiceAddOnRow,
   ServiceAddOnSelection,
+  ServicePricingMode,
 } from "@/components/invite-client-service-add-ons-select";
 
 function dollarsToCents(value: string): number {
@@ -32,37 +33,46 @@ export function InviteClientSelectedAddOnsSummary({
   onRemoveCatalog: (productKey: string) => void;
   onRemoveCustom: (id: string) => void;
 }) {
-  const monthly = selections.filter(
-    (s) => (s.billingType ?? addOnDefaultBillingType(s.productKey)) === "recurring",
-  );
-  const oneTime = [
-    ...selections.filter(
-      (s) => (s.billingType ?? addOnDefaultBillingType(s.productKey)) === "one_time",
-    ),
-    ...customRows.filter((row) => row.name.trim() && row.billingType === "one_time"),
-  ];
-
-  const monthlyCustom = customRows.filter(
-    (row) => row.name.trim() && row.billingType !== "one_time",
-  );
+  const selectionMode = (selection: ServiceAddOnSelection): ServicePricingMode =>
+    selection.pricingMode ??
+    ((selection.billingType ?? addOnDefaultBillingType(selection.productKey)) ===
+    "one_time"
+      ? "one_time"
+      : "monthly");
+  const byMode = (mode: ServicePricingMode) =>
+    selections.filter((selection) => selectionMode(selection) === mode);
+  const customByMode = (mode: ServicePricingMode) =>
+    customRows.filter((row) => row.name.trim() && row.pricingMode === mode);
+  const monthly = byMode("monthly");
+  const annual = byMode("annual");
+  const oneTime = byMode("one_time");
+  const included = byMode("included");
+  const monthlyCustom = customByMode("monthly");
+  const annualCustom = customByMode("annual");
+  const oneTimeCustom = customByMode("one_time");
+  const includedCustom = customByMode("included");
 
   const monthlyTotal =
     monthly.reduce((sum, s) => sum + dollarsToCents(s.monthlyPriceDollars), 0) +
     monthlyCustom.reduce((sum, row) => sum + dollarsToCents(row.monthlyPriceDollars), 0);
 
   const oneTimeTotal =
-    selections
-      .filter((s) => (s.billingType ?? addOnDefaultBillingType(s.productKey)) === "one_time")
-      .reduce((sum, s) => sum + dollarsToCents(s.monthlyPriceDollars), 0) +
-    customRows
-      .filter((row) => row.billingType === "one_time" && row.name.trim())
+    oneTime.reduce((sum, s) => sum + dollarsToCents(s.monthlyPriceDollars), 0) +
+    oneTimeCustom
       .reduce((sum, row) => sum + dollarsToCents(row.monthlyPriceDollars), 0);
+  const annualTotal =
+    annual.reduce((sum, s) => sum + dollarsToCents(s.monthlyPriceDollars), 0) +
+    annualCustom.reduce((sum, row) => sum + dollarsToCents(row.monthlyPriceDollars), 0);
 
   const hasAny =
     monthly.length > 0 ||
+    annual.length > 0 ||
     oneTime.length > 0 ||
+    included.length > 0 ||
     monthlyCustom.length > 0 ||
-    customRows.some((r) => r.billingType === "one_time" && r.name.trim());
+    annualCustom.length > 0 ||
+    oneTimeCustom.length > 0 ||
+    includedCustom.length > 0;
 
   function updateSelection(
     productKey: string,
@@ -102,6 +112,10 @@ export function InviteClientSelectedAddOnsSummary({
                       key={selection.productKey}
                       name={product?.name ?? selection.productKey}
                       price={selection.monthlyPriceDollars}
+                      mode={selectionMode(selection)}
+                      onModeChange={(pricingMode) =>
+                        updateSelection(selection.productKey, { pricingMode })
+                      }
                       onPriceChange={(value) =>
                         updateSelection(selection.productKey, {
                           monthlyPriceDollars: value,
@@ -116,6 +130,8 @@ export function InviteClientSelectedAddOnsSummary({
                     key={row.id}
                     name={row.name || "Custom service"}
                     price={row.monthlyPriceDollars}
+                    mode={row.pricingMode}
+                    onModeChange={(pricingMode) => updateCustom(row.id, { pricingMode })}
                     onPriceChange={(value) =>
                       updateCustom(row.id, { monthlyPriceDollars: value })
                     }
@@ -132,19 +148,49 @@ export function InviteClientSelectedAddOnsSummary({
             </p>
           </SummaryGroup>
 
-          <SummaryGroup title="One-time services">
-            {oneTime.length === 0 &&
-            !customRows.some((r) => r.billingType === "one_time" && r.name.trim()) ? (
+          <SummaryGroup title="Annual add-ons">
+            {annual.length === 0 && annualCustom.length === 0 ? (
               <p className="text-muted">None</p>
             ) : (
               <ul className="space-y-2">
-                {selections
-                  .filter(
-                    (s) =>
-                      (s.billingType ?? addOnDefaultBillingType(s.productKey)) ===
-                      "one_time",
-                  )
-                  .map((selection) => {
+                {annual.map((selection) => {
+                  const product = catalog.find((p) => p.product_key === selection.productKey);
+                  return (
+                    <SummaryRow
+                      key={selection.productKey}
+                      name={product?.name ?? selection.productKey}
+                      price={selection.monthlyPriceDollars}
+                      mode="annual"
+                      onModeChange={(pricingMode) => updateSelection(selection.productKey, { pricingMode })}
+                      onPriceChange={(value) => updateSelection(selection.productKey, { monthlyPriceDollars: value })}
+                      onRemove={() => onRemoveCatalog(selection.productKey)}
+                    />
+                  );
+                })}
+                {annualCustom.map((row) => (
+                  <SummaryRow
+                    key={row.id}
+                    name={row.name}
+                    price={row.monthlyPriceDollars}
+                    mode="annual"
+                    onModeChange={(pricingMode) => updateCustom(row.id, { pricingMode })}
+                    onPriceChange={(value) => updateCustom(row.id, { monthlyPriceDollars: value })}
+                    onRemove={() => onRemoveCustom(row.id)}
+                  />
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-muted">
+              Annual add-ons total: <span className="font-medium text-foreground">{formatMoney(annualTotal)}/year</span>
+            </p>
+          </SummaryGroup>
+
+          <SummaryGroup title="One-time services">
+            {oneTime.length === 0 && oneTimeCustom.length === 0 ? (
+              <p className="text-muted">None</p>
+            ) : (
+              <ul className="space-y-2">
+                {oneTime.map((selection) => {
                     const product = catalog.find(
                       (p) => p.product_key === selection.productKey,
                     );
@@ -153,6 +199,8 @@ export function InviteClientSelectedAddOnsSummary({
                         key={selection.productKey}
                         name={product?.name ?? selection.productKey}
                         price={selection.monthlyPriceDollars}
+                        mode="one_time"
+                        onModeChange={(pricingMode) => updateSelection(selection.productKey, { pricingMode })}
                         onPriceChange={(value) =>
                           updateSelection(selection.productKey, {
                             monthlyPriceDollars: value,
@@ -162,13 +210,13 @@ export function InviteClientSelectedAddOnsSummary({
                       />
                     );
                   })}
-                {customRows
-                  .filter((row) => row.billingType === "one_time" && row.name.trim())
-                  .map((row) => (
+                {oneTimeCustom.map((row) => (
                     <SummaryRow
                       key={row.id}
                       name={row.name}
                       price={row.monthlyPriceDollars}
+                      mode="one_time"
+                      onModeChange={(pricingMode) => updateCustom(row.id, { pricingMode })}
                       onPriceChange={(value) =>
                         updateCustom(row.id, { monthlyPriceDollars: value })
                       }
@@ -184,6 +232,18 @@ export function InviteClientSelectedAddOnsSummary({
               </span>
             </p>
           </SummaryGroup>
+
+          {(included.length > 0 || includedCustom.length > 0) ? (
+            <SummaryGroup title="Included services">
+              <ul className="space-y-2">
+                {included.map((selection) => {
+                  const product = catalog.find((p) => p.product_key === selection.productKey);
+                  return <SummaryRow key={selection.productKey} name={product?.name ?? selection.productKey} price="0" mode="included" onModeChange={(pricingMode) => updateSelection(selection.productKey, { pricingMode })} onPriceChange={() => {}} onRemove={() => onRemoveCatalog(selection.productKey)} />;
+                })}
+                {includedCustom.map((row) => <SummaryRow key={row.id} name={row.name} price="0" mode="included" onModeChange={(pricingMode) => updateCustom(row.id, { pricingMode })} onPriceChange={() => {}} onRemove={() => onRemoveCustom(row.id)} />)}
+              </ul>
+            </SummaryGroup>
+          ) : null}
         </div>
       )}
     </div>
@@ -210,22 +270,38 @@ function SummaryGroup({
 function SummaryRow({
   name,
   price,
+  mode,
+  onModeChange,
   onPriceChange,
   onRemove,
 }: {
   name: string;
   price: string;
+  mode: ServicePricingMode;
+  onModeChange: (mode: ServicePricingMode) => void;
   onPriceChange: (value: string) => void;
   onRemove: () => void;
 }) {
   return (
     <li className="flex items-center gap-2">
       <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+      <select
+        aria-label={`Billing cadence for ${name}`}
+        value={mode}
+        onChange={(event) => onModeChange(event.target.value as ServicePricingMode)}
+        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+      >
+        <option value="included">Included</option>
+        <option value="one_time">One-time</option>
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annually</option>
+      </select>
       <input
         type="number"
         min="0"
         step="0.01"
-        value={price}
+        value={mode === "included" ? "0" : price}
+        disabled={mode === "included"}
         onChange={(e) => onPriceChange(e.target.value)}
         className="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-xs"
         aria-label={`Price for ${name}`}

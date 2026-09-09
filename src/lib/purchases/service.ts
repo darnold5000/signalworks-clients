@@ -105,6 +105,7 @@ export async function createPurchaseFromOffer(args: {
       discount_total_cents: totals.discount_total_cents,
       amount_due_today_cents: calculateAmountDueFirstCycle(totals),
       recurring_total_cents: totals.recurring_total_cents,
+      annual_recurring_total_cents: totals.annual_recurring_total_cents,
       purchased_by: args.purchasedBy,
       purchase_snapshot: snapshot,
     })

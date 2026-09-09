@@ -13,13 +13,13 @@ const baseActivity = (action: string, created_at: string): TenantActivityLogEntr
     subject_type: null,
     subject_id: null,
     summary: null,
-  }) as TenantActivityLogEntry;
+  }) as unknown as TenantActivityLogEntry;
 
 describe("getPortalInviteDisplay", () => {
   it("shows portal active when owner signed in", () => {
     const result = getPortalInviteDisplay({
       profile: null,
-      owner: { email: "a@b.com", hasSignedIn: true },
+      owner: { email: "a@b.com", hasSignedIn: true } as never,
       activity: [],
     });
     expect(result?.label).toBe("Portal active");
@@ -29,7 +29,7 @@ describe("getPortalInviteDisplay", () => {
   it("shows invite sent from invite.email_sent activity", () => {
     const result = getPortalInviteDisplay({
       profile: { internal_status: "invited" } as never,
-      owner: { email: "a@b.com", hasSignedIn: false },
+      owner: { email: "a@b.com", hasSignedIn: false } as never,
       activity: [
         baseActivity("invite.email_sent", "2026-01-15T12:00:00.000Z"),
       ],

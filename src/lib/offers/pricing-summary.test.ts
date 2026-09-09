@@ -80,4 +80,22 @@ describe("buildOfferPricingSummary", () => {
     expect(summary.standardMonthlyAmountAfterDiscountCents).toBe(18800);
     expect(summary.recurringAddOnAmountCents).toBe(2900);
   });
+
+  it("reports annual recurring separately and calculates ARR", () => {
+    const summary = buildOfferPricingSummary([
+      line({ item_type: "base_plan", unit_amount_cents: 6500, billing_type: "recurring" }),
+      line({
+        item_type: "add_on",
+        unit_amount_cents: 2500,
+        billing_type: "recurring",
+        billing_interval: "year",
+        metadata: paidAddOnMetadata("domain"),
+      }),
+    ]);
+
+    expect(summary.discountedMonthlyAmountCents).toBe(6500);
+    expect(summary.annualRecurringAmountCents).toBe(2500);
+    expect(summary.arrCents).toBe(80500);
+    expect(summary.dueAtCheckoutCents).toBe(9000);
+  });
 });

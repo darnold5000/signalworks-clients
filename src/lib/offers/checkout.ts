@@ -1,6 +1,9 @@
 import type Stripe from "stripe";
 import type { ClientOfferItem } from "@/lib/database/phase1-types";
-import { selectRecurringCheckoutCouponId } from "@/lib/offers/checkout-discount";
+import {
+  selectFirstCycleCheckoutCouponId,
+  selectRecurringCheckoutCouponId,
+} from "@/lib/offers/checkout-discount";
 import { isEntitlementOfferItem } from "@/lib/offers/offer-item-metadata";
 import {
   createPurchaseFromOffer,
@@ -12,7 +15,14 @@ import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { resolveOfferBillingMethod } from "@/lib/offers/billing-method";
-import { cadenceKey } from "@/lib/offers/billing-cadence";
+import { recurringCadence, type BillingInterval } from "@/lib/offers/billing-cadence";
+import { DISCOUNT_SCOPE, discountScopeFromMetadata } from "@/lib/offers/discount-scope";
+import {
+  checkoutSessionColumn,
+  checkoutSessionCompleted,
+  checkoutSessionIdForStage,
+  checkoutStateBeforeStage,
+} from "@/lib/offers/checkout-state";
 
 function selectedBillableItems(items: ClientOfferItem[]) {
   return items.filter(
@@ -25,15 +35,56 @@ function selectedBillableItems(items: ClientOfferItem[]) {
   );
 }
 
-export function assertCheckoutCompatibleCadences(items: ClientOfferItem[]) {
-  const recurringCadences = new Set(
-    items
-      .filter((item) => item.billing_type === "recurring")
-      .map(cadenceKey),
+export type OfferCheckoutStage = {
+  cadence: BillingInterval | null;
+  items: ClientOfferItem[];
+};
+
+/**
+ * Stripe Checkout cannot create a mixed-interval subscription. Preserve the
+ * hosted flow by creating one immediate Checkout stage per recurring cadence.
+ * One-time prices belong to the first stage only, so they are never charged twice.
+ */
+export function buildOfferCheckoutStages(items: ClientOfferItem[]): OfferCheckoutStage[] {
+  const billable = selectedBillableItems(items);
+  const oneTime = billable.filter((item) => item.billing_type === "one_time");
+  const monthly = billable.filter(
+    (item) =>
+      item.billing_type === "recurring" &&
+      recurringCadence(item).interval === "month",
   );
-  if (recurringCadences.size > 1) {
+  const annual = billable.filter(
+    (item) =>
+      item.billing_type === "recurring" &&
+      recurringCadence(item).interval === "year",
+  );
+  const recurringStages = [
+    ...(monthly.length ? [{ cadence: "month" as const, items: monthly }] : []),
+    ...(annual.length ? [{ cadence: "year" as const, items: annual }] : []),
+  ];
+
+  if (recurringStages.length === 0) {
+    return oneTime.length ? [{ cadence: null, items: oneTime }] : [];
+  }
+  recurringStages[0]!.items = [...recurringStages[0]!.items, ...oneTime];
+  return recurringStages;
+}
+
+export function assertCheckoutDiscountCompatibility(items: ClientOfferItem[]) {
+  const selectedDiscounts = items.filter(
+    (item) =>
+      item.is_selected &&
+      (item.item_type === "discount" || item.item_type === "credit"),
+  );
+  const monthly = selectedDiscounts.filter(
+    (item) => discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING,
+  );
+  const firstCycle = selectedDiscounts.filter(
+    (item) => discountScopeFromMetadata(item) === DISCOUNT_SCOPE.FIRST_CYCLE,
+  );
+  if (monthly.length > 1 || firstCycle.length > 1 || (monthly.length && firstCycle.length)) {
     throw new Error(
-      "Stripe Checkout cannot create one subscription with mixed billing frequencies. Use Proposal Only or make all recurring items share one frequency.",
+      "Stripe Checkout supports one coupon per billing stage. Use one monthly discount or one first-cycle discount, or choose Proposal Only.",
     );
   }
 }
@@ -53,16 +104,11 @@ export async function createOfferCheckoutSession(args: {
     throw new Error("Stripe is not configured");
   }
 
-  const billable = selectedBillableItems(args.offer.items);
-  if (billable.length === 0) {
+  const stages = buildOfferCheckoutStages(args.offer.items);
+  if (stages.length === 0) {
     throw new Error("Offer has no billable Stripe prices. Publish the offer first.");
   }
-  assertCheckoutCompatibleCadences(billable);
-
-  const hasRecurring = billable.some((item) => item.billing_type === "recurring");
-  const mode: Stripe.Checkout.SessionCreateParams.Mode = hasRecurring
-    ? "subscription"
-    : "payment";
+  assertCheckoutDiscountCompatibility(args.offer.items);
 
   let purchase =
     (await findReusableOfferPurchase({
@@ -79,39 +125,118 @@ export async function createOfferCheckoutSession(args: {
     purchase = created.purchase;
   }
 
-  const appUrl = resolveAppUrl(args.request);
-  const lineItems = billable.map((item) => ({
-    price: item.stripe_price_id!,
-    quantity: item.quantity,
-  }));
+  let customerId = args.existingCustomerId || undefined;
+  const sessionsByStage = new Map<number, Stripe.Checkout.Session>();
 
-  const couponId = selectRecurringCheckoutCouponId(args.offer.items);
-  const discounts = couponId ? [{ coupon: couponId }] : undefined;
-
+  // Backward compatibility for a session created before cadence-specific
+  // references were deployed. Its metadata identifies the owning stage.
   if (purchase.stripe_checkout_session_id) {
     try {
       const existing = await stripe.checkout.sessions.retrieve(
         purchase.stripe_checkout_session_id,
       );
-      if (existing.status === "open" && existing.url) {
-        return { session: existing, purchaseId: purchase.id };
-      }
+      const existingIndex = Number(
+        existing.metadata?.checkout_stage_index ?? 0,
+      );
+      sessionsByStage.set(existingIndex, existing);
+      const existingCustomer =
+        typeof existing.customer === "string"
+          ? existing.customer
+          : existing.customer?.id;
+      customerId = existingCustomer ?? customerId;
     } catch {
-      // Session expired or missing — create a new one below.
+      // A missing legacy/current reference does not erase cadence-specific refs.
     }
   }
+
+  let stageIndex = 0;
+  let sessionToReplace: Stripe.Checkout.Session | null = null;
+  let lastCompletedSession: Stripe.Checkout.Session | null = null;
+  for (; stageIndex < stages.length; stageIndex += 1) {
+    const stage = stages[stageIndex]!;
+    let existing = sessionsByStage.get(stageIndex) ?? null;
+    const stageSessionId = checkoutSessionIdForStage(purchase, stage);
+    if (!existing && stageSessionId) {
+      try {
+        existing = await stripe.checkout.sessions.retrieve(stageSessionId);
+      } catch {
+        existing = null;
+      }
+    }
+
+    if (!existing) break;
+
+    const existingCustomer =
+      typeof existing.customer === "string"
+        ? existing.customer
+        : existing.customer?.id;
+    customerId = existingCustomer ?? customerId;
+
+    if (checkoutSessionCompleted(existing)) {
+      lastCompletedSession = existing;
+      continue;
+    }
+    if (existing.status === "complete" && purchase.checkout_state !== "failed") {
+      throw new Error(
+        "Stripe is still confirming this checkout step. Wait a moment, then try again.",
+      );
+    }
+    if (existing.status === "open" && existing.url) {
+      return { session: existing, purchaseId: purchase.id };
+    }
+
+    sessionToReplace = existing;
+    break;
+  }
+
+  if (stageIndex >= stages.length && lastCompletedSession) {
+    return { session: lastCompletedSession, purchaseId: purchase.id };
+  }
+
+  const stage = stages[stageIndex]!;
+  const hasRecurring = stage.cadence !== null;
+  const mode: Stripe.Checkout.SessionCreateParams.Mode = hasRecurring
+    ? "subscription"
+    : "payment";
+  const appUrl = resolveAppUrl(args.request);
+  const lineItems = stage.items.map((item) => ({
+    price: item.stripe_price_id!,
+    quantity: item.quantity,
+  }));
+  const couponId =
+    stage.cadence === "month"
+      ? selectRecurringCheckoutCouponId(args.offer.items)
+      : null;
+  const firstCycleCouponId =
+    stageIndex === 0
+      ? selectFirstCycleCheckoutCouponId(args.offer.items)
+      : null;
+  if (couponId && firstCycleCouponId) {
+    throw new Error(
+      "Stripe Checkout supports one coupon per billing stage. This proposal combines a monthly discount with a first-cycle discount; remove one or use Proposal Only.",
+    );
+  }
+  const checkoutCouponId = couponId ?? firstCycleCouponId;
+  const discounts = checkoutCouponId
+    ? [{ coupon: checkoutCouponId }]
+    : undefined;
+  const finalStage = stageIndex === stages.length - 1;
 
   const session = await stripe.checkout.sessions.create({
     mode,
     line_items: lineItems,
     ...(discounts ? { discounts } : {}),
-    customer: args.existingCustomerId || undefined,
-    customer_email: args.existingCustomerId ? undefined : args.purchaserEmail,
+    customer: customerId,
+    customer_email: customerId ? undefined : args.purchaserEmail,
     client_reference_id: args.offer.tenant_id,
     metadata: {
       tenant_id: args.offer.tenant_id,
       offer_id: args.offer.id,
       purchase_id: purchase.id,
+      checkout_stage_index: String(stageIndex),
+      checkout_stage_count: String(stages.length),
+      checkout_stage_cadence: stage.cadence ?? "one_time",
+      checkout_stage_final: String(finalStage),
     },
     subscription_data: hasRecurring
       ? {
@@ -119,21 +244,51 @@ export async function createOfferCheckoutSession(args: {
             tenant_id: args.offer.tenant_id,
             offer_id: args.offer.id,
             purchase_id: purchase.id,
+            checkout_stage_index: String(stageIndex),
+            checkout_stage_count: String(stages.length),
+            checkout_stage_cadence: stage.cadence ?? "one_time",
+            checkout_stage_final: String(finalStage),
           },
         }
       : undefined,
-    success_url: `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: finalStage
+      ? `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`
+      : `${appUrl}/billing/continue?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/offer`,
+  }, {
+    // The same purchase/stage/attempt always resolves to the same Checkout
+    // Session, including concurrent browser tabs. A retry after expiration uses
+    // the expired Session id as a new, deterministic attempt key.
+    idempotencyKey: [
+      "offer",
+      args.offer.id,
+      "checkout-stage",
+      String(stageIndex),
+      sessionToReplace?.id ?? "initial",
+    ].join(":"),
   });
 
   const supabase = createServiceClient();
+  const cadenceSessionColumn = checkoutSessionColumn(stage);
   await supabase
     .from(TABLES.purchases)
     .update({
       status: "checkout_created",
+      checkout_state: checkoutStateBeforeStage(stages, stageIndex),
       stripe_checkout_session_id: session.id,
+      ...(cadenceSessionColumn ? { [cadenceSessionColumn]: session.id } : {}),
     })
     .eq("id", purchase.id);
+
+  if (stage.cadence) {
+    await supabase
+      .from(TABLES.purchaseItems)
+      .update({ service_status: "pending" })
+      .eq("purchase_id", purchase.id)
+      .eq("billing_type", "recurring")
+      .eq("billing_interval", stage.cadence)
+      .eq("service_status", "failed");
+  }
 
   await supabase
     .from(TABLES.clientOffers)

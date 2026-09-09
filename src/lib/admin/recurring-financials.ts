@@ -10,6 +10,8 @@ export type ScheduledRecurringFinancials = {
   activeRecurringDiscountMrrCents: number;
   effectiveMrrCents: number;
   activeDiscountCount: number;
+  annualRecurringCents: number;
+  arrCents: number;
 };
 
 export type RecurringFinancials = {
@@ -22,6 +24,8 @@ export type RecurringFinancials = {
   discountPeriodsRemaining: number | null;
   discountEndsAt: string | null;
   activeDiscountCount: number;
+  annualRecurringCents: number;
+  arrCents: number;
   source: "stripe" | "purchase_snapshot_fallback";
   scheduled: ScheduledRecurringFinancials | null;
 };
@@ -55,8 +59,8 @@ export function recurringSourcesFromPurchases(records: PurchaseFinancialRecord[]
 
 function normalizeToMrr(cents: number, item: ClientOfferItem): number {
   const { interval, intervalCount } = recurringCadence(item);
-  const months = interval === "year" ? intervalCount * 12 : intervalCount;
-  return Math.round(cents / months);
+  if (interval === "year") return 0;
+  return Math.round(cents / intervalCount);
 }
 
 function discountState(item: ClientOfferItem, source: RecurringFinancialSource) {
@@ -87,19 +91,21 @@ export function calculateRecurringFinancials(
   let sawTemporary = false;
   let sawUnknownTemporary = false;
   let activeDiscountCount = 0;
+  let annualRecurringCents = 0;
   const remainingPeriods: number[] = [];
   const discountEndDates: string[] = [];
 
   for (const source of sources) {
     const selected = source.items.filter((item) => item.is_selected).sort((a, b) => a.sort_order - b.sort_order);
-    let precedingRecurring: ClientOfferItem | null = null;
     for (const item of selected) {
       if (item.item_type === "discount" || item.item_type === "credit") {
-        if (discountScopeFromMetadata(item) !== DISCOUNT_SCOPE.RECURRING || !precedingRecurring) continue;
+        if (discountScopeFromMetadata(item) !== DISCOUNT_SCOPE.RECURRING) continue;
         const state = discountState(item, source);
         sawUnknownTemporary ||= state.known === false;
         if (!state.active) continue;
-        discount += normalizeToMrr(item.unit_amount_cents * item.quantity, precedingRecurring);
+        // Recurring discount lines created by the offer builder are explicitly
+        // monthly. Legacy lines default to monthly for compatibility.
+        discount += item.unit_amount_cents * item.quantity;
         activeDiscountCount += 1;
         sawOngoing ||= state.ongoing;
         sawTemporary ||= !state.ongoing;
@@ -108,7 +114,10 @@ export function calculateRecurringFinancials(
         continue;
       }
       if (item.billing_type !== "recurring" || isEntitlementOfferItem(item)) continue;
-      precedingRecurring = item;
+      if (recurringCadence(item).interval === "year") {
+        annualRecurringCents += item.unit_amount_cents * item.quantity;
+        continue;
+      }
       base += normalizeToMrr(item.unit_amount_cents * item.quantity, item);
       const inline = inlineDiscountCents(item);
       if (inline > 0) {
@@ -139,6 +148,8 @@ export function calculateRecurringFinancials(
     discountPeriodsRemaining: remainingPeriods.length ? Math.min(...remainingPeriods) : null,
     discountEndsAt: discountEndDates.sort()[0] ?? null,
     activeDiscountCount,
+    annualRecurringCents,
+    arrCents: effective * 12 + annualRecurringCents,
     source: "purchase_snapshot_fallback",
     scheduled: null,
   };
@@ -168,6 +179,8 @@ export function recurringFinancialsFromStripeSnapshot(
     discountPeriodsRemaining: null,
     discountEndsAt: ends[0] ?? null,
     activeDiscountCount: snapshot.current.discounts.length,
+    annualRecurringCents: snapshot.current.annualRecurringCents,
+    arrCents: snapshot.current.arrCents,
     source: "stripe",
     scheduled: snapshot.scheduled
       ? {
@@ -176,6 +189,8 @@ export function recurringFinancialsFromStripeSnapshot(
           activeRecurringDiscountMrrCents: snapshot.scheduled.discountMrrCents,
           effectiveMrrCents: snapshot.scheduled.effectiveMrrCents,
           activeDiscountCount: snapshot.scheduled.discounts.length,
+          annualRecurringCents: snapshot.scheduled.annualRecurringCents,
+          arrCents: snapshot.scheduled.arrCents,
         }
       : null,
   };
@@ -192,6 +207,8 @@ export function legacyRecurringFinancials(monthlyPriceCents: number, recurringCo
     discountPeriodsRemaining: null,
     discountEndsAt: null,
     activeDiscountCount: 0,
+    annualRecurringCents: 0,
+    arrCents: monthlyPriceCents * 12,
     source: "purchase_snapshot_fallback",
     scheduled: null,
   };

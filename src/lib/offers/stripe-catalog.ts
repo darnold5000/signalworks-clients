@@ -58,6 +58,7 @@ async function createCouponForDiscountLine(
   stripe: Stripe,
   item: ClientOfferItem,
   currency: string,
+  appliesToProductIds?: string[],
 ): Promise<string | null> {
   const amountCents = item.discount_amount_cents ?? item.unit_amount_cents;
   if (amountCents <= 0) return null;
@@ -76,6 +77,9 @@ async function createCouponForDiscountLine(
     metadata: {
       offer_item_id: item.id,
     },
+    ...(appliesToProductIds?.length
+      ? { applies_to: { products: appliesToProductIds } }
+      : {}),
   };
 
   if (params.duration === "repeating") {
@@ -162,6 +166,7 @@ export async function syncOfferItemToStripe(
 export async function syncDiscountOfferItemToStripe(
   offer: ClientOffer,
   item: ClientOfferItem,
+  appliesToProductIds?: string[],
 ): Promise<string | null> {
   const stripe = getStripe();
   if (!stripe) {
@@ -170,7 +175,12 @@ export async function syncDiscountOfferItemToStripe(
     );
   }
 
-  const couponId = await createCouponForDiscountLine(stripe, item, offer.currency);
+  const couponId = await createCouponForDiscountLine(
+    stripe,
+    item,
+    offer.currency,
+    appliesToProductIds,
+  );
   if (!couponId) return null;
 
   const supabase = createServiceClient();
@@ -200,18 +210,38 @@ export async function syncAllOfferItemsToStripe(offer: ClientOffer, items: Clien
 
   for (const item of billable) {
     if (!item.stripe_price_id && item.unit_amount_cents > 0) {
-      await syncOfferItemToStripe(offer, item);
+      const synced = await syncOfferItemToStripe(offer, item);
+      // Keep this publication pass internally consistent without re-querying.
+      item.stripe_product_id = synced.stripe_product_id;
+      item.stripe_price_id = synced.stripe_price_id;
+      item.stripe_coupon_id = synced.stripe_coupon_id;
     }
   }
+
+  const monthlyProductIds = billable
+    .filter(
+      (item) =>
+        item.billing_type === "recurring" &&
+        recurringCadence(item).interval === "month" &&
+        item.stripe_product_id,
+    )
+    .map((item) => item.stripe_product_id!);
 
   for (const item of items) {
     if (
       item.is_selected &&
-      item.item_type === "discount" &&
+      (item.item_type === "discount" || item.item_type === "credit") &&
       !item.stripe_coupon_id &&
-      discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING
+      (discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING ||
+        discountScopeFromMetadata(item) === DISCOUNT_SCOPE.FIRST_CYCLE)
     ) {
-      await syncDiscountOfferItemToStripe(offer, item);
+      const isMonthlyDiscount =
+        discountScopeFromMetadata(item) === DISCOUNT_SCOPE.RECURRING;
+      await syncDiscountOfferItemToStripe(
+        offer,
+        item,
+        isMonthlyDiscount ? monthlyProductIds : undefined,
+      );
     }
   }
   } catch (error) {

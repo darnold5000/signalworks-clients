@@ -26,6 +26,8 @@ export type CommercialAccountSummary = {
   baseRecurringCents: number | null;
   currentRecurringCents: number | null;
   marginCents: number | null;
+  annualRecurringCents: number | null;
+  arrCents: number | null;
   source: "stripe" | "purchase" | "accepted_agreement" | "none";
 };
 
@@ -49,8 +51,24 @@ export type CommercialPurchase = Omit<PurchaseFinancialRecord, "purchase_snapsho
 
 function normalizeToMonthly(cents: number, item: ClientOfferItem): number {
   const cadence = recurringCadence(item);
-  const months = cadence.interval === "year" ? cadence.intervalCount * 12 : cadence.intervalCount;
-  return Math.round(cents / months);
+  if (cadence.interval === "year") return 0;
+  return Math.round(cents / cadence.intervalCount);
+}
+
+function contractualAnnualRecurring(items: ClientOfferItem[]): number {
+  return items
+    .filter(
+      (item) =>
+        item.is_selected &&
+        item.billing_type === "recurring" &&
+        recurringCadence(item).interval === "year" &&
+        !isEntitlementOfferItem(item),
+    )
+    .reduce(
+      (sum, item) =>
+        sum + Math.round((item.unit_amount_cents * item.quantity) / recurringCadence(item).intervalCount),
+      0,
+    );
 }
 
 function contractualBaseRecurring(items: ClientOfferItem[]): number | null {
@@ -136,13 +154,19 @@ export function resolveCommercialAccountSummary(args: {
     const acceptedParts = accepted ? acceptedOfferParts(accepted) : { items: [], title: null };
     const planItems = purchaseSnapshot.items.length ? purchaseSnapshot.items : acceptedParts.items;
     const current = args.stripeSnapshot.current.effectiveMrrCents;
+    const mixedCheckoutPending =
+      accepted?.status === "checkout_started" && !latestPurchase;
     return {
-      commercialState: "active",
-      websiteManagementStatus: "Active",
+      commercialState: mixedCheckoutPending ? "billing_setup_pending" : "active",
+      websiteManagementStatus: mixedCheckoutPending
+        ? "Billing Setup Pending"
+        : "Active",
       planName: planNameFromItems(planItems, purchaseSnapshot.title ?? acceptedParts.title),
       baseRecurringCents: args.stripeSnapshot.current.baseMrrCents,
       currentRecurringCents: current,
       marginCents: args.recurringCostsCents == null ? null : current - args.recurringCostsCents,
+      annualRecurringCents: args.stripeSnapshot.current.annualRecurringCents,
+      arrCents: args.stripeSnapshot.current.arrCents,
       source: "stripe",
     };
   }
@@ -163,6 +187,8 @@ export function resolveCommercialAccountSummary(args: {
         currentRecurringCents == null || args.recurringCostsCents == null
           ? null
           : currentRecurringCents - args.recurringCostsCents,
+      annualRecurringCents: financials.annualRecurringCents,
+      arrCents: financials.arrCents,
       source: "purchase",
     };
   }
@@ -183,6 +209,10 @@ export function resolveCommercialAccountSummary(args: {
       baseRecurringCents: contractualBaseRecurring(parts.items),
       currentRecurringCents: null,
       marginCents: null,
+      annualRecurringCents: contractualAnnualRecurring(parts.items),
+      arrCents:
+        (contractualBaseRecurring(parts.items) ?? 0) * 12 +
+        contractualAnnualRecurring(parts.items),
       source: "accepted_agreement",
     };
   }
@@ -196,6 +226,8 @@ export function resolveCommercialAccountSummary(args: {
     baseRecurringCents: null,
     currentRecurringCents: null,
     marginCents: null,
+    annualRecurringCents: null,
+    arrCents: null,
     source: "none",
   };
 }

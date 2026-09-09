@@ -109,14 +109,13 @@ describe("formatClientDiscountAmountLabel", () => {
     ).toBe("-$50.00/month");
   });
 
-  it("uses the annual cadence of the discounted item", () => {
+  it("does not apply a monthly discount to an annual item cadence", () => {
     expect(
       formatClientDiscountAmountLabel(
         discountLine({ unit_amount_cents: 2000 }),
         "usd",
-        lineItem({ billing_interval: "year", billing_interval_count: 1 }),
       ),
-    ).toBe("-$20.00/year");
+    ).toBe("-$20.00/month");
   });
 
   it("shows first-cycle discounts as one-time negative amounts", () => {

@@ -37,6 +37,8 @@ export type StripeBillingState = {
   discountMrrCents: number;
   effectiveMrrCents: number;
   discounts: StripeBillingDiscount[];
+  annualRecurringCents: number;
+  arrCents: number;
 };
 
 export type StripeScheduledBillingState = StripeBillingState & {
@@ -85,6 +87,7 @@ export function normalizeStripeAmountToMrr(
 }
 
 function itemBaseMrr(item: StripeBillingItem): number {
+  if (item.interval === "year") return 0;
   return normalizeStripeAmountToMrr(
     item.unitAmountCents * item.quantity,
     item.interval,
@@ -220,6 +223,13 @@ export function calculateStripeBillingState(args: {
     0,
   );
   const effectiveMrrCents = remaining.reduce((sum, amount) => sum + amount, 0);
+  const annualRecurringCents = args.items
+    .filter((item) => item.interval === "year")
+    .reduce(
+      (sum, item) =>
+        sum + Math.round((item.unitAmountCents * item.quantity) / item.intervalCount),
+      0,
+    );
 
   return {
     items: args.items,
@@ -227,6 +237,8 @@ export function calculateStripeBillingState(args: {
     discountMrrCents: baseMrrCents - effectiveMrrCents,
     effectiveMrrCents,
     discounts: appliedDiscounts.filter((discount) => discount.appliedMrrCents > 0),
+    annualRecurringCents,
+    arrCents: effectiveMrrCents * 12 + annualRecurringCents,
   };
 }
 
@@ -561,6 +573,11 @@ function combineStates(states: StripeBillingState[]): StripeBillingState {
     discountMrrCents: states.reduce((sum, state) => sum + state.discountMrrCents, 0),
     effectiveMrrCents: states.reduce((sum, state) => sum + state.effectiveMrrCents, 0),
     discounts: states.flatMap((state) => state.discounts),
+    annualRecurringCents: states.reduce(
+      (sum, state) => sum + state.annualRecurringCents,
+      0,
+    ),
+    arrCents: states.reduce((sum, state) => sum + state.arrCents, 0),
   };
 }
 
@@ -591,7 +608,8 @@ export function combineSubscriptionBillingStates(
       scheduledCombined &&
       (scheduledCombined.baseMrrCents !== current.baseMrrCents ||
         scheduledCombined.discountMrrCents !== current.discountMrrCents ||
-        scheduledCombined.effectiveMrrCents !== current.effectiveMrrCents)
+        scheduledCombined.effectiveMrrCents !== current.effectiveMrrCents ||
+        scheduledCombined.annualRecurringCents !== current.annualRecurringCents)
         ? { ...scheduledCombined, effectiveAt: nextEffectiveAt! }
         : null,
   };

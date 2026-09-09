@@ -60,9 +60,13 @@ describe("Stripe recurring billing calculation", () => {
       .toBe(15999);
   });
 
-  it("normalizes annual items to monthly MRR", () => {
-    expect(calculateStripeBillingState({ items: [item({ id: "annual", amount: 12000, interval: "year" })] }).baseMrrCents)
-      .toBe(1000);
+  it("excludes annual items from MRR and includes them in ARR", () => {
+    const state = calculateStripeBillingState({
+      items: [item({ id: "annual", amount: 12000, interval: "year" })],
+    });
+    expect(state.baseMrrCents).toBe(0);
+    expect(state.annualRecurringCents).toBe(12000);
+    expect(state.arrCents).toBe(12000);
   });
 
   it.each([

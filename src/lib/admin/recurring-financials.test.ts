@@ -8,7 +8,7 @@ function recurring(name: string, cents: number, interval: "month" | "year" = "mo
 }
 
 function discount(cents: number, duration: "forever" | "repeating" = "forever", months: number | null = null): ClientOfferItem {
-  return { id: `discount-${cents}`, name: "Discount", item_type: "discount", billing_type: "one_time", billing_interval: null, billing_interval_count: 1, unit_amount_cents: cents, quantity: 1, is_selected: true, sort_order: 1, discount_duration_type: duration, discount_duration_months: months, metadata: recurringMonthlyDiscountMetadata() } as ClientOfferItem;
+  return { id: `discount-${cents}`, name: "Discount", item_type: "discount", billing_type: "one_time", billing_interval: null, billing_interval_count: 1, unit_amount_cents: cents, quantity: 1, is_selected: true, sort_order: 1, discount_duration_type: duration, discount_duration_months: months, metadata: recurringMonthlyDiscountMetadata() } as unknown as ClientOfferItem;
 }
 
 describe("recurring financial reporting", () => {
@@ -34,9 +34,11 @@ describe("recurring financial reporting", () => {
     expect(result.activeRecurringDiscountMrrCents).toBe(0);
   });
 
-  it("normalizes annual and quarterly revenue and sums multiple services", () => {
+  it("excludes annual charges from MRR and includes them in ARR", () => {
     const result = calculateRecurringFinancials([{ items: [recurring("annual", 12000, "year"), { ...recurring("quarterly", 30000, "month", 3), sort_order: 1 }] }]);
-    expect(result.baseRecurringMrrCents).toBe(11000);
+    expect(result.baseRecurringMrrCents).toBe(10000);
+    expect(result.annualRecurringCents).toBe(12000);
+    expect(result.arrCents).toBe(132000);
   });
 
   it("excludes one-time charges and reduces margin by discounts before costs", () => {

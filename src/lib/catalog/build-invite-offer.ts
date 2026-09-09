@@ -38,6 +38,7 @@ export type InvitePaidAddOnSelection = {
   unit_amount_cents: number;
   quantity?: number;
   billing_type?: "recurring" | "one_time";
+  pricing_mode?: PlatformPricingMode;
 };
 
 export type InviteCustomServiceAddOn = {
@@ -46,6 +47,7 @@ export type InviteCustomServiceAddOn = {
   unit_amount_cents: number;
   quantity?: number;
   billing_type?: "recurring" | "one_time";
+  pricing_mode?: PlatformPricingMode;
 };
 
 export type InviteCustomPlatformComponent = {
@@ -221,7 +223,12 @@ export function buildInviteOfferItemRows(args: {
       quantity: 1,
       unit_amount_cents: included ? 0 : (product.unit_amount_cents ?? 0),
       billing_type: pricingMode === "one_time" ? "one_time" : "recurring",
-      billing_interval: pricingMode === "one_time" ? null : "month",
+      billing_interval:
+        pricingMode === "one_time"
+          ? null
+          : pricingMode === "annual"
+            ? "year"
+            : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -258,7 +265,12 @@ export function buildInviteOfferItemRows(args: {
       quantity: 1,
       unit_amount_cents: included ? 0 : (custom.unit_amount_cents ?? 0),
       billing_type: pricingMode === "one_time" ? "one_time" : "recurring",
-      billing_interval: pricingMode === "one_time" ? null : "month",
+      billing_interval:
+        pricingMode === "one_time"
+          ? null
+          : pricingMode === "annual"
+            ? "year"
+            : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -282,7 +294,10 @@ export function buildInviteOfferItemRows(args: {
 
   for (const addOn of extras.paid_add_ons ?? []) {
     const quantity = Math.max(1, addOn.quantity ?? 1);
-    const billingType = addOn.billing_type ?? "recurring";
+    const pricingMode =
+      addOn.pricing_mode ??
+      (addOn.billing_type === "one_time" ? "one_time" : "monthly");
+    const billingType = pricingMode === "one_time" ? "one_time" : "recurring";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
@@ -290,9 +305,14 @@ export function buildInviteOfferItemRows(args: {
       name: addOn.name,
       description: "Service add-on",
       quantity,
-      unit_amount_cents: addOn.unit_amount_cents,
+      unit_amount_cents: pricingMode === "included" ? 0 : addOn.unit_amount_cents,
       billing_type: billingType,
-      billing_interval: billingType === "recurring" ? "month" : null,
+      billing_interval:
+        billingType === "one_time"
+          ? null
+          : pricingMode === "annual"
+            ? "year"
+            : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -305,7 +325,7 @@ export function buildInviteOfferItemRows(args: {
       is_optional: false,
       is_selected: true,
       sort_order: sortOrder++,
-      metadata: paidAddOnMetadata(addOn.product_key),
+      metadata: paidAddOnMetadata(addOn.product_key, pricingMode),
     });
   }
 
@@ -313,7 +333,10 @@ export function buildInviteOfferItemRows(args: {
     const trimmed = custom.name.trim();
     if (!trimmed) continue;
     const quantity = Math.max(1, custom.quantity ?? 1);
-    const billingType = custom.billing_type ?? "recurring";
+    const pricingMode =
+      custom.pricing_mode ??
+      (custom.billing_type === "one_time" ? "one_time" : "monthly");
+    const billingType = pricingMode === "one_time" ? "one_time" : "recurring";
     rows.push({
       offer_id: args.offerId,
       tenant_id: args.tenantId,
@@ -321,9 +344,14 @@ export function buildInviteOfferItemRows(args: {
       name: trimmed,
       description: custom.description?.trim() || "Custom service add-on",
       quantity,
-      unit_amount_cents: custom.unit_amount_cents,
+      unit_amount_cents: pricingMode === "included" ? 0 : custom.unit_amount_cents,
       billing_type: billingType,
-      billing_interval: billingType === "recurring" ? "month" : null,
+      billing_interval:
+        billingType === "one_time"
+          ? null
+          : pricingMode === "annual"
+            ? "year"
+            : "month",
       billing_interval_count: 1,
       discount_type: null,
       discount_amount_cents: null,
@@ -336,7 +364,7 @@ export function buildInviteOfferItemRows(args: {
       is_optional: false,
       is_selected: true,
       sort_order: sortOrder++,
-      metadata: customPaidAddOnMetadata(trimmed),
+      metadata: customPaidAddOnMetadata(trimmed, pricingMode),
     });
   }
 
