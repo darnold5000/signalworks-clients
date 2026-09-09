@@ -39,9 +39,11 @@ and Stripe Customer:
 1. monthly recurring prices plus one-time prices
 2. annual recurring prices
 
-The first successful stage returns to a short transition screen explaining that
-monthly billing is set up and annual billing remains. Its continuation action
-opens the second hosted Session. A single-cadence offer continues to use one
+The first successful stage returns to `/billing/continue`, which retrieves the
+completed monthly Session from Stripe, reconciles that stage even if the
+webhook has not arrived yet, and redirects into the second hosted Session.
+If automatic advance cannot create or resume annual Checkout, the transition
+screen still offers a manual continuation action. A single-cadence offer continues to use one
 Checkout Session. Webhook metadata prevents the proposal and purchase from
 becoming complete until the final stage succeeds.
 

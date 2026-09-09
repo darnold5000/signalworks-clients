@@ -1,37 +1,62 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import Link from "next/link";
+import { z } from "zod";
 import { OfferCheckoutButton } from "@/components/offer-checkout-button";
 import { PageHeader, Panel } from "@/components/ui";
+import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
-import { checkoutSessionCompleted } from "@/lib/offers/checkout-state";
+import {
+  continueMixedCheckoutFromReturnedSession,
+  requestFromHeaders,
+} from "@/lib/offers/continue-mixed-checkout";
 import { getStripe } from "@/lib/stripe";
-import { syncClientFromCheckoutSession } from "@/lib/stripe-sync";
+
+const continueSearchSchema = z.object({
+  session_id: z.string().trim().min(1).max(256).optional(),
+});
 
 export default async function ContinueMixedCheckoutPage({
   searchParams,
 }: {
   searchParams: Promise<{ session_id?: string }>;
 }) {
-  const { session_id: sessionId } = await searchParams;
+  const parsed = continueSearchSchema.safeParse(await searchParams);
+  const sessionId = parsed.success ? parsed.data.session_id : undefined;
+  const profile = await getCurrentProfile();
   const client = await getPrimaryClient();
   const stripe = getStripe();
   let monthlyComplete = false;
+  let nextPath: string | null = null;
 
-  if (client && stripe && sessionId) {
+  if (client && profile && stripe && sessionId) {
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      monthlyComplete =
-        session.metadata?.tenant_id === client.id &&
-        session.metadata?.checkout_stage_cadence === "month" &&
-        session.metadata?.checkout_stage_final === "false" &&
-        checkoutSessionCompleted(session);
-      if (monthlyComplete) {
-        // This is an idempotent recovery path. Stripe webhooks remain the
-        // authoritative normal path, but a delayed webhook never blocks resume.
-        await syncClientFromCheckoutSession(session);
+      const result = await continueMixedCheckoutFromReturnedSession({
+        session,
+        tenantId: client.id,
+        purchaserUserId: profile.id,
+        purchaserEmail: profile.email,
+        request: requestFromHeaders(await headers()),
+        existingCustomerId:
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id,
+      });
+      if (result.status === "redirect") {
+        nextPath = result.url;
+      } else if (result.status === "complete") {
+        nextPath = `/billing/success?session_id=${encodeURIComponent(result.sessionId)}`;
+      } else {
+        monthlyComplete = result.status === "needs_manual_continue";
       }
     } catch {
       monthlyComplete = false;
     }
+  }
+
+  if (nextPath) {
+    redirect(nextPath);
   }
 
   return (
