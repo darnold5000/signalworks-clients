@@ -39,13 +39,45 @@ and Stripe Customer:
 1. monthly recurring prices plus one-time prices
 2. annual recurring prices
 
-The first successful stage returns to `/billing/continue`, which retrieves the
-completed monthly Session from Stripe, reconciles that stage even if the
-webhook has not arrived yet, and redirects into the second hosted Session.
-If automatic advance cannot create or resume annual Checkout, the transition
-screen still offers a manual continuation action. A single-cadence offer continues to use one
-Checkout Session. Webhook metadata prevents the proposal and purchase from
-becoming complete until the final stage succeeds.
+### Public proposal checkout
+
+Proposal recipients accept and pay without a portal login. Checkout Sessions
+created from `/api/public/proposals/[token]/accept` return to public routes:
+
+- monthly/intermediate stage → `/proposal/{token}/checkout/continue?session_id=...`
+- final stage → `/proposal/{token}/checkout/success?session_id=...`
+- cancel → `/proposal/{token}`
+
+The same recipient token used for proposal delivery secures checkout
+continuation. No separate signed purchase token is required.
+
+Logged-in portal billing continues to use `/billing/continue` and
+`/billing/success`.
+
+After the final stage, the public success page confirms setup and explains that
+Website Management portal access is activated separately through a portal
+invite and Forgot Password flow.
+
+### Recovering a partial public checkout
+
+If monthly billing completed but annual setup did not, send the customer back to
+their original proposal link. The proposal page shows a public resume action, or
+they can open:
+
+`/proposal/{token}/checkout/continue`
+
+That route looks up the stored monthly Session, reconciles it idempotently, and
+creates or resumes the annual Session without recreating monthly billing and
+without requiring Supabase Auth.
+
+For logged-in portal billing, the first successful stage returns to
+`/billing/continue`, which retrieves the completed monthly Session from Stripe,
+reconciles that stage even if the webhook has not arrived yet, and redirects
+into the second hosted Session. If automatic advance cannot create or resume
+annual Checkout, the transition screen still offers a manual continuation
+action. A single-cadence offer continues to use one Checkout Session. Webhook
+metadata prevents the proposal and purchase from becoming complete until the
+final stage succeeds.
 
 ### Durable mixed-checkout state
 

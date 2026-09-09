@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import type { OfferCheckoutReturnContext } from "@/lib/offers/checkout-return-urls";
 import { createOfferCheckoutSession } from "@/lib/offers/checkout";
 import { getOfferWithItemsWithServiceClient } from "@/lib/offers/queries";
 import { checkoutSessionCompleted } from "@/lib/offers/checkout-state";
@@ -79,6 +80,7 @@ export async function continueMixedCheckoutFromReturnedSession(args: {
   purchaserEmail: string;
   request: Request;
   existingCustomerId?: string | null;
+  returnContext?: OfferCheckoutReturnContext;
 }): Promise<MixedCheckoutContinuation> {
   if (args.session.metadata?.tenant_id !== args.tenantId) {
     return { status: "awaiting_confirmation" };
@@ -117,6 +119,7 @@ export async function continueMixedCheckoutFromReturnedSession(args: {
       request: args.request,
       existingCustomerId:
         args.existingCustomerId ?? sessionCustomerId(args.session),
+      returnContext: args.returnContext,
     });
 
     if (session.url && isSafeCheckoutRedirectUrl(session.url)) {

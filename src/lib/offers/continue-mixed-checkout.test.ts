@@ -188,9 +188,13 @@ describe("mixed Checkout browser return", () => {
     const result = await continueMixedCheckoutFromReturnedSession({
       session: monthly,
       tenantId: "tenant-1",
-      purchaserUserId: "user-1",
+      purchaserUserId: null,
       purchaserEmail: "client@example.com",
       request,
+      returnContext: {
+        kind: "public_proposal",
+        token: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+      },
     });
 
     expect(mocks.sync).toHaveBeenCalledWith(monthly);
@@ -203,6 +207,9 @@ describe("mixed Checkout browser return", () => {
         checkout_stage_final: "true",
       },
     });
+    expect(mocks.create.mock.calls[0]?.[0].success_url).toContain(
+      "/proposal/",
+    );
     expect(mocks.sync.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.create.mock.invocationCallOrder[0]!,
     );

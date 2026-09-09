@@ -23,6 +23,10 @@ import {
   checkoutSessionIdForStage,
   checkoutStateBeforeStage,
 } from "@/lib/offers/checkout-state";
+import {
+  buildOfferCheckoutReturnUrls,
+  type OfferCheckoutReturnContext,
+} from "@/lib/offers/checkout-return-urls";
 
 function selectedBillableItems(items: ClientOfferItem[]) {
   return items.filter(
@@ -95,6 +99,7 @@ export async function createOfferCheckoutSession(args: {
   purchaserEmail: string;
   request: Request;
   existingCustomerId?: string | null;
+  returnContext?: OfferCheckoutReturnContext;
 }) {
   if (resolveOfferBillingMethod(args.offer) === "proposal_only") {
     throw new Error("Proposal Only offers cannot create Stripe Checkout sessions.");
@@ -221,6 +226,11 @@ export async function createOfferCheckoutSession(args: {
     ? [{ coupon: checkoutCouponId }]
     : undefined;
   const finalStage = stageIndex === stages.length - 1;
+  const returnUrls = buildOfferCheckoutReturnUrls({
+    appUrl,
+    finalStage,
+    returnContext: args.returnContext,
+  });
 
   const session = await stripe.checkout.sessions.create({
     mode,
@@ -251,10 +261,8 @@ export async function createOfferCheckoutSession(args: {
           },
         }
       : undefined,
-    success_url: finalStage
-      ? `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`
-      : `${appUrl}/billing/continue?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/offer`,
+    success_url: returnUrls.success_url,
+    cancel_url: returnUrls.cancel_url,
   }, {
     // The same purchase/stage/attempt always resolves to the same Checkout
     // Session, including concurrent browser tabs. A retry after expiration uses

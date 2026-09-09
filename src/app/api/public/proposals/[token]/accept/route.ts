@@ -44,7 +44,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (!isStripeConfigured()) return NextResponse.json({ error: "Stripe is not configured. Contact Signal Works to complete billing setup." }, { status: 503 });
   const { data: subscription } = await supabase.from(TABLES.tenantSubscriptions).select("stripe_customer_id").eq("tenant_id", offer.tenant_id).not("stripe_customer_id", "is", null).limit(1).maybeSingle();
   try {
-    const { session } = await createOfferCheckoutSession({ offer, purchaserUserId: null, purchaserEmail: recipient.email, request, existingCustomerId: (subscription?.stripe_customer_id as string | null) ?? null });
+    const { session } = await createOfferCheckoutSession({
+      offer,
+      purchaserUserId: null,
+      purchaserEmail: recipient.email,
+      request,
+      existingCustomerId: (subscription?.stripe_customer_id as string | null) ?? null,
+      returnContext: { kind: "public_proposal", token },
+    });
     return NextResponse.json({ ok: true, accepted: true, billingMethod: "stripe_checkout", checkoutUrl: session.url });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not start checkout." }, { status: 502 });
