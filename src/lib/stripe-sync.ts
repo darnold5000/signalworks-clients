@@ -9,6 +9,7 @@ import {
 import { createServiceClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 import { getStripe } from "@/lib/stripe";
+import { reconcileCheckoutTenant } from "@/lib/stripe/reconcile-checkout-tenant";
 import type { ClientStatus, SubscriptionStatus } from "@/lib/types";
 import {
   checkoutSessionCompleted,
@@ -199,9 +200,44 @@ export async function syncClientFromCheckoutSession(
   if (!isSupabaseConfigured()) return;
 
   const supabase = createServiceClient();
-  const tenantId = resolveTenantId(session);
+  const metadataTenantId = resolveTenantId(session);
   const purchaseId = session.metadata?.purchase_id ?? null;
   const offerId = session.metadata?.offer_id ?? null;
+
+  let purchaseTenantId: string | null | undefined;
+  let offerTenantId: string | null | undefined;
+  if (purchaseId) {
+    const { data: purchase } = await supabase
+      .from(TABLES.purchases)
+      .select("tenant_id")
+      .eq("id", purchaseId)
+      .maybeSingle();
+    purchaseTenantId =
+      typeof purchase?.tenant_id === "string" ? purchase.tenant_id : null;
+  }
+  if (offerId) {
+    const { data: offer } = await supabase
+      .from(TABLES.clientOffers)
+      .select("tenant_id")
+      .eq("id", offerId)
+      .maybeSingle();
+    offerTenantId =
+      typeof offer?.tenant_id === "string" ? offer.tenant_id : null;
+  }
+
+  const tenantId = reconcileCheckoutTenant({
+    metadataTenantId,
+    purchaseTenantId,
+    offerTenantId,
+  });
+  if ((purchaseId || offerId) && !tenantId) {
+    console.error("[stripe-sync] checkout tenant mismatch or missing", {
+      sessionId: session.id,
+      purchaseId,
+      offerId,
+    });
+    return;
+  }
   const customer =
     typeof session.customer === "string"
       ? session.customer

@@ -16,6 +16,24 @@ export function sanitizeFileName(fileName: string): string {
   return cleaned.length > 0 ? cleaned.slice(0, 180) : "file";
 }
 
+export function isAllowedExternalDocumentUrl(fileUrl: string): boolean {
+  try {
+    const parsed = new URL(fileUrl);
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "hiresignalworks.com" ||
+      host === "www.hiresignalworks.com" ||
+      host === "clients.hiresignalworks.com"
+    ) {
+      return true;
+    }
+    return host.endsWith(".supabase.co") || host.endsWith(".supabase.in");
+  } catch {
+    return false;
+  }
+}
+
 export function isStorageBackedDocumentFileUrl(fileUrl: string): boolean {
   return !/^https?:\/\//i.test(fileUrl.trim());
 }

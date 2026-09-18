@@ -17,7 +17,7 @@ const serviceOwnershipSchema = z
   .record(z.string(), z.string())
   .optional()
   .transform((raw) => {
-    if (!raw) return {};
+    if (!raw) return undefined;
     const out: Record<string, string> = {};
     for (const key of SERVICE_OWNERSHIP_KEYS) {
       const v = raw[key];
@@ -40,7 +40,7 @@ const accessStatusSchema = z
   .record(z.string(), accessEntrySchema)
   .optional()
   .transform((raw) => {
-    if (!raw) return {};
+    if (!raw) return undefined;
     const out: Record<string, z.infer<typeof accessEntrySchema>> = {};
     for (const key of ACCESS_VENDOR_KEYS) {
       if (raw[key]) out[key] = raw[key];
@@ -58,7 +58,7 @@ const apiIntegrationEntrySchema = z.object({
 const apiIntegrationsSchema = z
   .record(z.string().regex(/^[a-z0-9_]{1,80}$/), apiIntegrationEntrySchema)
   .optional()
-  .transform((raw) => raw ?? {});
+  .transform((raw) => raw);
 
 const businessServicesSchema = z.record(z.string(), z.unknown()).optional();
 
@@ -70,12 +70,12 @@ const monitoringConfigSchema = z
     analytics: z.boolean().optional(),
   })
   .optional()
-  .transform((m) => m ?? {});
+  .transform((m) => m);
 
 const managedServicesSchema = z
   .record(z.string(), z.boolean())
   .optional()
-  .transform((raw) => raw ?? {});
+  .transform((raw) => raw);
 
 export const technicalProfileUpdateSchema = z.object({
   architecture_type: optionalString,
@@ -125,6 +125,13 @@ export const technicalProfileUpdateSchema = z.object({
   last_backup_verified_at: optionalString,
   deployment_notes: optionalString,
   technical_notes: optionalString,
+  payment_provider: optionalString,
+  payment_method_notes: optionalString,
+  sms_provider: optionalString,
+  twilio_account_sid: optionalString,
+  twilio_phone_number: optionalString,
+  twilio_number_type: z.enum(["toll_free", "local"]).nullable().optional(),
+  sms_enabled: optionalBool,
   service_ownership: serviceOwnershipSchema,
   access_status: accessStatusSchema,
   business_services: businessServicesSchema,

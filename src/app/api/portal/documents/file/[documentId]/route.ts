@@ -4,6 +4,7 @@ import {
   getTenantDocument,
 } from "@/lib/documents/service";
 import {
+  isAllowedExternalDocumentUrl,
   isStorageBackedDocumentFileUrl,
 } from "@/lib/documents/paths";
 import { getCurrentProfile } from "@/lib/auth";
@@ -42,6 +43,12 @@ export async function GET(
   }
 
   if (!isStorageBackedDocumentFileUrl(document.file_url)) {
+    if (!isAllowedExternalDocumentUrl(document.file_url)) {
+      return NextResponse.json(
+        { error: "Document is not available." },
+        { status: 400 },
+      );
+    }
     return NextResponse.redirect(document.file_url);
   }
 

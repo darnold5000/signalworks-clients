@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { TenantTechnicalProfile } from "@/lib/database/phase1-types";
 import {
+  activeThirdPartyIntegrationNames,
   buildInfrastructureHealthChips,
+  buildTechnologyServiceRows,
   matchesInfrastructureFilters,
   type InfrastructureListFilters,
   type SupabasePlan,
@@ -65,6 +67,13 @@ function technical(
     service_ownership: null,
     access_status: null,
     business_services: null,
+    payment_provider: null,
+    payment_method_notes: null,
+    sms_provider: null,
+    twilio_account_sid: null,
+    twilio_phone_number: null,
+    twilio_number_type: null,
+    sms_enabled: null,
     created_at: "",
     updated_at: "",
     ...partial,
@@ -81,7 +90,7 @@ const emptyFilters: InfrastructureListFilters = {
   resendPro: false,
 };
 
-describe("operations inventory", () => {
+describe("technology and services inventory", () => {
   it("builds health chips with hover detail", () => {
     const chips = buildInfrastructureHealthChips(
       technical({
@@ -145,5 +154,102 @@ describe("operations inventory", () => {
         dnsProviders: ["cloudflare"],
       }),
     ).toBe(false);
+  });
+
+  it("renders no rows for an empty client and hides unset values", () => {
+    expect(
+      buildTechnologyServiceRows({ technical: technical({}) }),
+    ).toEqual([]);
+  });
+
+  it("renders a minimally configured website", () => {
+    expect(
+      buildTechnologyServiceRows({
+        technical: null,
+        clientWebsiteUrl: "https://example.com/path",
+      }),
+    ).toEqual([
+      { id: "website", label: "Website", value: "example.com", details: [] },
+    ]);
+  });
+
+  it("renders the full Signal Works stack as a scan-friendly summary", () => {
+    const rows = buildTechnologyServiceRows({
+      technical: technical({
+        primary_domain: "example.com",
+        domain_registrar: "cloudflare",
+        hosting_provider: "vercel",
+        database_provider: "supabase",
+        repository_owner: "Signal Works",
+        payment_provider: "stripe",
+        stripe_platform_account_id: "acct_example",
+        email_provider: "resend",
+        email_sending_domain: "mail.example.com",
+        sms_provider: "twilio",
+        twilio_account_sid: "ACexample",
+        twilio_phone_number: "+13175550123",
+        twilio_number_type: "toll_free",
+        sms_enabled: true,
+        api_integrations: {
+          mindbody: { enabled: true, name: null, account_owner: null, notes: null },
+          custom_health_connect: { enabled: true, name: "Health Connect", account_owner: null, notes: null },
+        },
+      }),
+    });
+
+    expect(rows.map((row) => row.label)).toEqual([
+      "Website",
+      "Domain",
+      "Hosting",
+      "Database",
+      "Source",
+      "Payments",
+      "Email",
+      "SMS",
+      "Integrations",
+    ]);
+    expect(rows.find((row) => row.id === "payments")).toMatchObject({
+      value: "Stripe",
+      details: ["acct_example"],
+    });
+    expect(rows.find((row) => row.id === "sms")).toMatchObject({
+      value: "Twilio",
+      details: ["Toll-Free · +13175550123", "ACexample", "SMS enabled"],
+    });
+    expect(rows.find((row) => row.id === "integrations")?.value).toBe(
+      "Mindbody · Health Connect",
+    );
+  });
+
+  it("supports manual payments and Twilio local numbers", () => {
+    const rows = buildTechnologyServiceRows({
+      technical: technical({
+        payment_provider: "manual",
+        payment_method_notes: "External invoice",
+        sms_provider: "twilio",
+        twilio_phone_number: "+13175550124",
+        twilio_number_type: "local",
+        sms_enabled: false,
+      }),
+    });
+
+    expect(rows.find((row) => row.id === "payments")).toMatchObject({
+      value: "Manual",
+      details: ["External invoice"],
+    });
+    expect(rows.find((row) => row.id === "sms")?.details).toEqual([
+      "Local · +13175550124",
+    ]);
+  });
+
+  it("converts enabled legacy integration entries to names", () => {
+    expect(
+      activeThirdPartyIntegrationNames({
+        google_maps: { enabled: true },
+        trainerize: { enabled: true },
+        twilio: { enabled: true },
+        disabled: { enabled: false, name: "Disabled" },
+      }),
+    ).toEqual(["Google Maps", "Trainerize"]);
   });
 });

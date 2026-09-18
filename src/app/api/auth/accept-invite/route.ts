@@ -47,18 +47,22 @@ export async function POST(request: Request) {
     );
   }
 
-  let portalTenantId: string | null = null;
-  if (isServiceRoleConfigured()) {
-    const admin = createServiceClient();
-    const access = await getPortalInviteAccessForUser(admin, user.id);
-    if (!access.ok) {
-      return NextResponse.json(
-        { error: "This account is not authorized for the client portal." },
-        { status: 403 },
-      );
-    }
-    portalTenantId = access.tenantId;
+  if (!isServiceRoleConfigured()) {
+    return NextResponse.json(
+      { error: "Authentication is not configured" },
+      { status: 503 },
+    );
   }
+
+  const admin = createServiceClient();
+  const access = await getPortalInviteAccessForUser(admin, user.id);
+  if (!access.ok) {
+    return NextResponse.json(
+      { error: "This account is not authorized for the client portal." },
+      { status: 403 },
+    );
+  }
+  const portalTenantId = access.tenantId;
 
   const { error: passwordError } = await supabase.auth.updateUser({
     password: parsed.data.password,

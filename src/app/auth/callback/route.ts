@@ -4,26 +4,8 @@ import {
   inviteErrorPath,
   recoveryLinkErrorPath,
 } from "@/lib/auth/branded-invite-flow";
+import { resolveAuthCallbackNextPath } from "@/lib/auth/safe-next-path";
 import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
-
-function safeNextPath(
-  nextRaw: string | null,
-  type: string | null,
-): { path: string; isRecovery: boolean } {
-  if (nextRaw?.startsWith("/") && !nextRaw.startsWith("//")) {
-    return {
-      path: nextRaw,
-      isRecovery: nextRaw === "/auth/reset-password",
-    };
-  }
-  if (type === "recovery") {
-    return { path: "/auth/reset-password", isRecovery: true };
-  }
-  if (type === "magiclink" || type === "email") {
-    return { path: "/offer", isRecovery: false };
-  }
-  return { path: "/auth/set-password", isRecovery: false };
-}
 
 function failureRedirect(
   origin: string,
@@ -47,7 +29,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const { path: next, isRecovery } = safeNextPath(
+  const { path: next, isRecovery } = resolveAuthCallbackNextPath(
     searchParams.get("next"),
     type,
   );

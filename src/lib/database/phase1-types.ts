@@ -184,6 +184,13 @@ export type TenantTechnicalProfile = {
   service_ownership: Record<string, unknown> | null;
   access_status: Record<string, unknown> | null;
   business_services: Record<string, unknown> | null;
+  payment_provider: string | null;
+  payment_method_notes: string | null;
+  sms_provider: string | null;
+  twilio_account_sid: string | null;
+  twilio_phone_number: string | null;
+  twilio_number_type: "toll_free" | "local" | null;
+  sms_enabled: boolean | null;
   created_at: string;
   updated_at: string;
 };

@@ -353,6 +353,176 @@ export function parseThirdPartyIntegrations(
   return out;
 }
 
+const FIRST_CLASS_INTEGRATION_KEYS = new Set([
+  "twilio",
+  "stripe",
+  "resend",
+  "supabase",
+  "vercel",
+  "github",
+]);
+
+export function activeThirdPartyIntegrationNames(raw: unknown): string[] {
+  return Object.entries(parseThirdPartyIntegrations(raw))
+    .filter(([key, entry]) => entry.enabled && !FIRST_CLASS_INTEGRATION_KEYS.has(key))
+    .map(
+      ([key, entry]) =>
+        entry.name?.trim() ||
+        THIRD_PARTY_INTEGRATION_LABELS[
+          key as keyof typeof THIRD_PARTY_INTEGRATION_LABELS
+        ] ||
+        key.replace(/^custom_/, "").replaceAll("_", " "),
+    )
+    .filter(Boolean);
+}
+
+export type TechnologyServiceRow = {
+  id: string;
+  label: string;
+  value: string;
+  details: string[];
+};
+
+function providerLabel(value: string | null | undefined): string | null {
+  const provider = value?.trim();
+  if (!provider || provider.toLowerCase() === "none") return null;
+  const known: Record<string, string> = {
+    cloudflare: "Cloudflare",
+    wix: "Wix",
+    godaddy: "GoDaddy",
+    namecheap: "Namecheap",
+    vercel: "Vercel",
+    supabase: "Supabase",
+    stripe: "Stripe",
+    manual: "Manual",
+    resend: "Resend",
+    sendgrid: "Twilio SendGrid",
+    twilio: "Twilio",
+    other: "Other",
+  };
+  return known[provider.toLowerCase()] ?? provider;
+}
+
+function domainFromUrl(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  try {
+    return new URL(value.includes("://") ? value : `https://${value}`).hostname;
+  } catch {
+    return value.trim();
+  }
+}
+
+export function buildTechnologyServiceRows(args: {
+  technical: TenantTechnicalProfile | null;
+  clientDomain?: string | null;
+  clientWebsiteUrl?: string | null;
+}): TechnologyServiceRow[] {
+  const technical = args.technical;
+  if (!technical) {
+    const website = args.clientDomain ?? domainFromUrl(args.clientWebsiteUrl);
+    return website
+      ? [{ id: "website", label: "Website", value: website, details: [] }]
+      : [];
+  }
+
+  const rows: TechnologyServiceRow[] = [];
+  const website =
+    domainFromUrl(technical.primary_domain) ??
+    args.clientDomain ??
+    domainFromUrl(technical.production_url ?? args.clientWebsiteUrl);
+  if (website) {
+    rows.push({ id: "website", label: "Website", value: website, details: [] });
+  }
+
+  const registrar = providerLabel(technical.domain_registrar);
+  if (registrar) rows.push({ id: "domain", label: "Domain", value: registrar, details: [] });
+
+  const hosting = providerLabel(technical.hosting_provider);
+  if (hosting) rows.push({ id: "hosting", label: "Hosting", value: hosting, details: [] });
+
+  const database = providerLabel(technical.database_provider);
+  if (database) rows.push({ id: "database", label: "Database", value: database, details: [] });
+
+  if (technical.repository_owner?.trim()) {
+    rows.push({
+      id: "source",
+      label: "Source",
+      value: `GitHub · ${technical.repository_owner.trim()}`,
+      details: [],
+    });
+  }
+
+  const inferredPayment =
+    technical.payment_provider ??
+    (technical.stripe_connection_status === "connected" ||
+    technical.stripe_connection_status === "pending" ||
+    technical.stripe_platform_account_id ||
+    technical.stripe_connected_account_id
+      ? "stripe"
+      : technical.stripe_connection_status === "not_used"
+        ? "none"
+        : null);
+  const payment = providerLabel(inferredPayment);
+  if (payment) {
+    const paymentDetails =
+      inferredPayment === "stripe"
+        ? [
+            technical.stripe_platform_account_id ??
+              technical.stripe_connected_account_id,
+          ].filter((value): value is string => Boolean(value?.trim()))
+        : [technical.payment_method_notes].filter(
+            (value): value is string => Boolean(value?.trim()),
+          );
+    rows.push({ id: "payments", label: "Payments", value: payment, details: paymentDetails });
+  }
+
+  const email = providerLabel(technical.email_provider);
+  if (email) {
+    rows.push({
+      id: "email",
+      label: "Email",
+      value: email,
+      details: [technical.email_sending_domain].filter(
+        (value): value is string => Boolean(value?.trim()),
+      ),
+    });
+  }
+
+  const sms = providerLabel(technical.sms_provider);
+  if (sms) {
+    const numberType =
+      technical.twilio_number_type === "toll_free"
+        ? "Toll-Free"
+        : technical.twilio_number_type === "local"
+          ? "Local"
+          : null;
+    rows.push({
+      id: "sms",
+      label: "SMS",
+      value: sms,
+      details: [
+        [numberType, technical.twilio_phone_number].filter(Boolean).join(" · "),
+        technical.twilio_account_sid,
+        technical.sms_enabled === true ? "SMS enabled" : null,
+      ].filter((value): value is string => Boolean(value)),
+    });
+  }
+
+  const integrations = activeThirdPartyIntegrationNames(
+    technical.api_integrations,
+  );
+  if (integrations.length) {
+    rows.push({
+      id: "integrations",
+      label: "Integrations",
+      value: integrations.join(" · "),
+      details: [],
+    });
+  }
+
+  return rows;
+}
+
 export function parseBusinessServices(raw: unknown): BusinessServicesConfig {
   if (!raw || typeof raw !== "object") return {};
   return raw as BusinessServicesConfig;

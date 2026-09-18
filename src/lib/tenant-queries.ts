@@ -63,6 +63,7 @@ export async function fetchTenantRowsForMember(
     .from(TABLES.tenants)
     .select(TENANT_PORTAL_SELECT)
     .in("id", tenantIds)
+    .eq("platform_category", "services")
     .order("display_name");
 
   if (!error) {
@@ -78,6 +79,7 @@ export async function fetchTenantRowsForMember(
     .from(TABLES.tenants)
     .select(TENANT_PORTAL_SELECT_COMPAT)
     .in("id", tenantIds)
+    .eq("platform_category", "services")
     .order("display_name");
 
   if (compatError) {

@@ -3,13 +3,14 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { establishSessionFromAuthLink } from "@/lib/auth/hash-session";
+import { isSafeAppRelativePath } from "@/lib/auth/safe-next-path";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 const inviteLinkErrorMessage =
   "This link is invalid or has expired. Try signing in with your email and password, or ask Signal Works to resend.";
 
 function safeNextPath(nextRaw: string | null, defaultNext: string): string {
-  if (nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")) {
+  if (nextRaw && isSafeAppRelativePath(nextRaw)) {
     return nextRaw;
   }
   return defaultNext;

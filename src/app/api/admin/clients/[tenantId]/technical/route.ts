@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import {
   jsonWithSessionCookies,
@@ -53,7 +53,7 @@ export async function PATCH(
       action: "technical_profile.updated",
       entityType: "technical_profile",
       entityId: tenantId,
-      summary: "Updated client technical profile and infrastructure inventory",
+      summary: "Updated client technology and services",
     });
     return jsonWithSessionCookies(auth.sessionCookies, { technical });
   } catch (err) {

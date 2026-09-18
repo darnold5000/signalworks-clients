@@ -14,15 +14,11 @@ export async function upsertTenantTechnicalProfile(
   }
 
   const supabase = supabaseClient ?? (await createClient());
-    const row = {
+  const row = {
     tenant_id: tenantId,
-    ...input,
-    monitoring_config: input.monitoring_config ?? {},
-    api_integrations: input.api_integrations ?? {},
-    managed_services: input.managed_services ?? {},
-    service_ownership: input.service_ownership ?? {},
-    access_status: input.access_status ?? {},
-    business_services: input.business_services ?? {},
+    ...Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined),
+    ),
   };
 
   const { data, error } = await supabase

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     signOut: () => supabase.auth.signOut(),
     resolvePortalAccess: async (userId) => {
       if (!isServiceRoleConfigured()) {
-        return { ok: true, tenantId: "" };
+        return { ok: false };
       }
       const admin = createServiceClient();
       return getPortalInviteAccessForUser(admin, userId);

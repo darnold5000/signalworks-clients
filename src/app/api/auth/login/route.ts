@@ -3,9 +3,16 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authDebug } from "@/lib/auth-debug";
+import { checkLoginRateLimit } from "@/lib/auth/login-rate-limit";
+import { getPortalInviteAccessForUser } from "@/lib/auth/portal-invite-access";
+import { resolvePostLoginRedirect } from "@/lib/auth/safe-next-path";
 import { PERMISSIONS } from "@/lib/permissions";
+import { getClientIp } from "@/lib/rate-limit";
 import { supabaseServerAuthOptions } from "@/lib/supabase/auth-options";
-import { createServiceClient } from "@/lib/supabase/server";
+import {
+  createServiceClient,
+  isServiceRoleConfigured,
+} from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
 
 const bodySchema = z.object({
@@ -13,13 +20,6 @@ const bodySchema = z.object({
   password: z.string().min(1),
   next: z.string().optional(),
 });
-
-function safeNextPath(next: string | undefined): string | null {
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    return next;
-  }
-  return null;
-}
 
 type PendingCookie = {
   name: string;
@@ -67,14 +67,13 @@ async function resolveRedirectTo(
 
   if (isAdmin) return "/admin";
 
-  const { data: memberships } = await supabase
-    .from(TABLES.tenantMemberships)
-    .select("tenant_id")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(1);
+  if (!isServiceRoleConfigured()) return "/no-access";
 
-  if ((memberships ?? []).length > 0) return "/overview";
+  const access = await getPortalInviteAccessForUser(
+    createServiceClient(),
+    userId,
+  );
+  if (access.ok) return "/overview";
   return "/no-access";
 }
 
@@ -96,6 +95,13 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 400 });
+  }
+
+  if (!checkLoginRateLimit(getClientIp(request), parsed.data.email).ok) {
+    return NextResponse.json(
+      { error: "Too many sign-in attempts. Please try again shortly." },
+      { status: 429 },
+    );
   }
 
   const cookieStore = await cookies();
@@ -157,9 +163,10 @@ export async function POST(request: Request) {
   }
 
   const redirectTo = await resolveRedirectTo(supabase, user.id);
-  const nextPath = safeNextPath(parsed.data.next);
-  const finalRedirect =
-    nextPath && redirectTo !== "/admin" ? nextPath : redirectTo;
+  const finalRedirect = resolvePostLoginRedirect(
+    redirectTo,
+    parsed.data.next ?? null,
+  );
 
   const response = NextResponse.json({
     ok: true,
