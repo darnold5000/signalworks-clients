@@ -6,6 +6,13 @@ import type {
 
 const UPTIMEROBOT_API_URL = "https://api.uptimerobot.com/v2/getMonitors";
 
+/**
+ * Hyphen-separated day counts for getMonitors `custom_uptime_ratios`.
+ * UptimeRobot returns matching comma-separated ratios in the same order.
+ * @see https://uptimerobot.com/api/ (getMonitors — custom_uptime_ratios)
+ */
+export const UPTIMEROBOT_CUSTOM_UPTIME_RATIOS = "30-7-1";
+
 type RawMonitor = {
   id?: number | string;
   friendly_name?: string;
@@ -22,7 +29,7 @@ function parseRatio(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Order matches `custom_uptime_ratios=30-7-1-0` request. */
+/** Order matches `custom_uptime_ratios=30-7-1` (30 days, 7 days, 1 day). */
 export function parseCustomUptimeRatios(
   customUptimeRatio: string | undefined,
 ): {
@@ -93,7 +100,7 @@ export function createUptimeRobotClient(options: {
       api_key: apiKey,
       format: "json",
       response_times: "1",
-      custom_uptime_ratios: "30-7-1-0",
+      custom_uptime_ratios: UPTIMEROBOT_CUSTOM_UPTIME_RATIOS,
     });
     if (monitorIds?.length) {
       body.set("monitors", monitorIds.join("-"));
