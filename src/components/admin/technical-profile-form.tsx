@@ -33,6 +33,7 @@ type TechnicalFormState = {
   primary_domain: string;
   domain_registrar: string;
   hosting_provider: string;
+  uptime_robot_monitor_id: string;
   database_provider: string;
   repository_owner: string;
   payment_provider: string;
@@ -158,6 +159,7 @@ export function profileToTechnologyFormState(
       domainFromWebsite(technical?.production_url ?? clientWebsiteUrl),
     domain_registrar: technical?.domain_registrar ?? "",
     hosting_provider: technical?.hosting_provider ?? "",
+    uptime_robot_monitor_id: technical?.uptime_robot_monitor_id ?? "",
     database_provider: technical?.database_provider ?? "",
     repository_owner: technical?.repository_owner ?? "",
     payment_provider: inferredPaymentProvider(technical),
@@ -301,6 +303,7 @@ export function TechnicalProfileForm({
             <TextField label="Website domain or URL" value={form.primary_domain} onChange={(value) => setField("primary_domain", value)} placeholder="example.com" />
             <ProviderField label="Domain registrar" value={form.domain_registrar} onChange={(value) => setField("domain_registrar", value)} options={[{ value: "cloudflare", label: "Cloudflare" }, { value: "wix", label: "Wix" }, { value: "godaddy", label: "GoDaddy" }, { value: "namecheap", label: "Namecheap" }, { value: "other", label: "Other" }]} />
             <ProviderField label="Hosting" value={form.hosting_provider} onChange={(value) => setField("hosting_provider", value)} options={[{ value: "vercel", label: "Vercel" }, { value: "other", label: "Other" }]} />
+            <TextField label="UptimeRobot monitor ID" value={form.uptime_robot_monitor_id} onChange={(value) => setField("uptime_robot_monitor_id", value)} placeholder="123456789" />
             <ProviderField label="Database" value={form.database_provider} onChange={(value) => setField("database_provider", value)} options={[{ value: "supabase", label: "Supabase" }, { value: "other", label: "Other" }, { value: "none", label: "None" }]} />
             <div className="sm:col-span-2">
               <TextField label="GitHub owner / org" value={form.repository_owner} onChange={(value) => setField("repository_owner", value)} placeholder="Signal Works" />

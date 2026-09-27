@@ -38,6 +38,13 @@ describe("custom third-party integrations", () => {
     expect(parsed.api_integrations?.custom_square?.name).toBe("Square");
   });
 
+  it("accepts UptimeRobot monitor id on technical profile updates", () => {
+    const parsed = technicalProfileUpdateSchema.parse({
+      uptime_robot_monitor_id: "801234567",
+    });
+    expect(parsed.uptime_robot_monitor_id).toBe("801234567");
+  });
+
   it("accepts operational payment and Twilio identifiers but strips secrets", () => {
     const parsed = technicalProfileUpdateSchema.parse({
       payment_provider: "stripe",

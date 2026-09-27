@@ -89,6 +89,7 @@ export const technicalProfileUpdateSchema = z.object({
   hosting_project_id: optionalString,
   hosting_team_name: optionalString,
   hosting_auto_deploy: optionalBool,
+  uptime_robot_monitor_id: optionalString,
   deployment_platform: optionalString,
   ssl_status: optionalString,
   production_url: optionalString,

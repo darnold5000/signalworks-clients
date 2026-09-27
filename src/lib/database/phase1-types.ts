@@ -175,6 +175,7 @@ export type TenantTechnicalProfile = {
   stripe_live_enabled: boolean | null;
   hosting_team_name: string | null;
   hosting_auto_deploy: boolean | null;
+  uptime_robot_monitor_id: string | null;
   monitoring_config: Record<string, unknown> | null;
   api_integrations: Record<string, unknown> | null;
   managed_services: Record<string, unknown> | null;

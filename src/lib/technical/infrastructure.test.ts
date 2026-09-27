@@ -58,6 +58,7 @@ function technical(
     stripe_live_enabled: null,
     hosting_team_name: null,
     hosting_auto_deploy: null,
+    uptime_robot_monitor_id: null,
     monitoring_config: null,
     api_integrations: null,
     managed_services: null,
