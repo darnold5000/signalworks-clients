@@ -1,6 +1,10 @@
 import { hashDocumentContent } from "@/lib/agreements/document-hash";
 import type { LegalDocument } from "@/lib/database/phase1-types";
-import { renderSignalWorksTosHtml } from "@/lib/legal/signal-works-tos";
+import {
+  isPlatformTermsDocument,
+  PLATFORM_TERMS_VERSION,
+  renderSignalWorksTosHtml,
+} from "@/lib/legal/signal-works-tos";
 import { logTenantActivity } from "@/lib/activity/log-tenant-activity";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TABLES } from "@/lib/supabase/tables";
@@ -76,10 +80,10 @@ async function insertAgreementAcceptance(args: {
   effectiveDate?: string;
 }) {
   const supabase = createServiceClient();
-  const snapshotHtml =
-    args.document.document_type === "terms_of_service" && args.effectiveDate
-      ? renderSignalWorksTosHtml(args.effectiveDate)
-      : args.document.content_html;
+  const snapshotCurrentTerms = isPlatformTermsDocument(args.document);
+  const snapshotHtml = snapshotCurrentTerms
+    ? renderSignalWorksTosHtml()
+    : args.document.content_html;
 
   const documentHash = hashDocumentContent(snapshotHtml);
 
@@ -90,7 +94,9 @@ async function insertAgreementAcceptance(args: {
       user_id: args.userId,
       offer_id: args.offerId,
       legal_document_id: args.document.id,
-      document_version: args.document.version,
+      document_version: snapshotCurrentTerms
+        ? PLATFORM_TERMS_VERSION
+        : args.document.version,
       accepted_name: args.acceptedName,
       accepted_email: args.acceptedEmail,
       accepted_at: new Date().toISOString(),

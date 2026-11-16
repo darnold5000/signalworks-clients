@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { PageHeader, Panel } from "@/components/ui";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
-import {
-  formatLegalEffectiveDate,
-  renderSignalWorksTosHtml,
-} from "@/lib/legal/signal-works-tos";
+import { termsDocumentHtml } from "@/lib/legal/signal-works-tos";
 import { getActiveOfferForTenant, getLegalDocument } from "@/lib/offers/queries";
 
 export default async function TermsPage() {
@@ -22,20 +19,14 @@ export default async function TermsPage() {
       ? await getLegalDocument(offer.terms_document_id)
       : null;
 
-  const effectiveDate = formatLegalEffectiveDate();
-  const contentHtml = renderSignalWorksTosHtml(effectiveDate);
-
   return (
     <>
       <PageHeader
         title="Terms of Service"
-        description="Signal Works Terms of Service for your client account."
+        description="Signal Works Digital LLC Terms of Service for your client account."
       />
       <Panel>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            Effective date when you accept: <strong>{effectiveDate}</strong>
-          </p>
+        <div className="mb-4 flex justify-end">
           <a
             href="/api/portal/legal/terms?download=1"
             className="text-sm font-medium underline underline-offset-2"
@@ -46,7 +37,7 @@ export default async function TermsPage() {
         <div
           className="prose prose-sm max-w-none text-sm"
           dangerouslySetInnerHTML={{
-            __html: termsDocument?.content_html ?? contentHtml,
+            __html: termsDocumentHtml(termsDocument),
           }}
         />
         <p className="mt-6 text-sm">

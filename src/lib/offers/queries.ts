@@ -11,6 +11,7 @@ import {
   type SowClientContext,
 } from "@/lib/legal/offer-sow";
 import {
+  PLATFORM_TERMS_VERSION,
   renderSignalWorksTosHtml,
   renderSignalWorksTosText,
 } from "@/lib/legal/signal-works-tos";
@@ -197,7 +198,7 @@ export async function ensurePlatformTermsDocument(
   createdBy?: string | null,
 ): Promise<LegalDocument> {
   const supabase = createServiceClient();
-  const version = "2.0";
+  const version = PLATFORM_TERMS_VERSION;
   const contentHtml = renderSignalWorksTosHtml();
   const contentText = renderSignalWorksTosText();
 
@@ -210,7 +211,29 @@ export async function ensurePlatformTermsDocument(
     .eq("active", true)
     .maybeSingle();
 
-  if (existing) return existing as LegalDocument;
+  if (existing) {
+    if (
+      existing.content_html === contentHtml &&
+      existing.content_text === contentText
+    ) {
+      return existing as LegalDocument;
+    }
+    const { data: updated, error } = await supabase
+      .from(TABLES.legalDocuments)
+      .update({
+        title: "Signal Works Digital LLC Terms of Service",
+        content_html: contentHtml,
+        content_text: contentText,
+        effective_date: new Date().toISOString().slice(0, 10),
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error || !updated) {
+      throw new Error(error?.message ?? "Could not update terms document");
+    }
+    return updated as LegalDocument;
+  }
 
   await supabase
     .from(TABLES.legalDocuments)
@@ -224,7 +247,7 @@ export async function ensurePlatformTermsDocument(
     .insert({
       tenant_id: null,
       document_type: "terms_of_service",
-      title: "Signal Works Terms of Service",
+      title: "Signal Works Digital LLC Terms of Service",
       version,
       content_html: contentHtml,
       content_text: contentText,

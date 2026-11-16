@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/auth";
 import { getPrimaryClient } from "@/lib/data";
-import {
-  formatLegalEffectiveDate,
-  renderSignalWorksTosHtml,
-} from "@/lib/legal/signal-works-tos";
+import { termsDocumentHtml } from "@/lib/legal/signal-works-tos";
 import { getActiveOfferForTenant, getLegalDocument } from "@/lib/offers/queries";
 
 export async function GET(request: Request) {
@@ -24,9 +21,7 @@ export async function GET(request: Request) {
     offer?.terms_document_id
       ? await getLegalDocument(offer.terms_document_id)
       : null;
-  const html =
-    termsDocument?.content_html ??
-    renderSignalWorksTosHtml(formatLegalEffectiveDate());
+  const html = termsDocumentHtml(termsDocument);
 
   if (download) {
     return new NextResponse(html, {

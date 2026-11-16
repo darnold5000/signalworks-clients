@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PublicProposalDocument } from "@/components/portal/public-proposal-document";
+import { isPlatformTermsDocument, termsDocumentHtml } from "@/lib/legal/signal-works-tos";
 import { getPublicProposal } from "@/lib/proposals/public-access";
 
 export default async function PublicProposalTermsPage({
@@ -14,8 +15,12 @@ export default async function PublicProposalTermsPage({
   return (
     <PublicProposalDocument
       token={token}
-      title={proposal.terms.title || "Terms of Service"}
-      html={proposal.terms.content_html}
+      title={
+        isPlatformTermsDocument(proposal.terms)
+          ? "Terms of Service"
+          : proposal.terms.title || "Terms of Service"
+      }
+      html={termsDocumentHtml(proposal.terms)}
     />
   );
 }
