@@ -125,6 +125,26 @@ function DiscountInvestmentRow({
   );
 }
 
+function AgreementLink({
+  href,
+  children,
+}: {
+  href?: string | null;
+  children: string;
+}) {
+  if (!href) return children;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-foreground underline underline-offset-2"
+    >
+      {children}
+    </a>
+  );
+}
+
 export function ProposalClientView({
   offer,
   items,
@@ -132,6 +152,8 @@ export function ProposalClientView({
   preview = false,
   acceptance,
   clientBusinessName,
+  termsHref,
+  sowHref,
 }: {
   offer: ClientOffer;
   items: ClientOfferItem[];
@@ -139,6 +161,8 @@ export function ProposalClientView({
   preview?: boolean;
   acceptance?: React.ReactNode;
   clientBusinessName?: string | null;
+  termsHref?: string | null;
+  sowHref?: string | null;
 }) {
   const totals = calculateOfferTotals(items);
   const investmentLayout = groupProposalInvestmentItems(items);
@@ -390,8 +414,11 @@ export function ProposalClientView({
             </p>
             {offer.requires_terms_acceptance ? (
               <p className="mt-2 leading-6">
-                Acceptance of the applicable Terms of Service and Statement of
-                Work is required before {proposalOnly ? "acceptance" : "payment"}.
+                Acceptance of the applicable{" "}
+                <AgreementLink href={termsHref}>Terms of Service</AgreementLink>{" "}
+                and{" "}
+                <AgreementLink href={sowHref}>Statement of Work</AgreementLink>{" "}
+                is required before {proposalOnly ? "acceptance" : "payment"}.
               </p>
             ) : null}
           </section>

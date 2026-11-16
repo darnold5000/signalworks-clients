@@ -492,4 +492,20 @@ describe("ProposalClientView", () => {
       "Because these services use different billing schedules, Stripe will confirm them in two secure checkout steps.",
     );
   });
+
+  it("links the public terms and statement of work when those pages exist", () => {
+    const html = renderToStaticMarkup(
+      <ProposalClientView
+        offer={offer}
+        items={[item]}
+        features={[]}
+        termsHref="/proposal/token/terms"
+        sowHref="/proposal/token/sow"
+      />,
+    );
+
+    expect(html).toContain('href="/proposal/token/terms"');
+    expect(html).toContain('href="/proposal/token/sow"');
+    expect(html).toContain('target="_blank"');
+  });
 });

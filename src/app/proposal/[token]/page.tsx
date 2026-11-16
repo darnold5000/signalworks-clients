@@ -23,6 +23,8 @@ export default async function PublicProposalPage({
     proposal.offer.status === "purchased" ||
     (proposal.offer.status === "accepted" &&
       resolveOfferBillingMethod(proposal.offer) === "proposal_only");
+  const termsHref = proposal.terms ? `/proposal/${token}/terms` : null;
+  const sowHref = proposal.sow ? `/proposal/${token}/sow` : null;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -30,6 +32,8 @@ export default async function PublicProposalPage({
         offer={proposal.offer}
         items={proposal.offer.items}
         features={proposal.offer.features}
+        termsHref={termsHref}
+        sowHref={sowHref}
         acceptance={
           terminal ? (
             <p className="text-sm font-medium text-success">
@@ -53,6 +57,8 @@ export default async function PublicProposalPage({
                 Boolean(proposal.terms)
               }
               requiresSow={Boolean(proposal.sow)}
+              termsHref={termsHref}
+              sowHref={sowHref}
               proposalOnly={
                 resolveOfferBillingMethod(proposal.offer) === "proposal_only"
               }
